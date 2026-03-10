@@ -1,0 +1,39 @@
+{
+	"name": "@my-ridings/strava-boost",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Strava E-Bike Ride 통계 분석",
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"stats": "bun run src/index.ts",
+		"auth": "bun run src/auth.ts"
+	},
+	"dependencies": {
+		"@supabase/supabase-js": "^2.89.0",
+		"@tanstack/react-query": "^5.90.12",
+		"axios": "^1.6.0",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"dotenv": "^16.3.1",
+		"lucide-react": "^0.562.0",
+		"next": "16.1.6",
+		"open": "^10.1.0",
+		"react": "19.2.3",
+		"react-dom": "19.2.3",
+		"tailwind-merge": "^3.4.0",
+		"tailwindcss-animate": "^1.0.7"
+	},
+	"devDependencies": {
+		"@plan-my-route/typescript-config": "workspace:*",
+		"@types/node": "^20",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"autoprefixer": "^10.4.23",
+		"postcss": "^8.5.6",
+		"tailwindcss": "^3.4.1",
+		"ts-node": "^10.9.2",
+		"typescript": "^5"
+	}
+}
