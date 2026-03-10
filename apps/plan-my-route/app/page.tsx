@@ -1,3 +1,5 @@
+import KakaoMap from "./components/KakaoMap";
+
 export default function Home() {
 	return (
 		<div className="flex h-screen flex-col overflow-hidden">
@@ -61,13 +63,8 @@ export default function Home() {
 
 				{/* Map area */}
 				<section className="relative min-h-0 flex-1">
-					<div className="map-placeholder flex h-full items-center justify-center bg-zinc-100 dark:bg-zinc-800">
-						<div className="text-center">
-							<p className="text-zinc-500 dark:text-zinc-400">지도 영역</p>
-							<p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-								(카카오맵 placeholder)
-							</p>
-						</div>
+					<div className="h-full w-full">
+						<KakaoMap />
 					</div>
 				</section>
 			</div>
