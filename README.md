@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Plan My Route
+
+백두대간 울트라 로드 8일 인듀어런스 라이딩을 위한 경로·숙박 계획 도구.
+
+## 배경
+
+- 8일 동안 약 1,300km를 계속 라이딩해야 하는 인듀어런스 이벤트.
+- 전체 경로는 이미 정해져 있으나, **매일 얼마나 라이딩하고 어디서 숙박할지**는 참가자 전략에 따라 달라짐.
+- 주최측이 제시한 플랜이 있지만, 개인 체력과 페이스에 맞는 플랜을 직접 수립할 필요가 있음.
+
+## 목표
+
+- **일별 전략 수립**: 매일 라이딩 거리·획득고도를 계획.
+- **숙소 의사결정**: 숙소 위치에 따라 일일 거리·획고가 달라지므로, 예를 들어 120km 지점 숙소 vs 20km 추가(힘든 고개 포함) 거리의 다음 숙소 중 선택.
+- **플랜 비교**: 다양한 플랜을 저장·비교해 1일차 더 라이딩 / 2일차 덜 라이딩 등 시나리오를 쉽게 선택.
+- **지도 활용**: 카카오맵에 경로를 표시하고, 줌인해 경로 주변 숙소 탐색. 숙소 변경 시 당일 거리·획고 자동 계산.
+- **멀티 디바이스**: PC에서는 넓은 화면으로 플랜 작성, 모바일에서는 라이딩 중 참고·변경·다른 플랜 선택.
+
+## 기술 스택
+
+- **프레임워크**: Next.js (App Router)
+- **스타일링**: Tailwind CSS
+- **백엔드/DB**: Supabase (kfondo 참조)
+- **배포**: Vercel
+- **인증**: OAuth (우선 GitHub, 추후 확장)
+- **패키지 매니저**: bun
+
+## 1차 범위(현재)
+
+- RideWithGPS 유사 정적 레이아웃 구현
+  - 좌측 플랜 패널 + 우측 지도 영역 + 하단 고도 그래프 영역 (데스크톱)
+  - 지도 우선 + 하단 바텀시트 패널 (모바일)
+- 지도/데이터 연동·계산·저장·비교 기능은 **제외**
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
+bun install
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000).
