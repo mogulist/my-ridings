@@ -4,7 +4,7 @@
 	"private": true,
 	"description": "Strava E-Bike Ride 통계 분석",
 	"scripts": {
-		"dev": "next dev",
+		"dev": "next dev -p 3000",
 		"build": "next build",
 		"start": "next start",
 		"stats": "bun run src/index.ts",
