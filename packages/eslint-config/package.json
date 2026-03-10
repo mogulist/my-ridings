@@ -1,0 +1,14 @@
+{
+    "name": "@plan-my-route/eslint-config",
+    "version": "0.0.0",
+    "private": true,
+    "license": "MIT",
+    "exports": {
+        "./next": "./next.mjs"
+    },
+    "devDependencies": {
+        "@eslint/eslintrc": "^3",
+        "eslint-config-next": "16.1.6",
+        "typescript": "^5"
+    }
+}
