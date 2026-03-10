@@ -16,7 +16,7 @@ export default function HeaderAuth() {
 	if (session?.user) {
 		return (
 			<div className="flex items-center gap-2">
-				<span className="max-w-[120px] truncate text-sm text-zinc-600 dark:text-zinc-400">
+				<span className="text-sm text-zinc-600 dark:text-zinc-400">
 					{session.user.email ?? session.user.name ?? "로그인됨"}
 				</span>
 				<button

@@ -13,12 +13,6 @@ export default function Home() {
 					<span className="font-semibold text-zinc-900 dark:text-zinc-100">Plan My Route</span>
 				</div>
 				<div className="flex items-center gap-2">
-					<span className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600">
-						Save
-					</span>
-					<span className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600">
-						Share
-					</span>
 					<HeaderAuth />
 				</div>
 			</header>
