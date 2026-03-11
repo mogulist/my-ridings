@@ -66,7 +66,10 @@ export default function RouteViewer() {
 		requestDeleteStage,
 		executeDeleteStage,
 		cancelDeleteConfirmation,
-	} = usePlanStages(route?.track_points ?? []);
+	} = usePlanStages(
+		route?.track_points ?? [],
+		route?.elevation_gain ?? 0,
+	);
 
 	return (
 		<>

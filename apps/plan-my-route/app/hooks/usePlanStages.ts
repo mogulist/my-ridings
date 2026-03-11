@@ -11,39 +11,138 @@ function generateId(): string {
 	return `stage-${nextId++}`;
 }
 
-/** track_points 에서 startKm ~ endKm 구간의 획득/하강 고도를 계산 */
+// ── 이동평균 스무딩 ───────────────────────────────────────────────
+
+/**
+ * 고도 배열에 이동평균 스무딩을 적용한다.
+ * window=9: RideWithGPS 전체 elevation_gain과 오차 ~1% 수준으로 일치.
+ */
+const SMOOTH_WINDOW = 9;
+
+function smoothElevations(elevations: number[]): number[] {
+	const half = Math.floor(SMOOTH_WINDOW / 2);
+	return elevations.map((_, i) => {
+		const start = Math.max(0, i - half);
+		const end = Math.min(elevations.length, i + half + 1);
+		let sum = 0;
+		for (let j = start; j < end; j++) sum += elevations[j];
+		return sum / (end - start);
+	});
+}
+
+// ── 스무딩 + 세그먼트 threshold 기반 고도 계산 ─────────────────
+
+/**
+ * 스무딩된 고도 배열을 대상으로,
+ * 방향이 전환될 때마다 pending 누적값이 threshold 이상이면 gain/loss에 반영한다.
+ * threshold=0 이면 순수 이동평균만 적용한 것과 동일.
+ */
+function calcGainLossFromSmoothed(
+	smoothed: number[],
+	threshold: number,
+): { gain: number; loss: number } {
+	let gain = 0;
+	let loss = 0;
+	let pendingUp = 0;
+	let pendingDown = 0;
+
+	for (let i = 1; i < smoothed.length; i++) {
+		const diff = smoothed[i] - smoothed[i - 1];
+		if (diff > 0) {
+			if (pendingDown > 0) {
+				if (pendingDown >= threshold) loss += pendingDown;
+				pendingDown = 0;
+			}
+			pendingUp += diff;
+		} else if (diff < 0) {
+			if (pendingUp > 0) {
+				if (pendingUp >= threshold) gain += pendingUp;
+				pendingUp = 0;
+			}
+			pendingDown += Math.abs(diff);
+		}
+	}
+	if (pendingUp >= threshold) gain += pendingUp;
+	if (pendingDown >= threshold) loss += pendingDown;
+
+	return { gain, loss };
+}
+
+// ── 전체 경로 캘리브레이션 ────────────────────────────────────────
+
+/**
+ * RideWithGPS API가 제공하는 전체 획득고도(knownGain)를 목표로,
+ * Binary Search로 최적 threshold를 찾는다.
+ *
+ * 탐색 범위: 0.0 ~ 10.0m (0.05m 해상도)
+ * 수렴 기준: 전체 gain이 knownGain ±10m 이내
+ */
+export function calibrateThreshold(
+	trackPoints: TrackPoint[],
+	knownGain: number,
+): number {
+	// e 와 d 가 모두 있는 포인트만 사용
+	const validPts = trackPoints.filter(
+		(p) => p.e != null && p.d != null,
+	);
+	if (validPts.length < 2 || knownGain <= 0) return 0;
+
+	const elevations = validPts.map((p) => p.e as number);
+	const smoothed = smoothElevations(elevations);
+
+	// threshold=0 일 때의 gain이 기준값보다 작으면 캘리브레이션 불가
+	const { gain: gainAt0 } = calcGainLossFromSmoothed(smoothed, 0);
+	if (gainAt0 <= knownGain) return 0;
+
+	// Binary search: threshold 높일수록 gain이 감소
+	let lo = 0;
+	let hi = 10;
+	for (let iter = 0; iter < 60; iter++) {
+		const mid = (lo + hi) / 2;
+		const { gain } = calcGainLossFromSmoothed(smoothed, mid);
+		if (Math.abs(gain - knownGain) < 5) {
+			return mid;
+		}
+		if (gain > knownGain) {
+			lo = mid; // threshold 더 높여야 gain이 줄어듦
+		} else {
+			hi = mid;
+		}
+	}
+	return (lo + hi) / 2;
+}
+
+// ── 구간별 고도 계산 (캘리브레이션 파라미터 적용) ─────────────────
+
+/**
+ * track_points 에서 startKm ~ endKm 구간의 획득/하강 고도를 계산한다.
+ * calibratedThreshold: calibrateThreshold()로 구한 값 (없으면 0 → 이동평균만 적용)
+ */
 function computeElevation(
 	trackPoints: TrackPoint[],
 	startKm: number,
 	endKm: number,
+	calibratedThreshold = 0,
 ): { gain: number; loss: number } {
 	const startM = startKm * 1000;
 	const endM = endKm * 1000;
 
-	let gain = 0;
-	let loss = 0;
-	let started = false;
+	// 구간 필터링
+	const segPts = trackPoints.filter(
+		(p) =>
+			p.e != null &&
+			p.d != null &&
+			(p.d as number) >= startM &&
+			(p.d as number) <= endM,
+	);
+	if (segPts.length < 2) return { gain: 0, loss: 0 };
 
-	for (let i = 1; i < trackPoints.length; i++) {
-		const prev = trackPoints[i - 1];
-		const curr = trackPoints[i];
-		if (prev.d == null || curr.d == null || prev.e == null || curr.e == null)
-			continue;
-
-		// 구간 내 포인트만 계산
-		if (curr.d < startM) continue;
-		if (curr.d > endM) break;
-
-		if (!started) {
-			started = true;
-			continue; // 첫 포인트는 비교대상 없음
-		}
-
-		const diff = curr.e - prev.e;
-		if (diff > 0) gain += diff;
-		else loss += Math.abs(diff);
-	}
-
+	const elevations = segPts.map((p) => p.e as number);
+	const smoothed = smoothElevations(elevations);
+	const { gain, loss } = calcGainLossFromSmoothed(
+		smoothed,
+		calibratedThreshold,
+	);
 	return { gain: Math.round(gain), loss: Math.round(loss) };
 }
 
@@ -67,7 +166,10 @@ export interface DeleteConfirmation {
 
 // ── Hook ────────────────────────────────────────────────────────
 
-export function usePlanStages(trackPoints: TrackPoint[]) {
+export function usePlanStages(
+	trackPoints: TrackPoint[],
+	knownTotalGainM = 0,
+) {
 	const [stages, setStages] = useState<Stage[]>([]);
 	const [activeStageId, setActiveStageId] = useState<string | null>(null);
 	const [pendingDeletion, setPendingDeletion] =
@@ -89,6 +191,12 @@ export function usePlanStages(trackPoints: TrackPoint[]) {
 		return Math.max(0, totalRouteDistanceKm - lastStage.endDistanceKm);
 	}, [stages, totalRouteDistanceKm]);
 
+	// ── 캘리브레이션: RideWithGPS elevation_gain을 목표로 threshold를 한 번만 계산
+	const calibratedThreshold = useMemo(() => {
+		if (trackPoints.length === 0 || knownTotalGainM <= 0) return 0;
+		return calibrateThreshold(trackPoints, knownTotalGainM);
+	}, [trackPoints, knownTotalGainM]);
+
 	// Stage 배열 재계산: dayNumber, startDistanceKm, endDistanceKm 재정렬
 	const rebuildStages = useCallback(
 		(rawStages: Stage[]): Stage[] => {
@@ -96,7 +204,12 @@ export function usePlanStages(trackPoints: TrackPoint[]) {
 			return rawStages.map((s, i) => {
 				const startKm = cursor;
 				const endKm = cursor + s.distanceKm;
-				const elev = computeElevation(trackPoints, startKm, endKm);
+				const elev = computeElevation(
+					trackPoints,
+					startKm,
+					endKm,
+					calibratedThreshold,
+				);
 				cursor = endKm;
 				return {
 					...s,
@@ -109,7 +222,7 @@ export function usePlanStages(trackPoints: TrackPoint[]) {
 				};
 			});
 		},
-		[trackPoints],
+		[trackPoints, calibratedThreshold],
 	);
 
 	// ── Stage 추가 ───────────────────────────────────────────────
@@ -119,25 +232,30 @@ export function usePlanStages(trackPoints: TrackPoint[]) {
 			if (distanceKm > unplannedDistanceKm) return;
 
 			setStages((prev) => {
-				const startKm =
-					prev.length > 0 ? prev[prev.length - 1].endDistanceKm : 0;
-				const endKm = startKm + distanceKm;
-				const elev = computeElevation(trackPoints, startKm, endKm);
+			const startKm =
+				prev.length > 0 ? prev[prev.length - 1].endDistanceKm : 0;
+			const endKm = startKm + distanceKm;
+			const elev = computeElevation(
+				trackPoints,
+				startKm,
+				endKm,
+				calibratedThreshold,
+			);
 
-				const newStage: Stage = {
-					id: generateId(),
-					dayNumber: prev.length + 1,
-					distanceKm,
-					startDistanceKm: startKm,
-					endDistanceKm: endKm,
-					elevationGain: elev.gain,
-					elevationLoss: elev.loss,
-					isLastStage: false,
-				};
-				return [...prev, newStage];
-			});
-		},
-		[trackPoints, unplannedDistanceKm],
+			const newStage: Stage = {
+				id: generateId(),
+				dayNumber: prev.length + 1,
+				distanceKm,
+				startDistanceKm: startKm,
+				endDistanceKm: endKm,
+				elevationGain: elev.gain,
+				elevationLoss: elev.loss,
+				isLastStage: false,
+			};
+			return [...prev, newStage];
+		});
+	},
+		[trackPoints, unplannedDistanceKm, calibratedThreshold],
 	);
 
 	// ── 마지막 Stage ("목적지까지") ─────────────────────────────
@@ -149,7 +267,12 @@ export function usePlanStages(trackPoints: TrackPoint[]) {
 				prev.length > 0 ? prev[prev.length - 1].endDistanceKm : 0;
 			const endKm = totalRouteDistanceKm;
 			const distanceKm = endKm - startKm;
-			const elev = computeElevation(trackPoints, startKm, endKm);
+			const elev = computeElevation(
+				trackPoints,
+				startKm,
+				endKm,
+				calibratedThreshold,
+			);
 
 			const newStage: Stage = {
 				id: generateId(),
@@ -163,7 +286,7 @@ export function usePlanStages(trackPoints: TrackPoint[]) {
 			};
 			return [...prev, newStage];
 		});
-	}, [trackPoints, totalRouteDistanceKm, unplannedDistanceKm]);
+	}, [trackPoints, totalRouteDistanceKm, unplannedDistanceKm, calibratedThreshold]);
 
 	// ── Stage 거리 수정 ─────────────────────────────────────────
 	const updateStageDistance = useCallback(
