@@ -1,6 +1,5 @@
 import HeaderAuth from "./components/HeaderAuth";
 import RouteViewer from "./components/RouteViewer";
-import ElevationProfileSection from "./components/ElevationProfileSection";
 
 export default function Home() {
 	return (
@@ -20,15 +19,10 @@ export default function Home() {
 				</div>
 			</header>
 
-			{/* Main content: left panel + map */}
+			{/* Main content: sidebar + (map & elevation) */}
 			<div className="flex min-h-0 flex-1">
 				<RouteViewer />
 			</div>
-
-			{/* Bottom elevation profile */}
-			<section className="hidden h-40 shrink-0 border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:block">
-				<ElevationProfileSection />
-			</section>
 
 			{/* Mobile bottom sheet */}
 			<div className="fixed inset-x-0 bottom-0 z-10 flex flex-col rounded-t-xl border-t border-zinc-200 bg-white shadow-lg lg:hidden">
