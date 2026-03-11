@@ -2,6 +2,8 @@
 
 import Script from "next/script";
 import { useCallback, useRef } from "react";
+import type { Stage } from "../types/plan";
+import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 
 // ── RideWithGPS 타입 ──────────────────────────────────────────────
 export interface TrackPoint {
@@ -63,6 +65,13 @@ interface KakaoMapsAPI {
 		content: string;
 		removable?: boolean;
 	}) => KakaoInfoWindow;
+	CustomOverlay: new (options: {
+		map: KakaoMapInstance;
+		position: unknown;
+		content: string;
+		yAnchor?: number;
+		xAnchor?: number;
+	}) => void;
 	event: {
 		addListener: (
 			target: unknown,
@@ -96,14 +105,31 @@ function samplePoints(points: TrackPoint[], maxPoints = 3000): TrackPoint[] {
 	return points.filter((_, i) => i % step === 0);
 }
 
+/** track_points를 거리 기준으로 구간 분할 */
+function slicePointsByDistance(
+	points: TrackPoint[],
+	startKm: number,
+	endKm: number,
+): TrackPoint[] {
+	const startM = startKm * 1000;
+	const endM = endKm * 1000;
+	return points.filter((p) => p.d != null && p.d >= startM && p.d <= endM);
+}
+
 // ── Props ─────────────────────────────────────────────────────────
 interface KakaoMapProps {
-	/** 미리 fetch된 경로 데이터 (없으면 컴포넌트 내부에서 fetch) */
 	route?: RideWithGPSRoute | null;
+	stages?: Stage[];
+	activeStageId?: string | null;
+	onStageHover?: (id: string | null) => void;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
-export default function KakaoMap({ route }: KakaoMapProps) {
+export default function KakaoMap({
+	route,
+	stages = [],
+	activeStageId,
+}: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
 
@@ -119,26 +145,110 @@ export default function KakaoMap({ route }: KakaoMapProps) {
 				level: 12,
 			});
 
-			// Polyline
-			const path = sampled.map((p) => new kakaoMaps.LatLng(p.y, p.x));
-			new kakaoMaps.Polyline({
-				map,
-				path,
-				strokeWeight: 4,
-				strokeColor: "#FF4500",
-				strokeOpacity: 0.85,
-				strokeStyle: "solid",
-			});
+			// Stage가 없는 경우: 기존처럼 단일 Polyline
+			if (stages.length === 0) {
+				const path = sampled.map(
+					(p) => new kakaoMaps.LatLng(p.y, p.x),
+				);
+				new kakaoMaps.Polyline({
+					map,
+					path,
+					strokeWeight: 4,
+					strokeColor: "#FF4500",
+					strokeOpacity: 0.85,
+					strokeStyle: "solid",
+				});
 
-			// 지도 범위 자동 조정
-			const bounds = new kakaoMaps.LatLngBounds();
-			for (const latlng of path) bounds.extend(latlng);
-			map.setBounds(bounds);
+				const bounds = new kakaoMaps.LatLngBounds();
+				for (const latlng of path) bounds.extend(latlng);
+				map.setBounds(bounds);
+			} else {
+				const totalDistanceKm = routeData.distance / 1000;
+
+				// Stage별 Polyline
+				for (const stage of stages) {
+					const stagePoints = slicePointsByDistance(
+						sampled,
+						stage.startDistanceKm,
+						stage.endDistanceKm,
+					);
+					if (stagePoints.length < 2) continue;
+
+					const color = getStageColor(stage.dayNumber);
+					const isActive = stage.id === activeStageId;
+
+					const path = stagePoints.map(
+						(p) => new kakaoMaps.LatLng(p.y, p.x),
+					);
+					new kakaoMaps.Polyline({
+						map,
+						path,
+						strokeWeight: isActive ? 6 : 4,
+						strokeColor: color.stroke,
+						strokeOpacity: isActive ? 1 : 0.8,
+						strokeStyle: "solid",
+					});
+
+					// Stage 시작점 마커 (숫자 오버레이)
+					const startPt = stagePoints[0];
+					const content = `<div style="
+						display:flex;align-items:center;justify-content:center;
+						width:24px;height:24px;border-radius:50%;
+						background:${color.stroke};color:white;
+						font-size:12px;font-weight:700;
+						border:2px solid white;
+						box-shadow:0 2px 4px rgba(0,0,0,0.3);
+					">${stage.dayNumber}</div>`;
+
+					new kakaoMaps.CustomOverlay({
+						map,
+						position: new kakaoMaps.LatLng(startPt.y, startPt.x),
+						content,
+						yAnchor: 1.3,
+						xAnchor: 0.5,
+					});
+				}
+
+				// 미계획 구간 (마지막 Stage 끝 ~ 전체 끝)
+				const lastStage = stages[stages.length - 1];
+				if (lastStage.endDistanceKm < totalDistanceKm - 0.1) {
+					const unplannedPoints = slicePointsByDistance(
+						sampled,
+						lastStage.endDistanceKm,
+						totalDistanceKm,
+					);
+					if (unplannedPoints.length >= 2) {
+						const path = unplannedPoints.map(
+							(p) => new kakaoMaps.LatLng(p.y, p.x),
+						);
+						new kakaoMaps.Polyline({
+							map,
+							path,
+							strokeWeight: 3,
+							strokeColor: UNPLANNED_COLOR.stroke,
+							strokeOpacity: 0.5,
+							strokeStyle: "shortdash",
+						});
+					}
+				}
+
+				// 전체 경로 bounds
+				const allPath = sampled.map(
+					(p) => new kakaoMaps.LatLng(p.y, p.x),
+				);
+				const bounds = new kakaoMaps.LatLngBounds();
+				for (const latlng of allPath) bounds.extend(latlng);
+				map.setBounds(bounds);
+			}
 
 			// CP 마커
 			for (const poi of routeData.points_of_interest) {
 				const pos = new kakaoMaps.LatLng(poi.lat, poi.lng);
-				const marker = new kakaoMaps.Marker({ map, position: pos, title: poi.name });
+				const marker = new kakaoMaps.Marker({
+					map,
+					position: pos,
+					title: poi.name,
+				});
 
 				const infoContent = `
 					<div style="
@@ -152,7 +262,8 @@ export default function KakaoMap({ route }: KakaoMapProps) {
 				});
 
 				kakaoMaps.event.addListener(marker, "click", () => {
-					if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+					if (openInfoWindowRef.current)
+						openInfoWindowRef.current.close();
 					infoWindow.open(map, marker);
 					openInfoWindowRef.current = infoWindow;
 				});
@@ -165,7 +276,7 @@ export default function KakaoMap({ route }: KakaoMapProps) {
 			new kakaoMaps.Marker({ map, position: firstPos, title: "START" });
 			new kakaoMaps.Marker({ map, position: lastPos, title: "FINISH" });
 		},
-		[],
+		[stages, activeStageId],
 	);
 
 	const handleScriptLoad = useCallback(() => {
@@ -176,12 +287,12 @@ export default function KakaoMap({ route }: KakaoMapProps) {
 		});
 	}, [drawRoute, route]);
 
-	// route가 나중에 전달될 수 있으므로 kakao가 이미 로드된 경우 처리
 	const containerCallbackRef = useCallback(
 		(node: HTMLDivElement | null) => {
-			(containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+			(
+				containerRef as React.MutableRefObject<HTMLDivElement | null>
+			).current = node;
 			if (!node || !route) return;
-			// kakao가 이미 로드되어 있으면 바로 그리기
 			if (window.kakao?.maps?.load) {
 				window.kakao.maps.load(() => {
 					if (!window.kakao?.maps) return;
