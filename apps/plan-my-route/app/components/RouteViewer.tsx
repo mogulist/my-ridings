@@ -10,30 +10,74 @@ import {
 	PendingDeletionDialog,
 	DeleteConfirmationDialog,
 } from "./DeleteStageDialog";
+import type { Plan, Stage } from "../types/plan";
 
-const ROUTE_ID = "52263710";
+interface RouteViewerProps {
+	routeId: string;
+}
 
 function formatDistance(meters: number) {
 	return (meters / 1000).toFixed(1) + " km";
 }
 
-export default function RouteViewer() {
+export default function RouteViewer({ routeId }: RouteViewerProps) {
 	const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
+	const [dbRoute, setDbRoute] = useState<any>(null);
+	const [activePlanId, setActivePlanId] = useState<string | null>(null);
+	const [dbStages, setDbStages] = useState<Stage[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [newPlanName, setNewPlanName] = useState("");
+	const [isCreatingPlan, setIsCreatingPlan] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
 		setLoading(true);
 		setError(null);
 
-		fetch(`/api/ridewithgps?routeId=${ROUTE_ID}`)
+		// Fetch from DB first to get RWGPS URL and nested plans/stages
+		fetch(`/api/routes/${routeId}`)
 			.then((res) => {
+				if (!res.ok) throw new Error("Failed to load route from DB");
+				return res.json();
+			})
+			.then((dbData) => {
+				if (cancelled) return;
+				setDbRoute(dbData);
+
+				if (dbData.plans && dbData.plans.length > 0) {
+					// Select the first plan by default
+					const firstPlan = dbData.plans[0];
+					setActivePlanId(firstPlan.id);
+					setDbStages(
+						(firstPlan.stages || []).map((s: any) => ({
+							id: s.id,
+							dayNumber: parseInt(s.title?.replace("Stage ", "") || "1", 10),
+							startDistanceKm: s.start_distance / 1000,
+							endDistanceKm: s.end_distance / 1000,
+							distanceKm: (s.end_distance - s.start_distance) / 1000,
+							elevationGain: 0,
+							elevationLoss: 0,
+							isLastStage: false, // We'll re-calculate during rebuildStages inside the hook
+						})),
+					);
+				}
+
+				// Extract RWGPS ID from dbData.rwgps_url
+				const match = dbData.rwgps_url.match(/\/routes\/(\d+)/);
+				const rwgpsId = match ? match[1] : null;
+
+				if (!rwgpsId) throw new Error("Invalid RWGPS URL in database");
+
+				return fetch(`/api/ridewithgps?routeId=${rwgpsId}`);
+			})
+			.then((res) => {
+				if (!res) return;
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
 				return res.json() as Promise<RideWithGPSRoute>;
 			})
 			.then((data) => {
-				if (!cancelled) setRoute(data);
+				if (!cancelled && data) setRoute(data);
 			})
 			.catch((err) => {
 				if (!cancelled) setError(String(err));
@@ -46,6 +90,35 @@ export default function RouteViewer() {
 			cancelled = true;
 		};
 	}, []);
+
+	const handleCreatePlan = async (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!newPlanName.trim()) return;
+		setIsCreatingPlan(true);
+
+		try {
+			const res = await fetch("/api/plans", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ route_id: routeId, name: newPlanName }),
+			});
+			if (!res.ok) throw new Error("Plan creation failed");
+			const newPlan = await res.json();
+			
+			setDbRoute((prev: any) => ({
+				...prev,
+				plans: [...(prev?.plans || []), { ...newPlan, stages: [] }],
+			}));
+			setActivePlanId(newPlan.id);
+			setDbStages([]);
+			setNewPlanName("");
+		} catch (error) {
+			console.error(error);
+			alert("플랜 생성에 실패했습니다.");
+		} finally {
+			setIsCreatingPlan(false);
+		}
+	};
 
 	const {
 		stages,
@@ -69,6 +142,8 @@ export default function RouteViewer() {
 	} = usePlanStages(
 		route?.track_points ?? [],
 		route?.elevation_gain ?? 0,
+		dbStages, // Pass initial stages loaded from DB
+		activePlanId, // Pass active plan ID to let hook sync updates with API
 	);
 
 	return (
@@ -109,10 +184,10 @@ export default function RouteViewer() {
 							{/* 경로 정보 */}
 							<div>
 								<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-									{route.name}
+									{dbRoute?.name || route.name}
 								</h2>
 								<a
-									href={`https://ridewithgps.com/routes/${route.id}`}
+									href={dbRoute?.rwgps_url || `https://ridewithgps.com/routes/${route.id}`}
 									target="_blank"
 									rel="noopener noreferrer"
 									className="text-xs text-orange-500 hover:underline"
@@ -151,20 +226,83 @@ export default function RouteViewer() {
 							<hr className="border-zinc-200 dark:border-zinc-700" />
 
 							{/* 계획 헤더 */}
-							<div className="flex items-center justify-between">
+							<div className="flex items-center justify-between mt-4">
 								<h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-									📋 라이딩 계획
+									📋 라이딩 플랜
 								</h3>
-								{stages.length > 0 && (
-									<span className="text-xs text-zinc-400 dark:text-zinc-500">
-										{stages.length}일 계획
-									</span>
-								)}
 							</div>
 
-							{/* Stage 카드 목록 */}
-							<div className="space-y-2">
-								{stages.map((stage, idx) => {
+							{/* 플랜 선택 및 생성 */}
+							<div className="space-y-3">
+								{dbRoute?.plans?.length > 0 ? (
+									<select
+										className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+										value={activePlanId || ""}
+										onChange={(e) => {
+											const planId = e.target.value;
+											setActivePlanId(planId);
+											const plan = dbRoute.plans.find((p: any) => p.id === planId);
+											if (plan) {
+												setDbStages(
+													(plan.stages || []).map((s: any) => ({
+														id: s.id,
+														dayNumber: parseInt(s.title?.replace("Stage ", "") || "1", 10),
+														startDistanceKm: s.start_distance / 1000,
+														endDistanceKm: s.end_distance / 1000,
+														distanceKm: (s.end_distance - s.start_distance) / 1000,
+														elevationGain: 0,
+														elevationLoss: 0,
+														isLastStage: false,
+													})),
+												);
+											}
+										}}
+									>
+										<option value="" disabled>플랜을 선택하세요</option>
+										{dbRoute.plans.map((p: any) => (
+											<option key={p.id} value={p.id}>{p.name}</option>
+										))}
+									</select>
+								) : (
+									<p className="text-xs text-zinc-500">생성된 플랜이 없습니다.</p>
+								)}
+
+								<form onSubmit={handleCreatePlan} className="flex gap-2">
+									<input
+										type="text"
+										className="flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+										placeholder="새 플랜 이름 (예: 4박 5일 정주행)"
+										value={newPlanName}
+										onChange={(e) => setNewPlanName(e.target.value)}
+									/>
+									<button
+										type="submit"
+										disabled={isCreatingPlan || !newPlanName.trim()}
+										className="rounded bg-zinc-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+									>
+										추가
+									</button>
+								</form>
+							</div>
+
+							<hr className="border-zinc-200 dark:border-zinc-700" />
+
+							{activePlanId && (
+								<>
+									<div className="flex items-center justify-between">
+										<h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+											🏁 스테이지
+										</h3>
+										{stages.length > 0 && (
+											<span className="text-xs text-zinc-400 dark:text-zinc-500">
+												{stages.length}일 계획
+											</span>
+										)}
+									</div>
+
+									{/* Stage 카드 목록 */}
+									<div className="space-y-2">
+										{stages.map((stage, idx) => {
 									// 최대 수정 가능 거리: 현재 거리 + 다음 Stage 거리 (마지막이면 + 미계획)
 									const nextStage = stages[idx + 1];
 									const maxDist = nextStage
@@ -224,6 +362,8 @@ export default function RouteViewer() {
 										/>
 									</div>
 								</div>
+							)}
+								</>
 							)}
 						</>
 					) : null}

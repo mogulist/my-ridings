@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TrackPoint } from "../components/KakaoMap";
 import type { Stage } from "../types/plan";
 
@@ -168,14 +168,21 @@ export interface DeleteConfirmation {
 
 export function usePlanStages(
 	trackPoints: TrackPoint[],
-	knownTotalGainM = 0,
+	knownTotalGainM: number = 0,
+	initialStages: Stage[] = [],
+	planId: string | null = null,
 ) {
-	const [stages, setStages] = useState<Stage[]>([]);
+	const [stages, setStages] = useState<Stage[]>(initialStages);
 	const [activeStageId, setActiveStageId] = useState<string | null>(null);
 	const [pendingDeletion, setPendingDeletion] =
 		useState<PendingDeletion | null>(null);
 	const [deleteConfirmation, setDeleteConfirmation] =
 		useState<DeleteConfirmation | null>(null);
+
+	// Sync API Data
+	useEffect(() => {
+		setStages(initialStages);
+	}, [initialStages]);
 
 	// 총 경로 거리 (km)
 	const totalRouteDistanceKm = useMemo(() => {
@@ -231,20 +238,13 @@ export function usePlanStages(
 			if (distanceKm <= 0) return;
 			if (distanceKm > unplannedDistanceKm) return;
 
-			setStages((prev) => {
-			const startKm =
-				prev.length > 0 ? prev[prev.length - 1].endDistanceKm : 0;
+			const startKm = stages.length > 0 ? stages[stages.length - 1].endDistanceKm : 0;
 			const endKm = startKm + distanceKm;
-			const elev = computeElevation(
-				trackPoints,
-				startKm,
-				endKm,
-				calibratedThreshold,
-			);
+			const elev = computeElevation(trackPoints, startKm, endKm, calibratedThreshold);
 
 			const newStage: Stage = {
-				id: generateId(),
-				dayNumber: prev.length + 1,
+				id: `temp-${generateId()}`,
+				dayNumber: stages.length + 1,
 				distanceKm,
 				startDistanceKm: startKm,
 				endDistanceKm: endKm,
@@ -252,87 +252,153 @@ export function usePlanStages(
 				elevationLoss: elev.loss,
 				isLastStage: false,
 			};
-			return [...prev, newStage];
-		});
-	},
-		[trackPoints, unplannedDistanceKm, calibratedThreshold],
+
+			setStages((prev) => [...prev, newStage]);
+
+			if (planId) {
+				fetch("/api/stages", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						plan_id: planId,
+						title: `Stage ${newStage.dayNumber}`,
+						start_distance: newStage.startDistanceKm * 1000,
+						end_distance: newStage.endDistanceKm * 1000,
+					}),
+				})
+					.then((res) => res.json())
+					.then((data) => {
+						if (data.id) {
+							setStages((current) =>
+								current.map((s) => (s.id === newStage.id ? { ...s, id: data.id } : s)),
+							);
+						}
+					})
+					.catch(console.error);
+			}
+		},
+		[stages, trackPoints, unplannedDistanceKm, calibratedThreshold, planId],
 	);
 
 	// ── 마지막 Stage ("목적지까지") ─────────────────────────────
 	const addLastStage = useCallback(() => {
 		if (unplannedDistanceKm <= 0) return;
 
-		setStages((prev) => {
-			const startKm =
-				prev.length > 0 ? prev[prev.length - 1].endDistanceKm : 0;
-			const endKm = totalRouteDistanceKm;
-			const distanceKm = endKm - startKm;
-			const elev = computeElevation(
-				trackPoints,
-				startKm,
-				endKm,
-				calibratedThreshold,
-			);
+		const startKm = stages.length > 0 ? stages[stages.length - 1].endDistanceKm : 0;
+		const endKm = totalRouteDistanceKm;
+		const distanceKm = endKm - startKm;
+		const elev = computeElevation(trackPoints, startKm, endKm, calibratedThreshold);
 
-			const newStage: Stage = {
-				id: generateId(),
-				dayNumber: prev.length + 1,
-				distanceKm: Math.round(distanceKm * 10) / 10,
-				startDistanceKm: startKm,
-				endDistanceKm: endKm,
-				elevationGain: elev.gain,
-				elevationLoss: elev.loss,
-				isLastStage: true,
-			};
-			return [...prev, newStage];
-		});
-	}, [trackPoints, totalRouteDistanceKm, unplannedDistanceKm, calibratedThreshold]);
+		const newStage: Stage = {
+			id: `temp-${generateId()}`,
+			dayNumber: stages.length + 1,
+			distanceKm: Math.round(distanceKm * 10) / 10,
+			startDistanceKm: startKm,
+			endDistanceKm: endKm,
+			elevationGain: elev.gain,
+			elevationLoss: elev.loss,
+			isLastStage: true,
+		};
+
+		setStages((prev) => [...prev, newStage]);
+
+		if (planId) {
+			fetch("/api/stages", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					plan_id: planId,
+					title: `Stage ${newStage.dayNumber}`,
+					start_distance: newStage.startDistanceKm * 1000,
+					end_distance: newStage.endDistanceKm * 1000,
+				}),
+			})
+				.then((res) => res.json())
+				.then((data) => {
+					if (data.id) {
+						setStages((current) =>
+							current.map((s) => (s.id === newStage.id ? { ...s, id: data.id } : s)),
+						);
+					}
+				})
+				.catch(console.error);
+		}
+	}, [stages, trackPoints, totalRouteDistanceKm, unplannedDistanceKm, calibratedThreshold, planId]);
 
 	// ── Stage 거리 수정 ─────────────────────────────────────────
 	const updateStageDistance = useCallback(
 		(stageId: string, newDistanceKm: number) => {
 			if (newDistanceKm <= 0) return;
 
-			setStages((prev) => {
-				const idx = prev.findIndex((s) => s.id === stageId);
-				if (idx === -1) return prev;
+			const idx = stages.findIndex((s) => s.id === stageId);
+			if (idx === -1) return;
 
-				const oldStage = prev[idx];
-				const diff = newDistanceKm - oldStage.distanceKm;
+			const oldStage = stages[idx];
+			const diff = newDistanceKm - oldStage.distanceKm;
 
-				// 마지막 Stage인 경우: 미계획 구간에서 가감
-				if (idx === prev.length - 1) {
-					const newUnplanned = unplannedDistanceKm - diff;
-					if (newUnplanned < -0.01) return prev; // 전체 거리 초과
-					const updated = [...prev];
-					updated[idx] = { ...oldStage, distanceKm: newDistanceKm };
-					return rebuildStages(updated);
-				}
-
-				// 중간 Stage인 경우: 다음 Stage 거리 조정
-				const nextStage = prev[idx + 1];
-				const nextNewDistance =
-					Math.round((nextStage.distanceKm - diff) * 10) / 10;
-
-				if (nextNewDistance <= 0) {
-					// 다음 Stage가 0 이하 → 삭제 확인 필요
-					setPendingDeletion({
-						stageId,
-						stageDayNumber: oldStage.dayNumber,
-						type: "next-stage-zero",
-						nextStageId: nextStage.id,
-						nextStageDayNumber: nextStage.dayNumber,
-					});
-					return prev; // 아직 적용하지 않음
-				}
-
-				const updated = [...prev];
+			// 마지막 Stage인 경우: 미계획 구간에서 가감
+			if (idx === stages.length - 1) {
+				const newUnplanned = unplannedDistanceKm - diff;
+				if (newUnplanned < -0.01) return; // 전체 거리 초과
+				
+				const updated = [...stages];
 				updated[idx] = { ...oldStage, distanceKm: newDistanceKm };
-				updated[idx + 1] = { ...nextStage, distanceKm: nextNewDistance };
-				return rebuildStages(updated);
-			});
+				const newStages = rebuildStages(updated);
+				setStages(newStages);
+
+				if (planId && !oldStage.id.startsWith("temp-")) {
+					fetch(`/api/stages/${oldStage.id}`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ end_distance: newStages[idx].endDistanceKm * 1000 }),
+					}).catch(console.error);
+				}
+				return;
+			}
+
+			// 중간 Stage인 경우: 다음 Stage 거리 조정
+			const nextStage = stages[idx + 1];
+			const nextNewDistance = Math.round((nextStage.distanceKm - diff) * 10) / 10;
+
+			if (nextNewDistance <= 0) {
+				// 다음 Stage가 0 이하 → 삭제 확인 필요
+				setPendingDeletion({
+					stageId,
+					stageDayNumber: oldStage.dayNumber,
+					type: "next-stage-zero",
+					nextStageId: nextStage.id,
+					nextStageDayNumber: nextStage.dayNumber,
+				});
+				return; // 아직 적용하지 않음
+			}
+
+			const updated = [...stages];
+			updated[idx] = { ...oldStage, distanceKm: newDistanceKm };
+			updated[idx + 1] = { ...nextStage, distanceKm: nextNewDistance };
+			const newStages = rebuildStages(updated);
+			setStages(newStages);
+
+			if (planId) {
+				if (!oldStage.id.startsWith("temp-")) {
+					fetch(`/api/stages/${oldStage.id}`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ end_distance: newStages[idx].endDistanceKm * 1000 }),
+					}).catch(console.error);
+				}
+				if (!nextStage.id.startsWith("temp-")) {
+					fetch(`/api/stages/${nextStage.id}`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							start_distance: newStages[idx + 1].startDistanceKm * 1000,
+							end_distance: newStages[idx + 1].endDistanceKm * 1000,
+						}),
+					}).catch(console.error);
+				}
+			}
 		},
-		[rebuildStages, unplannedDistanceKm],
+		[stages, rebuildStages, unplannedDistanceKm, planId],
 	);
 
 	// ── 다음 Stage 삭제 확인 (거리 수정으로 인한) ─────────────────
@@ -340,21 +406,31 @@ export function usePlanStages(
 		(newDistanceKm: number) => {
 			if (!pendingDeletion) return;
 
-			setStages((prev) => {
-				const idx = prev.findIndex(
-					(s) => s.id === pendingDeletion.stageId,
-				);
-				if (idx === -1) return prev;
+			const idx = stages.findIndex((s) => s.id === pendingDeletion.stageId);
+			if (idx === -1) return;
 
-				const updated = [...prev];
-				updated[idx] = { ...updated[idx], distanceKm: newDistanceKm };
-				// 다음 Stage 삭제
-				updated.splice(idx + 1, 1);
-				return rebuildStages(updated);
-			});
+			const updated = [...stages];
+			updated[idx] = { ...updated[idx], distanceKm: newDistanceKm };
+			const nextStageId = updated[idx + 1].id;
+			updated.splice(idx + 1, 1);
+			const newStages = rebuildStages(updated);
+			setStages(newStages);
+
+			if (planId) {
+				if (!nextStageId.startsWith("temp-")) {
+					fetch(`/api/stages/${nextStageId}`, { method: "DELETE" }).catch(console.error);
+				}
+				if (!stages[idx].id.startsWith("temp-")) {
+					fetch(`/api/stages/${stages[idx].id}`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ end_distance: newStages[idx].endDistanceKm * 1000 }),
+					}).catch(console.error);
+				}
+			}
 			setPendingDeletion(null);
 		},
-		[pendingDeletion, rebuildStages],
+		[stages, pendingDeletion, rebuildStages, planId],
 	);
 
 	const cancelPendingDeletion = useCallback(() => {
@@ -371,25 +447,38 @@ export function usePlanStages(
 
 			// 첫번째 Stage → 자동으로 다음에 합산
 			if (idx === 0 && stages.length > 1) {
-				setStages((prev) => {
-					const updated = [...prev];
-					updated[1] = {
-						...updated[1],
-						distanceKm: updated[1].distanceKm + stage.distanceKm,
-					};
-					updated.splice(0, 1);
-					return rebuildStages(updated);
-				});
+				const updated = [...stages];
+				updated[1] = { ...updated[1], distanceKm: updated[1].distanceKm + stage.distanceKm };
+				const nextStageId = updated[1].id;
+				updated.splice(0, 1);
+				const newStages = rebuildStages(updated);
+				setStages(newStages);
+
+				if (planId) {
+					if (!stage.id.startsWith("temp-")) {
+						fetch(`/api/stages/${stage.id}`, { method: "DELETE" }).catch(console.error);
+					}
+					if (!nextStageId.startsWith("temp-")) {
+						fetch(`/api/stages/${nextStageId}`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ start_distance: newStages[0].startDistanceKm * 1000 }),
+						}).catch(console.error);
+					}
+				}
 				return;
 			}
 
 			// 마지막 Stage → 자동으로 미계획으로 반환 (이전 Stage에 합산 X)
 			if (idx === stages.length - 1) {
-				setStages((prev) => {
-					const updated = [...prev];
-					updated.splice(idx, 1);
-					return rebuildStages(updated);
-				});
+				const updated = [...stages];
+				updated.splice(idx, 1);
+				const newStages = rebuildStages(updated);
+				setStages(newStages);
+
+				if (planId && !stage.id.startsWith("temp-")) {
+					fetch(`/api/stages/${stage.id}`, { method: "DELETE" }).catch(console.error);
+				}
 				return;
 			}
 
@@ -401,37 +490,55 @@ export function usePlanStages(
 				mergeOptions: ["prev", "next"],
 			});
 		},
-		[stages, rebuildStages],
+		[stages, rebuildStages, planId],
 	);
 
 	// ── Stage 삭제 실행 (방향 선택 후) ──────────────────────────
 	const executeDeleteStage = useCallback(
 		(stageId: string, mergeDirection: "prev" | "next") => {
-			setStages((prev) => {
-				const idx = prev.findIndex((s) => s.id === stageId);
-				if (idx === -1) return prev;
+			const idx = stages.findIndex((s) => s.id === stageId);
+			if (idx === -1) return;
 
-				const stage = prev[idx];
-				const updated = [...prev];
+			const stage = stages[idx];
+			const updated = [...stages];
 
-				if (mergeDirection === "prev" && idx > 0) {
-					updated[idx - 1] = {
-						...updated[idx - 1],
-						distanceKm: updated[idx - 1].distanceKm + stage.distanceKm,
-					};
-				} else if (mergeDirection === "next" && idx < prev.length - 1) {
-					updated[idx + 1] = {
-						...updated[idx + 1],
-						distanceKm: updated[idx + 1].distanceKm + stage.distanceKm,
-					};
+			if (mergeDirection === "prev" && idx > 0) {
+				updated[idx - 1] = {
+					...updated[idx - 1],
+					distanceKm: updated[idx - 1].distanceKm + stage.distanceKm,
+				};
+			} else if (mergeDirection === "next" && idx < stages.length - 1) {
+				updated[idx + 1] = {
+					...updated[idx + 1],
+					distanceKm: updated[idx + 1].distanceKm + stage.distanceKm,
+				};
+			}
+
+			updated.splice(idx, 1);
+			const newStages = rebuildStages(updated);
+			setStages(newStages);
+
+			if (planId) {
+				if (!stage.id.startsWith("temp-")) {
+					fetch(`/api/stages/${stage.id}`, { method: "DELETE" }).catch(console.error);
 				}
+				const neighborIdx = mergeDirection === "prev" ? idx - 1 : idx;
+				const neighborStage = newStages[neighborIdx];
 
-				updated.splice(idx, 1);
-				return rebuildStages(updated);
-			});
+				if (neighborStage && !neighborStage.id.startsWith("temp-")) {
+					fetch(`/api/stages/${neighborStage.id}`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							start_distance: neighborStage.startDistanceKm * 1000,
+							end_distance: neighborStage.endDistanceKm * 1000,
+						}),
+					}).catch(console.error);
+				}
+			}
 			setDeleteConfirmation(null);
 		},
-		[rebuildStages],
+		[stages, rebuildStages, planId],
 	);
 
 	const cancelDeleteConfirmation = useCallback(() => {

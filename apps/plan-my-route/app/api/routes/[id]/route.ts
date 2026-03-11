@@ -1,0 +1,106 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { supabaseAdmin } from "@/lib/supabase";
+
+export async function GET(
+	request: Request,
+	{ params }: { params: Promise<{ id: string }> }
+) {
+	const session = await auth();
+	if (!session?.user?.id) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+
+	const { id } = await params;
+
+	// Fetch route with nested plans and stages
+	const { data, error } = await supabaseAdmin
+		.from("route")
+		.select(`
+			*,
+			plans:plan (
+				*,
+				stages:stage (*)
+			)
+		`)
+		.eq("id", id)
+		.eq("user_id", session.user.id)
+		.single();
+
+	if (error) {
+		return NextResponse.json({ error: error.message }, { status: 404 });
+	}
+
+	return NextResponse.json(data);
+}
+
+export async function PUT(
+	request: Request,
+	{ params }: { params: Promise<{ id: string }> }
+) {
+	const session = await auth();
+	if (!session?.user?.id) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+
+	const { id } = await params;
+
+	try {
+		const json = await request.json();
+		// Extract allowed fields for update
+		const {
+			name,
+			rwgps_url,
+			total_distance,
+			elevation_gain,
+			elevation_loss,
+			smoothing_param,
+		} = json;
+
+		const { data, error } = await supabaseAdmin
+			.from("route")
+			.update({
+				name,
+				rwgps_url,
+				total_distance,
+				elevation_gain,
+				elevation_loss,
+				smoothing_param,
+				updated_at: new Date().toISOString(),
+			})
+			.eq("id", id)
+			.eq("user_id", session.user.id)
+			.select()
+			.single();
+
+		if (error) throw error;
+
+		return NextResponse.json(data);
+	} catch (error: any) {
+		return NextResponse.json({ error: error.message }, { status: 500 });
+	}
+}
+
+export async function DELETE(
+	request: Request,
+	{ params }: { params: Promise<{ id: string }> }
+) {
+	const session = await auth();
+	if (!session?.user?.id) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+
+	const { id } = await params;
+
+	const { error } = await supabaseAdmin
+		.from("route")
+		.delete()
+		.eq("id", id)
+		.eq("user_id", session.user.id);
+
+	if (error) {
+		return NextResponse.json({ error: error.message }, { status: 500 });
+	}
+
+	return NextResponse.json({ message: "Deleted successfully" });
+}

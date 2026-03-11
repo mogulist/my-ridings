@@ -1,9 +1,13 @@
+import { auth } from "@/auth";
 import HeaderAuth from "./components/HeaderAuth";
-import RouteViewer from "./components/RouteViewer";
+import RouteList from "./components/RouteList";
+import { signIn } from "@/auth";
 
-export default function Home() {
+export default async function Home() {
+	const session = await auth();
+
 	return (
-		<div className="flex h-screen flex-col overflow-hidden">
+		<div className="flex h-screen flex-col overflow-hidden bg-zinc-50 dark:bg-black/95">
 			{/* Top toolbar */}
 			<header className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
 				<div className="flex items-center gap-4">
@@ -19,23 +23,40 @@ export default function Home() {
 				</div>
 			</header>
 
-			{/* Main content: sidebar + (map & elevation) */}
-			<div className="flex min-h-0 flex-1">
-				<RouteViewer />
-			</div>
+			{/* Main content */}
+			<main className="flex-1 overflow-y-auto">
+				{!session ? (
+					<div className="flex h-full flex-col items-center justify-center p-6 text-center">
+						<div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-3xl dark:bg-blue-900/30">
+							🗺️
+						</div>
+						<h1 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-white">
+							자전거 여행 경로를 설계하세요
+						</h1>
+						<p className="mb-8 max-w-md text-zinc-500 dark:text-zinc-400">
+							RideWithGPS 경로를 불러오고 나만의 플랜과 스테이지를 구분해
+							체계적인 라이딩 여정을 계획할 수 있습니다. 경로 저장을 위해 로그인이
+							필요합니다.
+						</p>
 
-			{/* Mobile bottom sheet */}
-			<div className="fixed inset-x-0 bottom-0 z-10 flex flex-col rounded-t-xl border-t border-zinc-200 bg-white shadow-lg lg:hidden">
-				<div className="flex justify-center py-2">
-					<div className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-600" />
-				</div>
-				<div className="space-y-2 px-4 pb-6 pt-2">
-					<p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-						플랜 요약
-					</p>
-					<p className="text-xs text-zinc-400 dark:text-zinc-500">(placeholder)</p>
-				</div>
-			</div>
+						<form
+							action={async () => {
+								"use server";
+								await signIn("github");
+							}}
+						>
+							<button
+								type="submit"
+								className="flex items-center gap-2 rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+							>
+								<span>GitHub으로 로그인</span>
+							</button>
+						</form>
+					</div>
+				) : (
+					<RouteList />
+				)}
+			</main>
 		</div>
 	);
 }
