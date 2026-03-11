@@ -9,7 +9,27 @@
 		"build": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", ".env*"],
-			"outputs": [".next/**", "!.next/cache/**"]
+			"outputs": [".next/**", "!.next/cache/**"],
+			"passThroughEnv": [
+				"SUPABASE_URL",
+				"SUPABASE_SERVICE_ROLE_KEY",
+				"SUPABASE_ANON_KEY",
+				"SUPABASE_JWT_SECRET",
+				"SUPABASE_PUBLISHABLE_KEY",
+				"SUPABASE_SECRET_KEY",
+				"NEXT_PUBLIC_SUPABASE_URL",
+				"NEXT_PUBLIC_SUPABASE_ANON_KEY",
+				"NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+				"NEXT_PUBLIC_KAKAO_JS_KEY",
+				"KAKAO_REST_API_KEY",
+				"POSTGRES_URL",
+				"POSTGRES_PRISMA_URL",
+				"POSTGRES_HOST",
+				"POSTGRES_DATABASE",
+				"POSTGRES_USER",
+				"POSTGRES_PASSWORD",
+				"POSTGRES_URL_NON_POOLING"
+			]
 		},
 		"dev": {
 			"cache": false,
