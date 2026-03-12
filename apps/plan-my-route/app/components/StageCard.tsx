@@ -4,14 +4,14 @@ import { getStageColor } from "../types/plan";
 import type { Stage } from "../types/plan";
 import { useCallback, useState } from "react";
 import { MoreHorizontalIcon, PencilIcon, TrashIcon } from "lucide-react";
-import { Button } from "./ui/button";
 import {
+	Button,
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+} from "@my-ridings/ui";
 
 interface StageCardProps {
 	stage: Stage;

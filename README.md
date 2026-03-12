@@ -3,6 +3,12 @@
 자전거 타는데 필요한 개인 취미 프로젝트들을 모아 둔 모노레포입니다.
 빌드·실행은 [Turborepo](https://turbo.build/)로 관리한다.
 
+## 패키지
+
+| 패키지 | 설명 |
+|--------|------|
+| [packages/ui](./packages/ui) | 공용 UI (Shadcn 스타일 컴포넌트). **새 UI/Shadcn 컴포넌트는 여기에만 추가**하고, 앱에서는 `@my-ridings/ui`로 import 한다. 자세한 규칙은 [packages/ui/README.md](./packages/ui/README.md) 참고. |
+
 ## 앱
 
 | 앱                                    | 설명                                                        |
