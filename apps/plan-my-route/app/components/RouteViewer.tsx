@@ -56,9 +56,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
 							startDistanceKm: s.start_distance / 1000,
 							endDistanceKm: s.end_distance / 1000,
 							distanceKm: (s.end_distance - s.start_distance) / 1000,
-							elevationGain: 0,
-							elevationLoss: 0,
-							isLastStage: false, // We'll re-calculate during rebuildStages inside the hook
+							elevationGain: Number(s.elevation_gain) || 0,
+							elevationLoss: Number(s.elevation_loss) || 0,
+							isLastStage: false,
 						})),
 					);
 				}
@@ -250,8 +250,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
 														startDistanceKm: s.start_distance / 1000,
 														endDistanceKm: s.end_distance / 1000,
 														distanceKm: (s.end_distance - s.start_distance) / 1000,
-														elevationGain: 0,
-														elevationLoss: 0,
+														elevationGain: Number(s.elevation_gain) || 0,
+														elevationLoss: Number(s.elevation_loss) || 0,
 														isLastStage: false,
 													})),
 												);

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
 	try {
 		const json = await request.json();
-		const { plan_id, title, start_distance, end_distance } = json;
+		const { plan_id, title, start_distance, end_distance, elevation_gain, elevation_loss } = json;
 
 		if (!plan_id) {
 			return NextResponse.json(
@@ -40,6 +40,8 @@ export async function POST(request: Request) {
 				title,
 				start_distance,
 				end_distance,
+				elevation_gain: elevation_gain ?? null,
+				elevation_loss: elevation_loss ?? null,
 			})
 			.select()
 			.single();

@@ -15,7 +15,7 @@ export async function PUT(
 
 	try {
 		const json = await request.json();
-		const { title, start_distance, end_distance } = json;
+		const { title, start_distance, end_distance, elevation_gain, elevation_loss } = json;
 
 		// Security check: Verify the stage belongs to a plan connected to a route owned by the user
 		const { data: stageData, error: stageError } = await supabaseAdmin
@@ -34,14 +34,18 @@ export async function PUT(
 			);
 		}
 
+		const updatePayload: Record<string, unknown> = {
+			updated_at: new Date().toISOString(),
+		};
+		if (title !== undefined) updatePayload.title = title;
+		if (start_distance !== undefined) updatePayload.start_distance = start_distance;
+		if (end_distance !== undefined) updatePayload.end_distance = end_distance;
+		if (elevation_gain !== undefined) updatePayload.elevation_gain = elevation_gain;
+		if (elevation_loss !== undefined) updatePayload.elevation_loss = elevation_loss;
+
 		const { data, error } = await supabaseAdmin
 			.from("stage")
-			.update({
-				title,
-				start_distance,
-				end_distance,
-				updated_at: new Date().toISOString(),
-			})
+			.update(updatePayload)
 			.eq("id", id)
 			.select()
 			.single();

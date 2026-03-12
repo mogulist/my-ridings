@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS public.stage (
     title text,
     start_distance numeric,
     end_distance numeric,
+    elevation_gain numeric,
+    elevation_loss numeric,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT stage_pkey PRIMARY KEY (id),
@@ -70,3 +72,7 @@ GRANT ALL ON TABLE public.plan TO service_role;
 
 GRANT ALL ON TABLE public.stage TO postgres;
 GRANT ALL ON TABLE public.stage TO service_role;
+
+-- If stage table already exists without elevation columns, run:
+-- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS elevation_gain numeric;
+-- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS elevation_loss numeric;

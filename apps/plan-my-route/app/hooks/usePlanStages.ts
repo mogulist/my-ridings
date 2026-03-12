@@ -264,6 +264,8 @@ export function usePlanStages(
 						title: `Stage ${newStage.dayNumber}`,
 						start_distance: newStage.startDistanceKm * 1000,
 						end_distance: newStage.endDistanceKm * 1000,
+						elevation_gain: newStage.elevationGain,
+						elevation_loss: newStage.elevationLoss,
 					}),
 				})
 					.then((res) => res.json())
@@ -311,6 +313,8 @@ export function usePlanStages(
 					title: `Stage ${newStage.dayNumber}`,
 					start_distance: newStage.startDistanceKm * 1000,
 					end_distance: newStage.endDistanceKm * 1000,
+					elevation_gain: newStage.elevationGain,
+					elevation_loss: newStage.elevationLoss,
 				}),
 			})
 				.then((res) => res.json())
@@ -347,10 +351,16 @@ export function usePlanStages(
 				setStages(newStages);
 
 				if (planId && !oldStage.id.startsWith("temp-")) {
+					const st = newStages[idx];
 					fetch(`/api/stages/${oldStage.id}`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ end_distance: newStages[idx].endDistanceKm * 1000 }),
+						body: JSON.stringify({
+							start_distance: st.startDistanceKm * 1000,
+							end_distance: st.endDistanceKm * 1000,
+							elevation_gain: st.elevationGain,
+							elevation_loss: st.elevationLoss,
+						}),
 					}).catch(console.error);
 				}
 				return;
@@ -380,19 +390,28 @@ export function usePlanStages(
 
 			if (planId) {
 				if (!oldStage.id.startsWith("temp-")) {
+					const st = newStages[idx];
 					fetch(`/api/stages/${oldStage.id}`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ end_distance: newStages[idx].endDistanceKm * 1000 }),
+						body: JSON.stringify({
+							start_distance: st.startDistanceKm * 1000,
+							end_distance: st.endDistanceKm * 1000,
+							elevation_gain: st.elevationGain,
+							elevation_loss: st.elevationLoss,
+						}),
 					}).catch(console.error);
 				}
 				if (!nextStage.id.startsWith("temp-")) {
+					const st = newStages[idx + 1];
 					fetch(`/api/stages/${nextStage.id}`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({
-							start_distance: newStages[idx + 1].startDistanceKm * 1000,
-							end_distance: newStages[idx + 1].endDistanceKm * 1000,
+							start_distance: st.startDistanceKm * 1000,
+							end_distance: st.endDistanceKm * 1000,
+							elevation_gain: st.elevationGain,
+							elevation_loss: st.elevationLoss,
 						}),
 					}).catch(console.error);
 				}
@@ -421,10 +440,16 @@ export function usePlanStages(
 					fetch(`/api/stages/${nextStageId}`, { method: "DELETE" }).catch(console.error);
 				}
 				if (!stages[idx].id.startsWith("temp-")) {
+					const st = newStages[idx];
 					fetch(`/api/stages/${stages[idx].id}`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ end_distance: newStages[idx].endDistanceKm * 1000 }),
+						body: JSON.stringify({
+							start_distance: st.startDistanceKm * 1000,
+							end_distance: st.endDistanceKm * 1000,
+							elevation_gain: st.elevationGain,
+							elevation_loss: st.elevationLoss,
+						}),
 					}).catch(console.error);
 				}
 			}
@@ -459,10 +484,16 @@ export function usePlanStages(
 						fetch(`/api/stages/${stage.id}`, { method: "DELETE" }).catch(console.error);
 					}
 					if (!nextStageId.startsWith("temp-")) {
+						const st = newStages[0];
 						fetch(`/api/stages/${nextStageId}`, {
 							method: "PUT",
 							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ start_distance: newStages[0].startDistanceKm * 1000 }),
+							body: JSON.stringify({
+								start_distance: st.startDistanceKm * 1000,
+								end_distance: st.endDistanceKm * 1000,
+								elevation_gain: st.elevationGain,
+								elevation_loss: st.elevationLoss,
+							}),
 						}).catch(console.error);
 					}
 				}
@@ -532,6 +563,8 @@ export function usePlanStages(
 						body: JSON.stringify({
 							start_distance: neighborStage.startDistanceKm * 1000,
 							end_distance: neighborStage.endDistanceKm * 1000,
+							elevation_gain: neighborStage.elevationGain,
+							elevation_loss: neighborStage.elevationLoss,
 						}),
 					}).catch(console.error);
 				}
