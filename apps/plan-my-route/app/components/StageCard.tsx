@@ -3,6 +3,15 @@
 import { getStageColor } from "../types/plan";
 import type { Stage } from "../types/plan";
 import { useCallback, useState } from "react";
+import { MoreHorizontalIcon, PencilIcon, TrashIcon } from "lucide-react";
+import { Button } from "./ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 interface StageCardProps {
 	stage: Stage;
@@ -69,7 +78,7 @@ export default function StageCard({
 			onMouseEnter={() => onHover(stage.id)}
 			onMouseLeave={() => onHover(null)}
 		>
-			{/* 헤더: 색상 도트 + 일차 */}
+			{/* 헤더: 색상 도트 + 일차 + 액션 메뉴 */}
 			<div className="flex items-center justify-between mb-2">
 				<div className="flex items-center gap-2">
 					<div
@@ -87,6 +96,40 @@ export default function StageCard({
 						</span>
 					)}
 				</div>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-7 w-7 shrink-0"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<MoreHorizontalIcon className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+						<DropdownMenuItem
+							onSelect={(e) => {
+								e.preventDefault();
+								handleStartEdit();
+							}}
+						>
+							<PencilIcon className="h-4 w-4" />
+							수정
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							variant="destructive"
+							onSelect={(e) => {
+								e.preventDefault();
+								onDelete(stage.id);
+							}}
+						>
+							<TrashIcon className="h-4 w-4" />
+							삭제
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 
 			{/* 거리 */}
@@ -123,28 +166,6 @@ export default function StageCard({
 				<span className="text-red-500 dark:text-red-400">
 					▼ -{formatNumber(stage.elevationLoss)}m
 				</span>
-			</div>
-
-			{/* 액션 버튼 */}
-			<div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-				<button
-					onClick={(e) => {
-						e.stopPropagation();
-						handleStartEdit();
-					}}
-					className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
-				>
-					수정
-				</button>
-				<button
-					onClick={(e) => {
-						e.stopPropagation();
-						onDelete(stage.id);
-					}}
-					className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
-				>
-					삭제
-				</button>
 			</div>
 		</div>
 	);
