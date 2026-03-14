@@ -146,6 +146,13 @@ function computeElevation(
 	return { gain: Math.round(gain), loss: Math.round(loss) };
 }
 
+// ── 경계 미리보기 상태 ──────────────────────────────────────────
+export type PendingStageEdit = {
+	stageId: string;
+	originalEndKm: number;
+	previewEndKm: number;
+};
+
 // ── 삭제 확인 상태 ──────────────────────────────────────────────
 export interface PendingDeletion {
 	stageId: string;
@@ -178,6 +185,8 @@ export function usePlanStages(
 		useState<PendingDeletion | null>(null);
 	const [deleteConfirmation, setDeleteConfirmation] =
 		useState<DeleteConfirmation | null>(null);
+	const [pendingStageEdit, setPendingStageEdit] =
+		useState<PendingStageEdit | null>(null);
 
 	// Sync API Data
 	useEffect(() => {
@@ -330,8 +339,13 @@ export function usePlanStages(
 	}, [stages, trackPoints, totalRouteDistanceKm, unplannedDistanceKm, calibratedThreshold, planId]);
 
 	// ── Stage 거리 수정 ─────────────────────────────────────────
+	type UpdateStageOptions = { skipApiSync?: boolean };
 	const updateStageDistance = useCallback(
-		(stageId: string, newDistanceKm: number) => {
+		(
+			stageId: string,
+			newDistanceKm: number,
+			options?: UpdateStageOptions,
+		) => {
 			if (newDistanceKm <= 0) return;
 
 			const idx = stages.findIndex((s) => s.id === stageId);
@@ -339,18 +353,19 @@ export function usePlanStages(
 
 			const oldStage = stages[idx];
 			const diff = newDistanceKm - oldStage.distanceKm;
+			const skipApi = options?.skipApiSync ?? false;
 
 			// 마지막 Stage인 경우: 미계획 구간에서 가감
 			if (idx === stages.length - 1) {
 				const newUnplanned = unplannedDistanceKm - diff;
 				if (newUnplanned < -0.01) return; // 전체 거리 초과
-				
+
 				const updated = [...stages];
 				updated[idx] = { ...oldStage, distanceKm: newDistanceKm };
 				const newStages = rebuildStages(updated);
 				setStages(newStages);
 
-				if (planId && !oldStage.id.startsWith("temp-")) {
+				if (!skipApi && planId && !oldStage.id.startsWith("temp-")) {
 					const st = newStages[idx];
 					fetch(`/api/stages/${oldStage.id}`, {
 						method: "PUT",
@@ -388,7 +403,7 @@ export function usePlanStages(
 			const newStages = rebuildStages(updated);
 			setStages(newStages);
 
-			if (planId) {
+			if (!skipApi && planId) {
 				if (!oldStage.id.startsWith("temp-")) {
 					const st = newStages[idx];
 					fetch(`/api/stages/${oldStage.id}`, {
@@ -461,6 +476,70 @@ export function usePlanStages(
 	const cancelPendingDeletion = useCallback(() => {
 		setPendingDeletion(null);
 	}, []);
+
+	// ── 경계 미리보기 (커밋 전 드래그) ────────────────────────────
+	const startBoundaryPreview = useCallback(
+		(stageId: string) => {
+			const stage = stages.find((s) => s.id === stageId);
+			if (!stage || stage.endDistanceKm >= totalRouteDistanceKm - 0.01) return;
+			setPendingStageEdit({
+				stageId,
+				originalEndKm: stage.endDistanceKm,
+				previewEndKm: stage.endDistanceKm,
+			});
+		},
+		[stages, totalRouteDistanceKm],
+	);
+
+	const updatePreviewEndKm = useCallback(
+		(km: number) => {
+			setPendingStageEdit((prev) => {
+				if (!prev) return prev;
+				const idx = stages.findIndex((s) => s.id === prev.stageId);
+				const stage = stages[idx];
+				if (!stage) return prev;
+				const minKm = stage.startDistanceKm + 0.1;
+				const nextStage = stages[idx + 1];
+				const maxKm = nextStage
+					? nextStage.endDistanceKm - 0.1
+					: totalRouteDistanceKm;
+				const clamped = Math.max(minKm, Math.min(maxKm, km));
+				return { ...prev, previewEndKm: clamped };
+			});
+		},
+		[stages, totalRouteDistanceKm],
+	);
+
+	const commitPreview = useCallback(() => {
+		if (!pendingStageEdit) return;
+		const { stageId, previewEndKm } = pendingStageEdit;
+		const stage = stages.find((s) => s.id === stageId);
+		if (!stage) return;
+		const newDistanceKm =
+			Math.round((previewEndKm - stage.startDistanceKm) * 10) / 10;
+		updateStageDistance(stageId, newDistanceKm, { skipApiSync: true });
+		setPendingStageEdit(null);
+	}, [pendingStageEdit, updateStageDistance, stages]);
+
+	const discardPreview = useCallback(() => {
+		setPendingStageEdit(null);
+	}, []);
+
+	const previewStageStats = useMemo(() => {
+		if (!pendingStageEdit) return null;
+		const stage = stages.find((s) => s.id === pendingStageEdit.stageId);
+		if (!stage) return null;
+		const distanceKm = Math.round(
+			(pendingStageEdit.previewEndKm - stage.startDistanceKm) * 10,
+		) / 10;
+		const { gain, loss } = computeElevation(
+			trackPoints,
+			stage.startDistanceKm,
+			pendingStageEdit.previewEndKm,
+			calibratedThreshold,
+		);
+		return { distanceKm, elevationGain: gain, elevationLoss: loss };
+	}, [stages, pendingStageEdit, trackPoints, calibratedThreshold]);
 
 	// ── Stage 삭제 요청 ─────────────────────────────────────────
 	const requestDeleteStage = useCallback(
@@ -588,6 +667,13 @@ export function usePlanStages(
 		addStage,
 		addLastStage,
 		updateStageDistance,
+
+		pendingStageEdit,
+		previewStageStats,
+		startBoundaryPreview,
+		updatePreviewEndKm,
+		commitPreview,
+		discardPreview,
 
 		pendingDeletion,
 		confirmNextStageDeletion,

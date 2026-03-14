@@ -20,6 +20,30 @@ function formatDistance(meters: number) {
   return (meters / 1000).toFixed(1) + " km";
 }
 
+type DbStage = {
+  id: string;
+  start_distance: number;
+  end_distance: number;
+  elevation_gain: number | string | null;
+  elevation_loss: number | string | null;
+};
+
+function normalizeDbStages(rawStages: DbStage[]): Stage[] {
+  const sortedStages = [...rawStages].sort(
+    (a, b) => a.start_distance - b.start_distance,
+  );
+  return sortedStages.map((s, index) => ({
+    id: s.id,
+    dayNumber: index + 1,
+    startDistanceKm: s.start_distance / 1000,
+    endDistanceKm: s.end_distance / 1000,
+    distanceKm: (s.end_distance - s.start_distance) / 1000,
+    elevationGain: Number(s.elevation_gain) || 0,
+    elevationLoss: Number(s.elevation_loss) || 0,
+    isLastStage: false,
+  }));
+}
+
 export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
   const [dbRoute, setDbRoute] = useState<any>(null);
@@ -53,18 +77,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
           // Select the first plan by default
           const firstPlan = dbData.plans[0];
           setActivePlanId(firstPlan.id);
-          setDbStages(
-            (firstPlan.stages || []).map((s: any) => ({
-              id: s.id,
-              dayNumber: parseInt(s.title?.replace("Stage ", "") || "1", 10),
-              startDistanceKm: s.start_distance / 1000,
-              endDistanceKm: s.end_distance / 1000,
-              distanceKm: (s.end_distance - s.start_distance) / 1000,
-              elevationGain: Number(s.elevation_gain) || 0,
-              elevationLoss: Number(s.elevation_loss) || 0,
-              isLastStage: false,
-            })),
-          );
+          setDbStages(normalizeDbStages(firstPlan.stages || []));
         }
 
         // Extract RWGPS ID from dbData.rwgps_url
@@ -134,6 +147,13 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     addStage,
     addLastStage,
     updateStageDistance,
+
+    pendingStageEdit,
+    previewStageStats,
+    startBoundaryPreview,
+    updatePreviewEndKm,
+    commitPreview,
+    discardPreview,
 
     pendingDeletion,
     confirmNextStageDeletion,
@@ -258,22 +278,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
                         (p: any) => p.id === planId,
                       );
                       if (plan) {
-                        setDbStages(
-                          (plan.stages || []).map((s: any) => ({
-                            id: s.id,
-                            dayNumber: parseInt(
-                              s.title?.replace("Stage ", "") || "1",
-                              10,
-                            ),
-                            startDistanceKm: s.start_distance / 1000,
-                            endDistanceKm: s.end_distance / 1000,
-                            distanceKm:
-                              (s.end_distance - s.start_distance) / 1000,
-                            elevationGain: Number(s.elevation_gain) || 0,
-                            elevationLoss: Number(s.elevation_loss) || 0,
-                            isLastStage: false,
-                          })),
-                        );
+                        setDbStages(normalizeDbStages(plan.stages || []));
                       }
                     }}
                   >
@@ -450,6 +455,12 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             onPositionChange={setPositionIndex}
             selectedDayNumber={effectiveSelectedDay}
             onSelectedDayChange={(day) => setSelectedDayNumber(day)}
+            pendingStageEdit={pendingStageEdit}
+            previewStageStats={previewStageStats}
+            onStartBoundaryDrag={startBoundaryPreview}
+            onPreviewMove={(_, previewEndKm) => updatePreviewEndKm(previewEndKm)}
+            onCommitPreview={commitPreview}
+            onDiscardPreview={discardPreview}
           />
         </section>
       </div>
