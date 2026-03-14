@@ -1,7 +1,8 @@
 "use client";
 
 import Script from "next/script";
-import { useCallback, useEffect, useRef } from "react";
+import { Expand, Locate } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 
@@ -171,6 +172,7 @@ export default function KakaoMap({
 	const mapInstanceRef = useRef<unknown>(null);
 	const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const onPositionChangeRef = useRef(onPositionChange);
+	const [mapReady, setMapReady] = useState(false);
 
 	onPositionChangeRef.current = onPositionChange;
 
@@ -318,6 +320,7 @@ export default function KakaoMap({
 			new kakaoMaps.Marker({ map, position: lastPos, title: "FINISH" });
 
 			mapInstanceRef.current = map;
+			setMapReady(true);
 
 			// 지도 mousemove → 고도 프로필 마커 연동
 			if (points.length > 0 && onPositionChangeRef.current) {
@@ -362,6 +365,64 @@ export default function KakaoMap({
 		[drawRoute, route],
 	);
 
+	const computeBounds = useCallback(() => {
+		const points = route?.track_points;
+		if (!points?.length || !window.kakao?.maps) return null;
+		const maps = window.kakao.maps;
+		let minLat = Infinity;
+		let maxLat = -Infinity;
+		let minLng = Infinity;
+		let maxLng = -Infinity;
+		for (const p of points) {
+			const lat = p.y;
+			const lng = p.x;
+			if (lat < minLat) minLat = lat;
+			if (lat > maxLat) maxLat = lat;
+			if (lng < minLng) minLng = lng;
+			if (lng > maxLng) maxLng = lng;
+		}
+		if (minLat === Infinity) return null;
+		const bounds = new maps.LatLngBounds();
+		bounds.extend(new maps.LatLng(minLat, minLng));
+		bounds.extend(new maps.LatLng(maxLat, maxLng));
+		return bounds;
+	}, [route?.track_points]);
+
+	const handleZoomIn = useCallback(() => {
+		const map = mapInstanceRef.current as {
+			getLevel?: () => number;
+			setLevel?: (n: number) => void;
+		} | null;
+		if (!map?.getLevel || !map?.setLevel) return;
+		const level = map.getLevel();
+		map.setLevel(Math.max(1, level - 1));
+	}, []);
+
+	const handleZoomOut = useCallback(() => {
+		const map = mapInstanceRef.current as {
+			getLevel?: () => number;
+			setLevel?: (n: number) => void;
+		} | null;
+		if (!map?.getLevel || !map?.setLevel) return;
+		const level = map.getLevel();
+		map.setLevel(Math.min(14, level + 1));
+	}, []);
+
+	const handleCenterOnMarker = useCallback(() => {
+		const map = mapInstanceRef.current as { setCenter?: (l: unknown) => void } | null;
+		const maps = window.kakao?.maps;
+		if (!map?.setCenter || !highlightPosition || !maps) return;
+		const [lat, lng] = highlightPosition;
+		map.setCenter(new maps.LatLng(lat, lng));
+	}, [highlightPosition]);
+
+	const handleFitCourse = useCallback(() => {
+		const map = mapInstanceRef.current as { setBounds?: (b: unknown) => void } | null;
+		const bounds = computeBounds();
+		if (!map?.setBounds || !bounds) return;
+		map.setBounds(bounds);
+	}, [computeBounds]);
+
 	// highlightPosition 변경 시 동그란 마커 overlay 업데이트
 	useEffect(() => {
 		const map = mapInstanceRef.current as { getDiv?: () => HTMLElement } | null;
@@ -405,6 +466,9 @@ export default function KakaoMap({
 		);
 	}
 
+	const btnClass =
+		"w-9 h-9 flex items-center justify-center bg-white border border-gray-300 rounded shadow hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white";
+
 	return (
 		<div className="relative h-full w-full">
 			<Script
@@ -413,6 +477,44 @@ export default function KakaoMap({
 				strategy="afterInteractive"
 			/>
 			<div ref={containerCallbackRef} className="h-full w-full" />
+			{mapReady && (
+				<div className="absolute top-4 right-4 flex flex-col gap-1 z-10">
+					<button
+						type="button"
+						onClick={handleZoomIn}
+						className={btnClass}
+						aria-label="줌 인"
+					>
+						<span className="text-lg font-medium leading-none">+</span>
+					</button>
+					<button
+						type="button"
+						onClick={handleZoomOut}
+						className={btnClass}
+						aria-label="줌 아웃"
+					>
+						<span className="text-lg font-medium leading-none">−</span>
+					</button>
+					<button
+						type="button"
+						onClick={handleCenterOnMarker}
+						disabled={!highlightPosition}
+						className={btnClass}
+						aria-label="마커로 이동"
+					>
+						<Locate className="size-4" />
+					</button>
+					<button
+						type="button"
+						onClick={handleFitCourse}
+						disabled={!route?.track_points?.length}
+						className={btnClass}
+						aria-label="전체 경로 보기"
+					>
+						<Expand className="size-4" />
+					</button>
+				</div>
+			)}
 		</div>
 	);
 }
