@@ -99,12 +99,6 @@ interface KakaoInfoWindow {
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
-function samplePoints(points: TrackPoint[], maxPoints = 3000): TrackPoint[] {
-	if (points.length <= maxPoints) return points;
-	const step = Math.ceil(points.length / maxPoints);
-	return points.filter((_, i) => i % step === 0);
-}
-
 /** track_points를 거리 기준으로 구간 분할 */
 function slicePointsByDistance(
 	points: TrackPoint[],
@@ -137,8 +131,8 @@ export default function KakaoMap({
 		(kakaoMaps: KakaoMapsAPI, routeData: RideWithGPSRoute) => {
 			if (!containerRef.current) return;
 
-			const sampled = samplePoints(routeData.track_points);
-			const firstPoint = sampled[0];
+			const points = routeData.track_points;
+			const firstPoint = points[0];
 
 			const map = new kakaoMaps.Map(containerRef.current, {
 				center: new kakaoMaps.LatLng(firstPoint.y, firstPoint.x),
@@ -147,7 +141,7 @@ export default function KakaoMap({
 
 			// Stage가 없는 경우: 기존처럼 단일 Polyline
 			if (stages.length === 0) {
-				const path = sampled.map(
+				const path = points.map(
 					(p) => new kakaoMaps.LatLng(p.y, p.x),
 				);
 				new kakaoMaps.Polyline({
@@ -168,7 +162,7 @@ export default function KakaoMap({
 				// Stage별 Polyline
 				for (const stage of stages) {
 					const stagePoints = slicePointsByDistance(
-						sampled,
+						points,
 						stage.startDistanceKm,
 						stage.endDistanceKm,
 					);
@@ -213,7 +207,7 @@ export default function KakaoMap({
 				const lastStage = stages[stages.length - 1];
 				if (lastStage.endDistanceKm < totalDistanceKm - 0.1) {
 					const unplannedPoints = slicePointsByDistance(
-						sampled,
+						points,
 						lastStage.endDistanceKm,
 						totalDistanceKm,
 					);
@@ -233,7 +227,7 @@ export default function KakaoMap({
 				}
 
 				// 전체 경로 bounds
-				const allPath = sampled.map(
+				const allPath = points.map(
 					(p) => new kakaoMaps.LatLng(p.y, p.x),
 				);
 				const bounds = new kakaoMaps.LatLngBounds();
@@ -271,7 +265,7 @@ export default function KakaoMap({
 
 			// START / FINISH 마커
 			const firstPos = new kakaoMaps.LatLng(firstPoint.y, firstPoint.x);
-			const lastPoint = sampled[sampled.length - 1];
+			const lastPoint = points[points.length - 1];
 			const lastPos = new kakaoMaps.LatLng(lastPoint.y, lastPoint.x);
 			new kakaoMaps.Marker({ map, position: firstPos, title: "START" });
 			new kakaoMaps.Marker({ map, position: lastPos, title: "FINISH" });
