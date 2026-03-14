@@ -517,7 +517,7 @@ export function usePlanStages(
 		if (!stage) return;
 		const newDistanceKm =
 			Math.round((previewEndKm - stage.startDistanceKm) * 10) / 10;
-		updateStageDistance(stageId, newDistanceKm, { skipApiSync: true });
+		updateStageDistance(stageId, newDistanceKm);
 		setPendingStageEdit(null);
 	}, [pendingStageEdit, updateStageDistance, stages]);
 
