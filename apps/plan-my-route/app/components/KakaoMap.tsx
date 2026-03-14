@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 
@@ -71,12 +71,13 @@ interface KakaoMapsAPI {
 		content: string;
 		yAnchor?: number;
 		xAnchor?: number;
-	}) => void;
+		zIndex?: number;
+	}) => KakaoCustomOverlay;
 	event: {
 		addListener: (
 			target: unknown,
 			event: string,
-			callback: () => void,
+			callback: (...args: unknown[]) => void,
 		) => void;
 	};
 }
@@ -98,7 +99,33 @@ interface KakaoInfoWindow {
 	close: () => void;
 }
 
+interface KakaoCustomOverlay {
+	setMap: (map: unknown) => void;
+	setPosition: (position: unknown) => void;
+	setVisible: (visible: boolean) => void;
+}
+
 // ── 헬퍼 ─────────────────────────────────────────────────────────
+/** (lat, lng)에서 가장 가까운 track point 인덱스 반환 */
+function findNearestIndexByLatLng(
+	points: TrackPoint[],
+	lat: number,
+	lng: number,
+): number {
+	if (points.length === 0) return 0;
+	let bestIdx = 0;
+	let bestDist = Infinity;
+	for (let i = 0; i < points.length; i++) {
+		const p = points[i];
+		const d2 = (p.y - lat) ** 2 + (p.x - lng) ** 2;
+		if (d2 < bestDist) {
+			bestDist = d2;
+			bestIdx = i;
+		}
+	}
+	return bestIdx;
+}
+
 /** track_points를 거리 기준으로 구간 분할 */
 function slicePointsByDistance(
 	points: TrackPoint[],
@@ -111,11 +138,23 @@ function slicePointsByDistance(
 }
 
 // ── Props ─────────────────────────────────────────────────────────
+const HIGHLIGHT_MARKER_SIZE = 16;
+const HIGHLIGHT_MARKER_COLOR = "#f97316";
+
+function highlightCircleMarkerHtml(size: number): string {
+	return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`;
+}
+
 interface KakaoMapProps {
 	route?: RideWithGPSRoute | null;
 	stages?: Stage[];
 	activeStageId?: string | null;
 	onStageHover?: (id: string | null) => void;
+	/** [lat, lng] 고도 프로필 연동 마커 위치 */
+	highlightPosition?: [number, number] | null;
+	/** 지도 mousemove 시 가장 가까운 포인트 인덱스 콜백 */
+	onPositionChange?: (index: number | null) => void;
+	trackPoints?: TrackPoint[];
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -123,9 +162,17 @@ export default function KakaoMap({
 	route,
 	stages = [],
 	activeStageId,
+	highlightPosition = null,
+	onPositionChange,
+	trackPoints = [],
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
+	const mapInstanceRef = useRef<unknown>(null);
+	const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
+	const onPositionChangeRef = useRef(onPositionChange);
+
+	onPositionChangeRef.current = onPositionChange;
 
 	const drawRoute = useCallback(
 		(kakaoMaps: KakaoMapsAPI, routeData: RideWithGPSRoute) => {
@@ -269,6 +316,24 @@ export default function KakaoMap({
 			const lastPos = new kakaoMaps.LatLng(lastPoint.y, lastPoint.x);
 			new kakaoMaps.Marker({ map, position: firstPos, title: "START" });
 			new kakaoMaps.Marker({ map, position: lastPos, title: "FINISH" });
+
+			mapInstanceRef.current = map;
+
+			// 지도 mousemove → 고도 프로필 마커 연동
+			if (points.length > 0 && onPositionChangeRef.current) {
+				const cb = (e?: unknown) => {
+					const ev = e as { latLng?: { getLat: () => number; getLng: () => number } } | undefined;
+					if (!ev?.latLng) return;
+					const lat = ev.latLng.getLat();
+					const lng = ev.latLng.getLng();
+					const idx = findNearestIndexByLatLng(points, lat, lng);
+					onPositionChangeRef.current?.(idx);
+				};
+				const outCb = () => onPositionChangeRef.current?.(null);
+				kakaoMaps.event.addListener(map, "mousemove", cb);
+				kakaoMaps.event.addListener(map, "mouseout", outCb);
+			}
+
 		},
 		[stages, activeStageId],
 	);
@@ -296,6 +361,38 @@ export default function KakaoMap({
 		},
 		[drawRoute, route],
 	);
+
+	// highlightPosition 변경 시 동그란 마커 overlay 업데이트
+	useEffect(() => {
+		const map = mapInstanceRef.current as { getDiv?: () => HTMLElement } | null;
+		const maps = window.kakao?.maps;
+		if (!map || !maps) return;
+
+		const overlay = highlightOverlayRef.current;
+		if (!highlightPosition) {
+			overlay?.setVisible(false);
+			return;
+		}
+
+		const [lat, lng] = highlightPosition;
+		const nextPosition = new maps.LatLng(lat, lng);
+
+		if (overlay) {
+			overlay.setPosition(nextPosition);
+			overlay.setVisible(true);
+			return;
+		}
+
+		const content = highlightCircleMarkerHtml(HIGHLIGHT_MARKER_SIZE);
+		highlightOverlayRef.current = new maps.CustomOverlay({
+			map: map as never,
+			position: nextPosition,
+			content,
+			yAnchor: 0.5,
+			xAnchor: 0.5,
+			zIndex: 10,
+		});
+	}, [highlightPosition]);
 
 	const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 	if (!appKey) {

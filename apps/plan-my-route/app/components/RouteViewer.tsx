@@ -29,6 +29,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [newPlanName, setNewPlanName] = useState("");
 	const [isCreatingPlan, setIsCreatingPlan] = useState(false);
+	const [positionIndex, setPositionIndex] = useState<number | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -409,6 +410,16 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
 							stages={stages}
 							activeStageId={activeStageId}
 							onStageHover={setActiveStageId}
+							highlightPosition={
+								positionIndex != null && route?.track_points?.[positionIndex]
+									? [
+											route.track_points[positionIndex].y,
+											route.track_points[positionIndex].x,
+										]
+									: null
+							}
+							onPositionChange={setPositionIndex}
+							trackPoints={route?.track_points ?? []}
 						/>
 					)}
 				</section>
@@ -419,6 +430,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
 						trackPoints={route?.track_points ?? []}
 						stages={stages}
 						activeStageId={activeStageId}
+						positionIndex={positionIndex}
+						onPositionChange={setPositionIndex}
 					/>
 				</section>
 			</div>
