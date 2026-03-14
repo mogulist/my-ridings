@@ -56,6 +56,8 @@ interface ElevationProfileProps {
 	onCommitPreview?: () => void;
 	/** 미리보기 취소 */
 	onDiscardPreview?: () => void;
+	isPinned?: boolean;
+	onPin?: (index: number) => void;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -137,6 +139,7 @@ function buildStageKeys(
 		const row: Record<string, number | undefined> = {
 			distanceKm: d.distanceKm,
 			ele: d.ele,
+			index: d.index,
 		};
 
 		for (let i = 0; i < stages.length; i++) {
@@ -275,6 +278,8 @@ export function ElevationProfile({
 	onPreviewMove,
 	onCommitPreview,
 	onDiscardPreview,
+	isPinned = false,
+	onPin,
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -325,23 +330,45 @@ export function ElevationProfile({
 
 	const chartData = hasStages ? multiStageData : clippedChartData;
 
-	const handleMouseMove = useCallback(
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(state: any) => {
-			if (!onPositionChange) return;
-			const ci: number | null | undefined = state?.activeTooltipIndex;
-			if (ci == null || !rawChartData[ci]) {
-				onPositionChange(null);
-				return;
-			}
-			onPositionChange(rawChartData[ci].index);
+	type TooltipState = {
+		activeTooltipIndex?: number | string | null;
+	};
+
+	const getChartDataIndexAtTooltip = useCallback(
+		(state: TooltipState): number | null => {
+			const tooltipIndex = state.activeTooltipIndex;
+			if (tooltipIndex == null) return null;
+			const normalizedTooltipIndex =
+				typeof tooltipIndex === "string"
+					? Number(tooltipIndex)
+					: tooltipIndex;
+			if (!Number.isInteger(normalizedTooltipIndex)) return null;
+			const row = chartData[normalizedTooltipIndex] as { index?: number } | undefined;
+			return typeof row?.index === "number" ? row.index : null;
 		},
-		[rawChartData, onPositionChange],
+		[chartData],
+	);
+
+	const handleMouseMove = useCallback(
+		(state: TooltipState) => {
+			const index = getChartDataIndexAtTooltip(state);
+			if (index == null) return;
+			lastHoverIndexRef.current = index;
+			if (!isPinned && onPositionChange) onPositionChange(index);
+		},
+		[getChartDataIndexAtTooltip, onPositionChange, isPinned],
 	);
 
 	const handleMouseLeave = useCallback(() => {
-		onPositionChange?.(null);
-	}, [onPositionChange]);
+		// 마우스 벗어나도 마커 유지 (null 전달하지 않음)
+	}, []);
+
+	const lastHoverIndexRef = useRef<number | null>(null);
+
+	const handleChartClick = useCallback(() => {
+		if (!onPin || lastHoverIndexRef.current == null) return;
+		onPin(lastHoverIndexRef.current);
+	}, [onPin]);
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
@@ -497,6 +524,7 @@ export function ElevationProfile({
 						margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
 						onMouseMove={handleMouseMove}
 						onMouseLeave={handleMouseLeave}
+						onMouseDown={handleChartClick}
 					>
 						<defs>
 							{/* 기본 그라디언트 (Stage 없을 때) */}

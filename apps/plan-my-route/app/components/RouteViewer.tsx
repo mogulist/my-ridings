@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
@@ -54,9 +54,19 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [newPlanName, setNewPlanName] = useState("");
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [positionIndex, setPositionIndex] = useState<number | null>(null);
+  const [isPinned, setIsPinned] = useState(false);
   const [selectedDayNumber, setSelectedDayNumber] = useState<number | null>(
     null,
   );
+
+  const handlePin = useCallback((index: number) => {
+    setPositionIndex(index);
+    setIsPinned(true);
+  }, []);
+
+  const handleUnpin = useCallback(() => {
+    setIsPinned(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,6 +451,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               }
               onPositionChange={setPositionIndex}
               trackPoints={route?.track_points ?? []}
+              isPinned={isPinned}
+              onPin={handlePin}
+              onUnpin={handleUnpin}
             />
           )}
         </section>
@@ -461,6 +474,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             onPreviewMove={(_, previewEndKm) => updatePreviewEndKm(previewEndKm)}
             onCommitPreview={commitPreview}
             onDiscardPreview={discardPreview}
+            isPinned={isPinned}
+            onPin={handlePin}
           />
         </section>
       </div>
