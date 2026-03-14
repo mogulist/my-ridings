@@ -37,6 +37,10 @@ interface ElevationProfileProps {
 	onPositionChange?: (index: number | null) => void;
 	stages?: Stage[];
 	activeStageId?: string | null;
+	/** 선택된 일차 (1-based). null이면 전체 표시 */
+	selectedDayNumber?: number | null;
+	/** day: 선택할 일차. null: 선택 해제(전체 구간) */
+	onSelectedDayChange?: (day: number | null) => void;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -72,6 +76,32 @@ function buildChartData(
 				stageIndex,
 			};
 		});
+}
+
+/** 선택 일차 기준 표시 구간: 선택 일차 전체 + 이전/다음 일차 15% */
+function computeVisibleRange(
+	stages: Stage[],
+	selectedDayNumber: number,
+	totalKm: number,
+): { startKm: number; endKm: number } {
+	const stageIdx = stages.findIndex((s) => s.dayNumber === selectedDayNumber);
+	if (stageIdx === -1) return { startKm: 0, endKm: totalKm };
+	const stage = stages[stageIdx];
+	const prevStage = stageIdx > 0 ? stages[stageIdx - 1] : null;
+	const nextStage =
+		stageIdx < stages.length - 1 ? stages[stageIdx + 1] : null;
+
+	const prevPadding = prevStage ? prevStage.distanceKm * 0.15 : 0;
+	const nextPadding = nextStage ? nextStage.distanceKm * 0.15 : 0;
+
+	const startKm = prevStage
+		? Math.max(0, prevStage.endDistanceKm - prevPadding)
+		: stage.startDistanceKm;
+	const endKm = nextStage
+		? Math.min(totalKm, nextStage.startDistanceKm + nextPadding)
+		: stage.endDistanceKm;
+
+	return { startKm, endKm };
 }
 
 /** Stage별로 분리된 데이터 키 생성. 각 Stage는 자기 구간만 값을 갖고 나머지는 undefined */
@@ -133,6 +163,8 @@ export function ElevationProfile({
 	onPositionChange,
 	stages = [],
 	activeStageId,
+	selectedDayNumber = null,
+	onSelectedDayChange,
 }: ElevationProfileProps) {
 	const rawChartData = useMemo(
 		() => buildChartData(trackPoints, stages),
@@ -140,11 +172,30 @@ export function ElevationProfile({
 	);
 
 	const hasStages = stages.length > 0;
+	const totalKm =
+		rawChartData.length > 0
+			? rawChartData[rawChartData.length - 1].distanceKm
+			: 0;
+
+	const { startKm: visibleStart, endKm: visibleEnd } = useMemo(() => {
+		if (!hasStages || selectedDayNumber == null)
+			return { startKm: 0, endKm: totalKm };
+		return computeVisibleRange(stages, selectedDayNumber, totalKm);
+	}, [hasStages, selectedDayNumber, stages, totalKm]);
+
+	const clippedChartData = useMemo(() => {
+		if (selectedDayNumber == null) return rawChartData;
+		return rawChartData.filter(
+			(d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd,
+		);
+	}, [rawChartData, selectedDayNumber, visibleStart, visibleEnd]);
 
 	const { data: multiStageData, keys: stageKeys } = useMemo(
-		() => buildStageKeys(rawChartData, stages),
-		[rawChartData, stages],
+		() => buildStageKeys(clippedChartData, stages),
+		[clippedChartData, stages],
 	);
+
+	const chartData = hasStages ? multiStageData : clippedChartData;
 
 	const handleMouseMove = useCallback(
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -175,11 +226,6 @@ export function ElevationProfile({
 		}, null);
 	}, [positionIndex, rawChartData]);
 
-	const totalKm =
-		rawChartData.length > 0
-			? rawChartData[rawChartData.length - 1].distanceKm
-			: 0;
-
 	if (rawChartData.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center">
@@ -188,11 +234,12 @@ export function ElevationProfile({
 		);
 	}
 
-	// Stage 경계선 위치 계산
-	const stageBoundaries = stages.map((s) => ({
-		distanceKm: s.endDistanceKm,
-		label: `Stage ${s.dayNumber}`,
-	}));
+	// Stage 경계선: 표시 구간 내의 것만
+	const stageBoundaries = stages
+		.map((s) => ({ distanceKm: s.endDistanceKm, label: `Stage ${s.dayNumber}` }))
+		.filter(
+			(b) => b.distanceKm >= visibleStart && b.distanceKm <= visibleEnd,
+		);
 
 	return (
 		<div className="flex h-full w-full flex-col gap-1 px-2 pt-2">
@@ -203,22 +250,30 @@ export function ElevationProfile({
 				</span>
 				<span>총 {totalKm.toFixed(0)} km</span>
 				{hasStages && (
-					<div className="flex items-center gap-2 ml-2">
+					<div className="flex items-center gap-1 ml-2">
 						{stages.map((s) => {
 							const color = getStageColor(s.dayNumber);
+							const isSelected = selectedDayNumber === s.dayNumber;
+							const isActive = activeStageId === s.id;
 							return (
-								<span
+								<button
 									key={s.id}
-									className={`flex items-center gap-1 ${activeStageId === s.id ? "font-semibold" : ""}`}
+									type="button"
+									onClick={() =>
+										onSelectedDayChange?.(isSelected ? null : s.dayNumber)
+									}
+									className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors ${
+										isSelected
+											? "bg-zinc-200 dark:bg-zinc-600 font-semibold"
+											: "hover:bg-zinc-100 dark:hover:bg-zinc-700"
+									} ${isActive ? "ring-1 ring-offset-1 ring-zinc-400" : ""}`}
 								>
 									<span
-										className="inline-block h-2 w-2 rounded-full"
-										style={{
-											backgroundColor: color.stroke,
-										}}
+										className="inline-block h-2 w-2 shrink-0 rounded-full"
+										style={{ backgroundColor: color.stroke }}
 									/>
 									{s.dayNumber}일
-								</span>
+								</button>
 							);
 						})}
 					</div>
@@ -230,7 +285,7 @@ export function ElevationProfile({
 				<ResponsiveContainer width="100%" height="100%">
 					<AreaChart
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						data={(hasStages ? multiStageData : rawChartData) as any}
+						data={chartData as any}
 						margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
 						onMouseMove={handleMouseMove}
 						onMouseLeave={handleMouseLeave}
@@ -313,7 +368,11 @@ export function ElevationProfile({
 						<XAxis
 							dataKey="distanceKm"
 							type="number"
-							domain={["dataMin", "dataMax"]}
+							domain={
+								selectedDayNumber != null
+									? [visibleStart, visibleEnd]
+									: ["dataMin", "dataMax"]
+							}
 							tickFormatter={(v) => `${v} km`}
 							fontSize={10}
 							tick={{ fill: "#9ca3af" }}
