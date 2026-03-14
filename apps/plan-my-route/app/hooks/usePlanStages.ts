@@ -194,18 +194,19 @@ export function usePlanStages(
 	}, [initialStages]);
 
 	// 총 경로 거리 (km)
-	const totalRouteDistanceKm = useMemo(() => {
-		if (trackPoints.length === 0) return 0;
-		const last = trackPoints[trackPoints.length - 1];
-		return last.d != null ? last.d / 1000 : 0;
-	}, [trackPoints]);
+	const totalRouteDistanceKm =
+		trackPoints.length === 0
+			? 0
+			: (trackPoints[trackPoints.length - 1].d ?? 0) / 1000;
 
 	// 아직 Stage에 할당되지 않은 남은 거리
-	const unplannedDistanceKm = useMemo(() => {
-		if (stages.length === 0) return totalRouteDistanceKm;
-		const lastStage = stages[stages.length - 1];
-		return Math.max(0, totalRouteDistanceKm - lastStage.endDistanceKm);
-	}, [stages, totalRouteDistanceKm]);
+	const unplannedDistanceKm =
+		stages.length === 0
+			? totalRouteDistanceKm
+			: Math.max(
+					0,
+					totalRouteDistanceKm - stages[stages.length - 1].endDistanceKm,
+				);
 
 	// ── 캘리브레이션: RideWithGPS elevation_gain을 목표로 threshold를 한 번만 계산
 	const calibratedThreshold = useMemo(() => {
@@ -473,44 +474,36 @@ export function usePlanStages(
 		[stages, pendingDeletion, rebuildStages, planId],
 	);
 
-	const cancelPendingDeletion = useCallback(() => {
-		setPendingDeletion(null);
-	}, []);
+	const cancelPendingDeletion = () => setPendingDeletion(null);
 
 	// ── 경계 미리보기 (커밋 전 드래그) ────────────────────────────
-	const startBoundaryPreview = useCallback(
-		(stageId: string) => {
-			const stage = stages.find((s) => s.id === stageId);
-			if (!stage || stage.endDistanceKm >= totalRouteDistanceKm - 0.01) return;
-			setPendingStageEdit({
-				stageId,
-				originalEndKm: stage.endDistanceKm,
-				previewEndKm: stage.endDistanceKm,
-			});
-		},
-		[stages, totalRouteDistanceKm],
-	);
+	const startBoundaryPreview = (stageId: string) => {
+		const stage = stages.find((s) => s.id === stageId);
+		if (!stage || stage.endDistanceKm >= totalRouteDistanceKm - 0.01) return;
+		setPendingStageEdit({
+			stageId,
+			originalEndKm: stage.endDistanceKm,
+			previewEndKm: stage.endDistanceKm,
+		});
+	};
 
-	const updatePreviewEndKm = useCallback(
-		(km: number) => {
-			setPendingStageEdit((prev) => {
-				if (!prev) return prev;
-				const idx = stages.findIndex((s) => s.id === prev.stageId);
-				const stage = stages[idx];
-				if (!stage) return prev;
-				const minKm = stage.startDistanceKm + 0.1;
-				const nextStage = stages[idx + 1];
-				const maxKm = nextStage
-					? nextStage.endDistanceKm - 0.1
-					: totalRouteDistanceKm;
-				const clamped = Math.max(minKm, Math.min(maxKm, km));
-				return { ...prev, previewEndKm: clamped };
-			});
-		},
-		[stages, totalRouteDistanceKm],
-	);
+	const updatePreviewEndKm = (km: number) => {
+		setPendingStageEdit((prev) => {
+			if (!prev) return prev;
+			const idx = stages.findIndex((s) => s.id === prev.stageId);
+			const stage = stages[idx];
+			if (!stage) return prev;
+			const minKm = stage.startDistanceKm + 0.1;
+			const nextStage = stages[idx + 1];
+			const maxKm = nextStage
+				? nextStage.endDistanceKm - 0.1
+				: totalRouteDistanceKm;
+			const clamped = Math.max(minKm, Math.min(maxKm, km));
+			return { ...prev, previewEndKm: clamped };
+		});
+	};
 
-	const commitPreview = useCallback(() => {
+	const commitPreview = () => {
 		if (!pendingStageEdit) return;
 		const { stageId, previewEndKm } = pendingStageEdit;
 		const stage = stages.find((s) => s.id === stageId);
@@ -519,11 +512,9 @@ export function usePlanStages(
 			Math.round((previewEndKm - stage.startDistanceKm) * 10) / 10;
 		updateStageDistance(stageId, newDistanceKm);
 		setPendingStageEdit(null);
-	}, [pendingStageEdit, updateStageDistance, stages]);
+	};
 
-	const discardPreview = useCallback(() => {
-		setPendingStageEdit(null);
-	}, []);
+	const discardPreview = () => setPendingStageEdit(null);
 
 	const previewStageStats = useMemo(() => {
 		if (!pendingStageEdit) return null;
@@ -653,9 +644,7 @@ export function usePlanStages(
 		[stages, rebuildStages, planId],
 	);
 
-	const cancelDeleteConfirmation = useCallback(() => {
-		setDeleteConfirmation(null);
-	}, []);
+	const cancelDeleteConfirmation = () => setDeleteConfirmation(null);
 
 	return {
 		stages,
