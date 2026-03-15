@@ -68,6 +68,70 @@ function calcGainLossFromSmoothed(
 	return { gain, loss };
 }
 
+/**
+ * 스무딩된 고도 배열에 대해 구간 시작~각 인덱스까지의 누적 상승고도를 배열로 반환.
+ * calcGainLossFromSmoothed와 동일한 threshold 로직 사용.
+ */
+function calcGainAtEachIndex(smoothed: number[], threshold: number): number[] {
+	const gainAt: number[] = [0];
+	let gain = 0;
+	let pendingUp = 0;
+	let pendingDown = 0;
+
+	for (let i = 1; i < smoothed.length; i++) {
+		const diff = smoothed[i] - smoothed[i - 1];
+		if (diff > 0) {
+			if (pendingDown > 0) {
+				pendingDown = 0;
+			}
+			pendingUp += diff;
+		} else if (diff < 0) {
+			if (pendingUp > 0) {
+				if (pendingUp >= threshold) gain += pendingUp;
+				pendingUp = 0;
+			}
+			pendingDown += Math.abs(diff);
+		}
+		gainAt.push(gain);
+	}
+	if (pendingUp >= threshold) gain += pendingUp;
+	gainAt[gainAt.length - 1] = gain;
+
+	return gainAt;
+}
+
+/**
+ * 구간 [startKm, endKm] 내 각 포인트까지의 누적 상승고도 곡선.
+ * 스테이지 상승고도와 동일한 smoothing + threshold 적용.
+ */
+export function computeElevationGainCurve(
+	trackPoints: TrackPoint[],
+	startKm: number,
+	endKm: number,
+	calibratedThreshold: number,
+): { distanceM: number; gain: number }[] {
+	const startM = startKm * 1000;
+	const endM = endKm * 1000;
+
+	const segPts = trackPoints.filter(
+		(p) =>
+			p.e != null &&
+			p.d != null &&
+			(p.d as number) >= startM &&
+			(p.d as number) <= endM,
+	);
+	if (segPts.length < 2) return [];
+
+	const elevations = segPts.map((p) => p.e as number);
+	const smoothed = smoothElevations(elevations);
+	const gainAt = calcGainAtEachIndex(smoothed, calibratedThreshold);
+
+	return segPts.map((p, i) => ({
+		distanceM: p.d as number,
+		gain: Math.round(gainAt[i]),
+	}));
+}
+
 // ── 전체 경로 캘리브레이션 ────────────────────────────────────────
 
 /**
@@ -659,6 +723,7 @@ export function usePlanStages(
 		setActiveStageId,
 		totalRouteDistanceKm,
 		unplannedDistanceKm,
+		calibratedThreshold,
 
 		addStage,
 		addLastStage,

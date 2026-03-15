@@ -154,6 +154,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     setActiveStageId,
     totalRouteDistanceKm,
     unplannedDistanceKm,
+    calibratedThreshold,
 
     addStage,
     addLastStage,
@@ -529,6 +530,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             onDiscardPreview={discardPreview}
             isPinned={isPinned}
             onPin={handlePin}
+            elevationCalibratedThreshold={calibratedThreshold}
           />
         </section>
       </div>

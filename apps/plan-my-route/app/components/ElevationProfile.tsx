@@ -14,7 +14,10 @@ import {
 } from "recharts";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
-import type { PendingStageEdit } from "../hooks/usePlanStages";
+import {
+	type PendingStageEdit,
+	computeElevationGainCurve,
+} from "../hooks/usePlanStages";
 
 // ── 타입 ─────────────────────────────────────────────────────────
 export interface TrackPoint {
@@ -30,6 +33,10 @@ interface ChartDatum {
 	index: number;
 	/** 이 포인트가 속한 Stage 번호 (없으면 미계획) */
 	stageIndex: number | null;
+	/** 현재 스테이지 출발점 기준 거리(km). stageIndex 있을 때만 */
+	distanceFromStageStartKm?: number;
+	/** 현재 스테이지 출발점 기준 누적 상승고도(m). stageIndex 있을 때만 */
+	elevationGainFromStageStart?: number;
 }
 
 type PreviewStageStats = { distanceKm: number; elevationGain: number; elevationLoss: number };
@@ -58,24 +65,73 @@ interface ElevationProfileProps {
 	onDiscardPreview?: () => void;
 	isPinned?: boolean;
 	onPin?: (index: number) => void;
+	/** 스테이지 상승고도와 동일한 smoothing 적용 시 사용 (usePlanStages.calibratedThreshold) */
+	elevationCalibratedThreshold?: number;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
 
+type GainCurve = { distanceM: number; gain: number }[];
+
+function lookupGainAtDistanceKm(curve: GainCurve, distanceKm: number): number {
+	if (curve.length === 0) return 0;
+	const distanceM = distanceKm * 1000;
+	let j = curve.length - 1;
+	while (j >= 0 && curve[j].distanceM > distanceM) j--;
+	return j >= 0 ? curve[j].gain : 0;
+}
+
 function buildChartData(
 	points: TrackPoint[],
 	stages: Stage[],
+	elevationCalibratedThreshold?: number,
 	maxSamples = 2000,
 ): ChartDatum[] {
 	const withEle = points.filter((p) => p.e != null && p.d != null);
 	if (withEle.length === 0) return [];
 
+	const useSmoothedGain =
+		typeof elevationCalibratedThreshold === "number" &&
+		elevationCalibratedThreshold >= 0 &&
+		stages.length > 0;
+
+	// 스테이지별 스무딩 적용 상승고도 곡선 (elevationCalibratedThreshold 있을 때만 사용)
+	const stageGainCurves: GainCurve[] = useSmoothedGain
+		? stages.map((stage) =>
+				computeElevationGainCurve(
+					points,
+					stage.startDistanceKm,
+					stage.endDistanceKm,
+					elevationCalibratedThreshold!,
+				),
+			)
+		: [];
+
+	// 스무딩 미사용 시: 전체 구간 누적 상승고도 (withEle 인덱스 기준)
+	const cumulativeGain: number[] = [];
+	if (!useSmoothedGain) {
+		for (let i = 0; i < withEle.length; i++) {
+			if (i === 0) {
+				cumulativeGain.push(0);
+			} else {
+				const prev = withEle[i - 1].e!;
+				const curr = withEle[i].e!;
+				cumulativeGain.push(cumulativeGain[i - 1] + Math.max(0, curr - prev));
+			}
+		}
+	}
+
+	const stageStartIndices: number[] = stages.map((stage) => {
+		const idx = withEle.findIndex((p) => p.d! / 1000 >= stage.startDistanceKm);
+		return idx === -1 ? withEle.length : idx;
+	});
+
 	const step = Math.ceil(withEle.length / maxSamples);
 	return withEle
 		.filter((_, i) => i % step === 0)
-		.map((p) => {
-			const distanceKm = Math.round((p.d! / 1000) * 100) / 100;
-			// 어느 Stage에 속하는지 결정
+		.map((p, mapIndex) => {
+			const withEleIndex = mapIndex * step;
+			const distanceKm = Math.round((withEle[withEleIndex].d! / 1000) * 100) / 100;
 			let stageIndex: number | null = null;
 			for (let i = 0; i < stages.length; i++) {
 				if (
@@ -86,12 +142,31 @@ function buildChartData(
 					break;
 				}
 			}
-			return {
+
+			const datum: ChartDatum = {
 				distanceKm,
-				ele: Math.round(p.e!),
-				index: points.indexOf(p),
+				ele: Math.round(withEle[withEleIndex].e!),
+				index: points.indexOf(withEle[withEleIndex]),
 				stageIndex,
 			};
+
+			if (stageIndex !== null) {
+				const stage = stages[stageIndex];
+				datum.distanceFromStageStartKm = Math.round((distanceKm - stage.startDistanceKm) * 100) / 100;
+				if (useSmoothedGain && stageGainCurves[stageIndex]) {
+					datum.elevationGainFromStageStart = lookupGainAtDistanceKm(
+						stageGainCurves[stageIndex],
+						distanceKm,
+					);
+				} else {
+					const startIdx = stageStartIndices[stageIndex];
+					datum.elevationGainFromStageStart = Math.round(
+						(startIdx < withEleIndex ? cumulativeGain[withEleIndex] - cumulativeGain[startIdx] : 0),
+					);
+				}
+			}
+
+			return datum;
 		});
 }
 
@@ -140,6 +215,8 @@ function buildStageKeys(
 			distanceKm: d.distanceKm,
 			ele: d.ele,
 			index: d.index,
+			distanceFromStageStartKm: d.distanceFromStageStartKm,
+			elevationGainFromStageStart: d.elevationGainFromStageStart,
 		};
 
 		for (let i = 0; i < stages.length; i++) {
@@ -242,6 +319,11 @@ function BoundaryTooltip({
 	);
 }
 
+/** 고도 환산 거리(km): 거리 + (상승고도(m)/100)*1.2 — 100m 상승을 평지 1.2km로 환산 */
+function calcEffectiveDistanceKm(distanceKm: number, elevationGain: number): number {
+	return Math.round((distanceKm + (elevationGain / 100) * 1.2) * 10) / 10;
+}
+
 // ── 커스텀 툴팁 ───────────────────────────────────────────────────
 function CustomTooltip({
 	active,
@@ -253,12 +335,28 @@ function CustomTooltip({
 }) {
 	if (!active || !payload?.length) return null;
 	const d = payload[0].payload;
+	const hasStageStats =
+		typeof d.distanceFromStageStartKm === "number" &&
+		typeof d.elevationGainFromStageStart === "number";
+	const effectiveKm = hasStageStats
+		? calcEffectiveDistanceKm(d.distanceFromStageStartKm, d.elevationGainFromStageStart)
+		: null;
+
 	return (
 		<div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-md text-xs dark:border-zinc-700 dark:bg-zinc-800">
 			<p className="font-semibold text-zinc-800 dark:text-zinc-100">
-				{Number(d.distanceKm).toFixed(1)} km
+				전체 {Number(d.distanceKm).toFixed(1)} km · {d.ele} m
 			</p>
-			<p className="text-orange-500">{d.ele} m</p>
+			{hasStageStats && (
+				<p className="mt-1 text-zinc-500 dark:text-zinc-400">
+					스테이지 +{Number(d.distanceFromStageStartKm).toFixed(1)} km · 상승 +{d.elevationGainFromStageStart} m
+				</p>
+			)}
+			{effectiveKm != null && (
+				<p className="mt-1 border-t border-zinc-200 pt-1 text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+					고도 환산 거리 {effectiveKm} km
+				</p>
+			)}
 		</div>
 	);
 }
@@ -280,14 +378,20 @@ export function ElevationProfile({
 	onDiscardPreview,
 	isPinned = false,
 	onPin,
+	elevationCalibratedThreshold,
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const frozenVisibleRangeRef = useRef<{ startKm: number; endKm: number } | null>(null);
 
 	const rawChartData = useMemo(
-		() => buildChartData(trackPoints, stages),
-		[trackPoints, stages],
+		() =>
+			buildChartData(
+				trackPoints,
+				stages,
+				elevationCalibratedThreshold,
+			),
+		[trackPoints, stages, elevationCalibratedThreshold],
 	);
 
 	const hasStages = stages.length > 0;
