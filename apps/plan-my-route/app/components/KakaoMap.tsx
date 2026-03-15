@@ -449,6 +449,9 @@ export default function KakaoMap({
     doc: ClassifiedAccommodationDoc;
     infoWindow: KakaoInfoWindow;
   } | null>(null);
+  const afterRouteDrawRef = useRef<
+    ((map: KakaoMapInstance, maps: KakaoMapsAPI) => void) | null
+  >(null);
 
   reviewContextRef.current = reviewContext;
 
@@ -618,6 +621,7 @@ export default function KakaoMap({
         map.setLevel(previousLevel);
       }
       setMapReady(true);
+      afterRouteDrawRef.current?.(map, kakaoMaps);
 
       // 지도 mousemove → 고도 프로필 마커 연동 (isPinned 시에는 갱신하지 않음)
       if (points.length > 0) {
@@ -905,7 +909,10 @@ export default function KakaoMap({
   }, [showSearchPopover]);
 
   useEffect(() => {
-    if (!showAccommodations) return;
+    if (!showAccommodations) {
+      afterRouteDrawRef.current = null;
+      return;
+    }
     const map = mapInstanceRef.current as KakaoMapInstance | null;
     const maps = window.kakao?.maps;
     if (!map || !maps) return;
@@ -914,6 +921,13 @@ export default function KakaoMap({
       accommodationFilters,
     );
     renderAccommodationMarkers(map, maps, visibleDocs, placeReviewsMap);
+    afterRouteDrawRef.current = (drawMap, drawMaps) => {
+      const docs = filterAccommodationDocuments(
+        accommodationDocuments,
+        accommodationFilters,
+      );
+      renderAccommodationMarkers(drawMap, drawMaps, docs, placeReviewsMap);
+    };
   }, [
     showAccommodations,
     accommodationDocuments,
