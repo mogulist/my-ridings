@@ -166,7 +166,7 @@ export default function StageCard({
 					<span className="text-green-600 dark:text-green-400">
 						+{formatNumber(stage.elevationGain)}m
 					</span>
-					<span className="text-red-500 dark:text-red-400">
+					<span className="text-zinc-500 dark:text-zinc-400">
 						-{formatNumber(stage.elevationLoss)}m
 					</span>
 				</div>

@@ -4,20 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
-import StageCard from "./StageCard";
-import AddStageForm from "./AddStageForm";
+import { PlanListPane } from "./PlanListPane";
+import { PlanStagesPane } from "./PlanStagesPane";
 import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,
 } from "./DeleteStageDialog";
-import type { Plan, Stage } from "../types/plan";
+import type { Stage } from "../types/plan";
 
 interface RouteViewerProps {
   routeId: string;
-}
-
-function formatDistance(meters: number) {
-  return (meters / 1000).toFixed(1) + " km";
 }
 
 type DbStage = {
@@ -58,6 +54,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [selectedDayNumber, setSelectedDayNumber] = useState<number | null>(
     null,
   );
+  const [planListCollapsed, setPlanListCollapsed] = useState(false);
 
   const handlePin = useCallback((index: number) => {
     setPositionIndex(index);
@@ -203,216 +200,92 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [routeId, activePlanId, effectiveSelectedDay, stages],
   );
 
+  const routeSummary = useMemo(() => {
+    if (!route || !dbRoute) return null;
+    return {
+      name: dbRoute.name || route.name,
+      rwgpsUrl:
+        dbRoute.rwgps_url ||
+        `https://ridewithgps.com/routes/${route.id}`,
+      distanceKm: route.distance / 1000,
+      elevationGain: route.elevation_gain,
+      elevationLoss: route.elevation_loss,
+    };
+  }, [route, dbRoute]);
+
+  const activePlanName =
+    dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)
+      ?.name ?? null;
+
+  const handlePlanSelect = useCallback(
+    (planId: string) => {
+      setActivePlanId(planId);
+      const plan = dbRoute?.plans?.find((p: any) => p.id === planId);
+      if (plan) setDbStages(normalizeDbStages(plan.stages || []));
+    },
+    [dbRoute?.plans],
+  );
+
   return (
     <>
-      {/* ── 좌측 사이드바 ── */}
-      <aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
-        <div className="space-y-4 p-4">
-          {loading ? (
-            <div className="flex items-center gap-2">
-              <svg
-                className="h-4 w-4 animate-spin text-orange-500"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              <span className="text-sm text-zinc-500">경로 불러오는 중…</span>
-            </div>
-          ) : error ? (
+      {/* ── 좌측 2단 사이드바 ── */}
+      <aside className="hidden shrink-0 flex-row overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
+        {loading ? (
+          <div className="flex w-80 items-center gap-2 p-4">
+            <svg
+              className="h-4 w-4 animate-spin text-orange-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+            <span className="text-sm text-zinc-500">경로 불러오는 중…</span>
+          </div>
+        ) : error ? (
+          <div className="w-80 p-4">
             <p className="text-sm text-red-500">{error}</p>
-          ) : route ? (
-            <>
-              {/* 경로 정보 */}
-              <div>
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                  {dbRoute?.name || route.name}
-                </h2>
-                <a
-                  href={
-                    dbRoute?.rwgps_url ||
-                    `https://ridewithgps.com/routes/${route.id}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-orange-500 hover:underline"
-                >
-                  RideWithGPS에서 보기 ↗
-                </a>
-              </div>
-              <div className="flex gap-4 text-sm">
-                <div>
-                  <span className="text-zinc-500 dark:text-zinc-400">거리</span>
-                  <p className="font-medium">
-                    {formatDistance(route.distance)}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-zinc-500 dark:text-zinc-400">
-                    획득고도
-                  </span>
-                  <p className="font-medium text-green-600">
-                    +{route.elevation_gain.toFixed(0)} m
-                  </p>
-                </div>
-                <div>
-                  <span className="text-zinc-500 dark:text-zinc-400">
-                    하강고도
-                  </span>
-                  <p className="font-medium text-red-500">
-                    -{route.elevation_loss.toFixed(0)} m
-                  </p>
-                </div>
-              </div>
-
-              {/* 구분선 */}
-              <hr className="border-zinc-200 dark:border-zinc-700" />
-
-              {/* 계획 헤더 */}
-              <div className="flex items-center justify-between mt-4">
-                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                  📋 라이딩 플랜
-                </h3>
-              </div>
-
-              {/* 플랜 선택 및 생성 */}
-              <div className="space-y-3">
-                {dbRoute?.plans?.length > 0 ? (
-                  <select
-                    className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                    value={activePlanId || ""}
-                    onChange={(e) => {
-                      const planId = e.target.value;
-                      setActivePlanId(planId);
-                      const plan = dbRoute.plans.find(
-                        (p: any) => p.id === planId,
-                      );
-                      if (plan) {
-                        setDbStages(normalizeDbStages(plan.stages || []));
-                      }
-                    }}
-                  >
-                    <option value="" disabled>
-                      플랜을 선택하세요
-                    </option>
-                    {dbRoute.plans.map((p: any) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-xs text-zinc-500">
-                    생성된 플랜이 없습니다.
-                  </p>
-                )}
-
-                <form onSubmit={handleCreatePlan} className="flex gap-2">
-                  <input
-                    type="text"
-                    className="flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                    placeholder="새 플랜 이름 (예: 4박 5일 정주행)"
-                    value={newPlanName}
-                    onChange={(e) => setNewPlanName(e.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isCreatingPlan || !newPlanName.trim()}
-                    className="rounded bg-zinc-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-                  >
-                    추가
-                  </button>
-                </form>
-              </div>
-
-              <hr className="border-zinc-200 dark:border-zinc-700" />
-
-              {activePlanId && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                      🏁 스테이지
-                    </h3>
-                    {stages.length > 0 && (
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                        {stages.length}일 계획
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Stage 카드 목록 */}
-                  <div className="space-y-2">
-                    {stages.map((stage, idx) => {
-                      // 최대 수정 가능 거리: 현재 거리 + 다음 Stage 거리 (마지막이면 + 미계획)
-                      const nextStage = stages[idx + 1];
-                      const maxDist = nextStage
-                        ? stage.distanceKm + nextStage.distanceKm - 0.1
-                        : stage.distanceKm + unplannedDistanceKm;
-
-                      return (
-                        <StageCard
-                          key={stage.id}
-                          stage={stage}
-                          isActive={activeStageId === stage.id}
-                          onHover={setActiveStageId}
-                          onUpdateDistance={updateStageDistance}
-                          onDelete={requestDeleteStage}
-                          maxDistanceKm={maxDist}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  {/* Stage 추가 폼 */}
-                  <AddStageForm
-                    unplannedDistanceKm={unplannedDistanceKm}
-                    onAddStage={addStage}
-                    onAddLastStage={addLastStage}
-                    nextDayNumber={stages.length + 1}
-                  />
-
-                  {/* 전체 진행률 */}
-                  {stages.length > 0 && (
-                    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                      <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                        <span>계획 진행률</span>
-                        <span>
-                          {(
-                            ((totalRouteDistanceKm - unplannedDistanceKm) /
-                              totalRouteDistanceKm) *
-                            100
-                          ).toFixed(0)}
-                          %
-                        </span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-700">
-                        <div
-                          className="h-full rounded-full bg-blue-500 transition-all"
-                          style={{
-                            width: `${((totalRouteDistanceKm - unplannedDistanceKm) / totalRouteDistanceKm) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <>
+            <PlanListPane
+              routeSummary={routeSummary ?? undefined}
+              plans={dbRoute?.plans ?? []}
+              activePlanId={activePlanId}
+              onSelectPlan={handlePlanSelect}
+              newPlanName={newPlanName}
+              setNewPlanName={setNewPlanName}
+              onSubmitNewPlan={handleCreatePlan}
+              isCreatingPlan={isCreatingPlan}
+              isCollapsed={planListCollapsed}
+              onToggleCollapse={() => setPlanListCollapsed((c) => !c)}
+            />
+            <PlanStagesPane
+              planName={activePlanName}
+              stages={stages}
+              activeStageId={activeStageId}
+              setActiveStageId={setActiveStageId}
+              totalRouteDistanceKm={totalRouteDistanceKm}
+              unplannedDistanceKm={unplannedDistanceKm}
+              updateStageDistance={updateStageDistance}
+              requestDeleteStage={requestDeleteStage}
+              addStage={addStage}
+              addLastStage={addLastStage}
+            />
+          </>
+        )}
       </aside>
 
       {/* ── 오른쪽 컬럼: 지도 + 고도 프로필 ── */}

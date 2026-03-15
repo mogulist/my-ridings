@@ -193,6 +193,13 @@ export function usePlanStages(
 		setStages(initialStages);
 	}, [initialStages]);
 
+	// 플랜 전환 시 편집/삭제 대기 상태 초기화
+	useEffect(() => {
+		setPendingStageEdit(null);
+		setPendingDeletion(null);
+		setDeleteConfirmation(null);
+	}, [planId]);
+
 	// 총 경로 거리 (km)
 	const totalRouteDistanceKm =
 		trackPoints.length === 0
