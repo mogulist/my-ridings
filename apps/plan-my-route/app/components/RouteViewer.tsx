@@ -55,6 +55,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     null,
   );
   const [planListCollapsed, setPlanListCollapsed] = useState(false);
+  const [planActionInProgress, setPlanActionInProgress] = useState<
+    null | "create" | "update" | "duplicate" | "delete"
+  >(null);
 
   const handlePin = useCallback((index: number) => {
     setPositionIndex(index);
@@ -119,7 +122,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     e.preventDefault();
     if (!newPlanName.trim()) return;
     setIsCreatingPlan(true);
-
+    setPlanActionInProgress("create");
     try {
       const res = await fetch("/api/plans", {
         method: "POST",
@@ -141,6 +144,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       alert("플랜 생성에 실패했습니다.");
     } finally {
       setIsCreatingPlan(false);
+      setPlanActionInProgress(null);
     }
   };
 
@@ -226,8 +230,167 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [dbRoute?.plans],
   );
 
+  const handleUpdatePlan = useCallback(
+    async (planId: string, newName: string) => {
+      setPlanActionInProgress("update");
+      try {
+        const res = await fetch(`/api/plans/${planId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newName }),
+        });
+        if (!res.ok) throw new Error("Plan update failed");
+        setDbRoute((prev: any) => ({
+          ...prev,
+          plans: (prev?.plans ?? []).map((p: any) =>
+            p.id === planId ? { ...p, name: newName } : p,
+          ),
+        }));
+      } catch (err) {
+        console.error(err);
+        alert("플랜 이름 수정에 실패했습니다.");
+      } finally {
+        setPlanActionInProgress(null);
+      }
+    },
+    [],
+  );
+
+  const handleDeletePlan = useCallback(
+    async (planId: string) => {
+      setPlanActionInProgress("delete");
+      try {
+        const res = await fetch(`/api/plans/${planId}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Plan delete failed");
+        const prevPlans = dbRoute?.plans ?? [];
+        const nextPlans = prevPlans.filter((p: any) => p.id !== planId);
+        setDbRoute((prev: any) => ({ ...prev, plans: nextPlans }));
+        if (activePlanId === planId) {
+          const nextPlan = nextPlans[0];
+          if (nextPlan) {
+            setActivePlanId(nextPlan.id);
+            setDbStages(normalizeDbStages(nextPlan.stages || []));
+          } else {
+            setActivePlanId(null);
+            setDbStages([]);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        alert("플랜 삭제에 실패했습니다.");
+      } finally {
+        setPlanActionInProgress(null);
+      }
+    },
+    [dbRoute?.plans, activePlanId],
+  );
+
+  const handleDuplicatePlan = useCallback(
+    async (plan: { id: string; name: string; stages?: unknown[] }) => {
+      setPlanActionInProgress("duplicate");
+      try {
+        const newName = `Copy of ${plan.name}`;
+        const planRes = await fetch("/api/plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ route_id: routeId, name: newName }),
+        });
+        if (!planRes.ok) throw new Error("Plan creation failed");
+        const newPlan = await planRes.json();
+
+        const rawStages = (plan.stages ?? []) as {
+          start_distance: number;
+          end_distance: number;
+          elevation_gain?: number | null;
+          elevation_loss?: number | null;
+          title?: string | null;
+        }[];
+        const sortedStages = [...rawStages].sort(
+          (a, b) => a.start_distance - b.start_distance,
+        );
+        const createdStages: DbStage[] = [];
+        for (const s of sortedStages) {
+          const stageRes = await fetch("/api/stages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              plan_id: newPlan.id,
+              start_distance: s.start_distance,
+              end_distance: s.end_distance,
+              elevation_gain: s.elevation_gain ?? null,
+              elevation_loss: s.elevation_loss ?? null,
+              title: s.title ?? null,
+            }),
+          });
+          if (!stageRes.ok) throw new Error("Stage creation failed");
+          createdStages.push(await stageRes.json());
+        }
+
+        setDbRoute((prev: any) => ({
+          ...prev,
+          plans: [
+            ...(prev?.plans ?? []),
+            { ...newPlan, stages: createdStages },
+          ],
+        }));
+        setActivePlanId(newPlan.id);
+        setDbStages(normalizeDbStages(createdStages));
+      } catch (err) {
+        console.error(err);
+        alert("플랜 복제에 실패했습니다.");
+      } finally {
+        setPlanActionInProgress(null);
+      }
+    },
+    [routeId],
+  );
+
+  const planActionMessage =
+    planActionInProgress === "duplicate"
+      ? "플랜 복제 중…"
+      : planActionInProgress === "delete"
+        ? "플랜 삭제 중…"
+        : planActionInProgress === "update"
+          ? "이름 수정 중…"
+          : planActionInProgress === "create"
+            ? "플랜 추가 중…"
+            : "";
+
   return (
     <>
+      {planActionInProgress !== null && (
+        <div
+          className="fixed inset-0 z-100 flex flex-col items-center justify-center gap-3 bg-black/40"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <svg
+            className="h-10 w-10 animate-spin text-orange-500"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+          <span className="text-sm font-medium text-white drop-shadow-md">
+            {planActionMessage}
+          </span>
+        </div>
+      )}
+
       {/* ── 좌측 2단 사이드바 ── */}
       <aside className="hidden shrink-0 flex-row overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
         {loading ? (
@@ -265,6 +428,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               plans={dbRoute?.plans ?? []}
               activePlanId={activePlanId}
               onSelectPlan={handlePlanSelect}
+              onUpdatePlan={handleUpdatePlan}
+              onDuplicatePlan={handleDuplicatePlan}
+              onDeletePlan={handleDeletePlan}
               newPlanName={newPlanName}
               setNewPlanName={setNewPlanName}
               onSubmitNewPlan={handleCreatePlan}

@@ -1,5 +1,21 @@
 "use client";
 
+import { useState, useCallback } from "react";
+import {
+  MoreHorizontalIcon,
+  PencilIcon,
+  TrashIcon,
+  CopyIcon,
+} from "lucide-react";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@my-ridings/ui";
+
 type PlanItem = {
   id: string;
   name: string;
@@ -19,6 +35,9 @@ type PlanListPaneProps = {
   plans: PlanItem[];
   activePlanId: string | null;
   onSelectPlan: (planId: string) => void;
+  onUpdatePlan?: (planId: string, newName: string) => void;
+  onDuplicatePlan?: (plan: PlanItem) => void;
+  onDeletePlan?: (planId: string) => void;
   newPlanName: string;
   setNewPlanName: (value: string) => void;
   onSubmitNewPlan: (e: React.FormEvent) => void;
@@ -47,6 +66,9 @@ export function PlanListPane({
   plans,
   activePlanId,
   onSelectPlan,
+  onUpdatePlan,
+  onDuplicatePlan,
+  onDeletePlan,
   newPlanName,
   setNewPlanName,
   onSubmitNewPlan,
@@ -54,6 +76,49 @@ export function PlanListPane({
   isCollapsed,
   onToggleCollapse,
 }: PlanListPaneProps) {
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [deleteConfirmPlanId, setDeleteConfirmPlanId] = useState<string | null>(
+    null,
+  );
+  const [openMenuPlanId, setOpenMenuPlanId] = useState<string | null>(null);
+
+  const handleStartEdit = useCallback((plan: PlanItem) => {
+    setEditingPlanId(plan.id);
+    setEditName(plan.name);
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
+    if (editingPlanId && editName.trim() && onUpdatePlan) {
+      onUpdatePlan(editingPlanId, editName.trim());
+    }
+    setEditingPlanId(null);
+    setEditName("");
+  }, [editingPlanId, editName, onUpdatePlan]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingPlanId(null);
+    setEditName("");
+  }, []);
+
+  const handleRequestDelete = useCallback((planId: string) => {
+    setDeleteConfirmPlanId(planId);
+  }, []);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (deleteConfirmPlanId && onDeletePlan) {
+      onDeletePlan(deleteConfirmPlanId);
+    }
+    setDeleteConfirmPlanId(null);
+  }, [deleteConfirmPlanId, onDeletePlan]);
+
+  const editingPlan = editingPlanId
+    ? plans.find((p) => p.id === editingPlanId)
+    : null;
+  const deleteConfirmPlan = deleteConfirmPlanId
+    ? plans.find((p) => p.id === deleteConfirmPlanId)
+    : null;
+
   if (isCollapsed) {
     return (
       <div className="flex w-12 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -124,22 +189,100 @@ export function PlanListPane({
             plans.map((plan) => {
               const stageCount = plan.stages?.length ?? 0;
               const isActive = activePlanId === plan.id;
+              const showActions = Boolean(
+    onUpdatePlan || onDuplicatePlan || onDeletePlan,
+  );
               return (
-                <button
+                <div
                   key={plan.id}
-                  type="button"
-                  onClick={() => onSelectPlan(plan.id)}
-                  className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                  className={`flex items-start gap-1 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
                     isActive
-                      ? "border-orange-500 bg-orange-50 text-zinc-900 dark:border-orange-600 dark:bg-orange-950/40 dark:text-zinc-100"
-                      : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
+                      ? "border-orange-500 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/40"
+                      : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800"
                   }`}
                 >
-                  <div className="font-medium">{plan.name}</div>
-                  <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    {stageCount > 0 ? `${stageCount}일 계획` : "스테이지 없음"}
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onSelectPlan(plan.id)}
+                    className={`min-w-0 flex-1 text-left ${
+                      isActive
+                        ? "text-zinc-900 dark:text-zinc-100"
+                        : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    }`}
+                  >
+                    <div className="font-medium">{plan.name}</div>
+                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {stageCount > 0
+                        ? `${stageCount}일 계획`
+                        : "스테이지 없음"}
+                    </div>
+                  </button>
+                  {showActions && (
+                    <DropdownMenu
+                      open={openMenuPlanId === plan.id}
+                      onOpenChange={(open) =>
+                        setOpenMenuPlanId(open ? plan.id : null)
+                      }
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 rounded"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="플랜 메뉴"
+                        >
+                          <MoreHorizontalIcon className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {onUpdatePlan && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setOpenMenuPlanId(null);
+                              handleStartEdit(plan);
+                            }}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                            이름 수정
+                          </DropdownMenuItem>
+                        )}
+                        {onDuplicatePlan && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setOpenMenuPlanId(null);
+                              onDuplicatePlan(plan);
+                            }}
+                          >
+                            <CopyIcon className="h-4 w-4" />
+                            복제
+                          </DropdownMenuItem>
+                        )}
+                        {(onUpdatePlan || onDuplicatePlan) && onDeletePlan && (
+                          <DropdownMenuSeparator />
+                        )}
+                        {onDeletePlan && (
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setOpenMenuPlanId(null);
+                              handleRequestDelete(plan.id);
+                            }}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                            삭제
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               );
             })
           )}
@@ -164,6 +307,74 @@ export function PlanListPane({
           </button>
         </form>
       </div>
+
+      {editingPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="mx-4 w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              플랜 이름 수정
+            </h3>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveEdit();
+                if (e.key === "Escape") handleCancelEdit();
+              }}
+              className="mt-3 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              placeholder="플랜 이름"
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={!editName.trim()}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="mx-4 w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              플랜 삭제
+            </h3>
+            <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+              &quot;{deleteConfirmPlan.name}&quot; 플랜을 삭제하시겠습니까?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmPlanId(null)}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
