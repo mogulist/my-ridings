@@ -330,19 +330,50 @@ const REVIEW_STATE_COLORS: Record<ReviewState, string> = {
   down: "#d1d5db",
 };
 
+function buildNaverMapUrls(
+  placeName: string,
+  addressName: string | undefined,
+  lat: string,
+  lng: string,
+): { webUrl: string; appSchemeUrl: string } | null {
+  const query = (placeName || addressName || "").trim();
+  if (!query) return null;
+  const encoded = encodeURIComponent(query);
+  const webUrl = `https://map.naver.com/p/search/${encoded}`;
+  const appname =
+    typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
+  const appSchemeUrl = `nmap://place?lat=${lat}&lng=${lng}&name=${encoded}&appname=${appname}`;
+  return { webUrl, appSchemeUrl };
+}
+
 function buildAccommodationTooltipHtml(
   doc: KakaoPlaceDoc,
   review: PlaceReviewRow | null,
 ): string {
+  const badgeStyle =
+    "display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;background:#f3f4f6;color:#1976d2;border:1px solid #e5e7eb;";
   const link = doc.place_url
-    ? `<a href="${doc.place_url.replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#1976d2;">카카오맵에서 보기</a>`
+    ? `<a href="${doc.place_url.replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer" style="${badgeStyle}">카카오맵</a>`
     : "";
+  const naverUrls = buildNaverMapUrls(
+    doc.place_name,
+    doc.address_name,
+    doc.y,
+    doc.x,
+  );
+  const naverLink =
+    naverUrls &&
+    `<a href="${naverUrls.webUrl.replace(/"/g, "&quot;")}" class="open-naver-map" target="_blank" rel="noopener noreferrer" data-naver-web-url="${naverUrls.webUrl.replace(/"/g, "&quot;")}" data-naver-app-url="${naverUrls.appSchemeUrl.replace(/"/g, "&quot;")}" style="${badgeStyle}">네이버맵</a>`;
   const state = review?.review_state ?? "neutral";
   const note = review?.note ?? "";
   const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  const linksBlock =
+    link || naverLink
+      ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;">${link ?? ""}${naverLink ?? ""}</div>`
+      : "";
   return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
-  ${link ? `<div style="margin-bottom:8px;">${link}</div>` : ""}
+  ${linksBlock}
   <div style="margin-bottom:6px;font-size:11px;color:#6b7280;">평가</div>
   <div style="display:flex;gap:4px;margin-bottom:8px;">
     <button type="button" class="place-review-state-btn" data-state="up2" aria-label="확정" title="확정" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "up2" ? REVIEW_STATE_COLORS.up2 : "#fff"};color:${state === "up2" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👍👍</button>
@@ -808,6 +839,22 @@ export default function KakaoMap({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const naverMapLink = (e.target as HTMLElement).closest("a.open-naver-map");
+      if (naverMapLink) {
+        e.preventDefault();
+        const webUrl = (naverMapLink as HTMLAnchorElement).dataset.naverWebUrl;
+        const appUrl = (naverMapLink as HTMLAnchorElement).dataset.naverAppUrl;
+        if (appUrl) {
+          window.location.href = appUrl;
+          setTimeout(() => {
+            if (!document.hidden) window.open(webUrl ?? "", "_blank", "noopener,noreferrer");
+          }, 1500);
+        } else if (webUrl) {
+          window.open(webUrl, "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+
       const stateBtn = (e.target as HTMLElement).closest(".place-review-state-btn");
       if (stateBtn) {
         e.preventDefault();
