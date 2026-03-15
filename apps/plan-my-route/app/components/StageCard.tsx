@@ -27,6 +27,11 @@ function formatNumber(n: number): string {
 	return n.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
 }
 
+/** 체감 거리(km): 거리 + (상승고도(m)/100)*1.2 — 100m 상승을 평지 1.2km로 환산 */
+function calcEffectiveDistanceKm(distanceKm: number, elevationGain: number): number {
+	return Math.round((distanceKm + (elevationGain / 100) * 1.2) * 10) / 10;
+}
+
 export default function StageCard({
 	stage,
 	isActive,
@@ -132,40 +137,44 @@ export default function StageCard({
 				</DropdownMenu>
 			</div>
 
-			{/* 거리 */}
-			<div className="flex items-center gap-1 text-sm">
-				<span className="text-zinc-400">📏</span>
-				{isEditing ? (
-					<div className="flex items-center gap-1">
-						<input
-							type="number"
-							value={editValue}
-							onChange={(e) => setEditValue(e.target.value)}
-							onKeyDown={handleKeyDown}
-							onBlur={handleSaveEdit}
-							className="w-20 rounded border border-zinc-300 px-2 py-0.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
-							min={1}
-							max={maxDistanceKm}
-							step={1}
-							autoFocus
-						/>
-						<span className="text-xs text-zinc-400">km</span>
-					</div>
-				) : (
-					<span className="font-medium text-zinc-700 dark:text-zinc-300">
-						{formatNumber(stage.distanceKm)} km
+			{/* 1행: 거리(좌) | 획득/하강고도(우) */}
+			<div className="flex items-center justify-between text-sm">
+				<div className="flex items-center gap-1">
+					{isEditing ? (
+						<>
+							<input
+								type="number"
+								value={editValue}
+								onChange={(e) => setEditValue(e.target.value)}
+								onKeyDown={handleKeyDown}
+								onBlur={handleSaveEdit}
+								className="w-20 rounded border border-zinc-300 px-2 py-0.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+								min={1}
+								max={maxDistanceKm}
+								step={1}
+								autoFocus
+							/>
+							<span className="text-xs text-zinc-400">km</span>
+						</>
+					) : (
+						<span className="font-medium text-zinc-700 dark:text-zinc-300">
+							{formatNumber(stage.distanceKm)} km
+						</span>
+					)}
+				</div>
+				<div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+					<span className="text-green-600 dark:text-green-400">
+						+{formatNumber(stage.elevationGain)}m
 					</span>
-				)}
+					<span className="text-red-500 dark:text-red-400">
+						-{formatNumber(stage.elevationLoss)}m
+					</span>
+				</div>
 			</div>
 
-			{/* 고도 정보 */}
-			<div className="mt-1 flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-				<span className="text-green-600 dark:text-green-400">
-					⛰️ +{formatNumber(stage.elevationGain)}m
-				</span>
-				<span className="text-red-500 dark:text-red-400">
-					▼ -{formatNumber(stage.elevationLoss)}m
-				</span>
+			{/* 2행: 체감 거리 */}
+			<div className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+				{formatNumber(calcEffectiveDistanceKm(stage.distanceKm, stage.elevationGain))} km
 			</div>
 		</div>
 	);
