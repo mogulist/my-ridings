@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { Expand, Locate, MapPinOff } from "lucide-react";
+import { Bed, Expand, Locate, MapPinOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
@@ -61,7 +61,15 @@ interface KakaoMapsAPI {
     map: KakaoMapInstance;
     position: unknown;
     title?: string;
+    image?: unknown;
   }) => KakaoMarker;
+  MarkerImage: new (
+    src: string,
+    size: unknown,
+    options?: { offset?: unknown },
+  ) => unknown;
+  Size: new (width: number, height: number) => unknown;
+  Point: new (x: number, y: number) => unknown;
   InfoWindow: new (options: {
     content: string;
     removable?: boolean;
@@ -83,8 +91,17 @@ interface KakaoMapsAPI {
   };
 }
 
+interface KakaoLatLng {
+  getLat: () => number;
+  getLng: () => number;
+}
+
 interface KakaoMapInstance {
   setBounds: (bounds: unknown) => void;
+  getBounds?: () => {
+    getSouthWest: () => KakaoLatLng;
+    getNorthEast: () => KakaoLatLng;
+  };
 }
 
 interface KakaoLatLngBounds {
@@ -93,11 +110,13 @@ interface KakaoLatLngBounds {
 
 interface KakaoMarker {
   getPosition: () => unknown;
+  setMap?: (map: unknown) => void;
 }
 
 interface KakaoInfoWindow {
   open: (map: KakaoMapInstance, marker: KakaoMarker) => void;
   close: () => void;
+  setContent?: (content: string) => void;
 }
 
 interface KakaoCustomOverlay {
@@ -138,9 +157,53 @@ function slicePointsByDistance(
   return points.filter((p) => p.d != null && p.d >= startM && p.d <= endM);
 }
 
+// ── 숙박업소 타입 ──────────────────────────────────────────────────
+type KakaoPlaceDoc = {
+  id: string;
+  place_name: string;
+  place_url: string;
+  address_name?: string;
+  x: string;
+  y: string;
+};
+
+function buildAccommodationTooltipHtml(
+  doc: KakaoPlaceDoc,
+  isBookmarked: boolean,
+): string {
+  const link = doc.place_url
+    ? `<a href="${doc.place_url.replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#1976d2;">카카오맵에서 보기</a>`
+    : "";
+  const bookmarkLabel = isBookmarked ? "❤️" : "🤍";
+  return `<div class="accommodation-tooltip" style="padding:2px 0;min-width:160px;max-width:220px;line-height:1.45;color:#111827;">
+  <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${doc.place_name.replace(/</g, "&lt;")}</div>
+  ${link ? `<div style="margin-bottom:6px;">${link}</div>` : ""}
+  <button type="button" class="bookmark-toggle-btn" aria-label="찜 토글" data-place-id="${doc.id.replace(/"/g, "&quot;")}" data-place-name="${doc.place_name.replace(/"/g, "&quot;")}" data-place-url="${(doc.place_url ?? "").replace(/"/g, "&quot;")}" data-address="${(doc.address_name ?? "").replace(/"/g, "&quot;")}" data-lat="${doc.y}" data-lng="${doc.x}" style="background:none;border:none;cursor:pointer;font-size:18px;padding:0;line-height:1;">${bookmarkLabel}</button>
+</div>`;
+}
+
+const ACCOMMODATION_MARKER_SIZE = 24;
+
+function getAccommodationMarkerImage(maps: KakaoMapsAPI): unknown {
+  const size = ACCOMMODATION_MARKER_SIZE;
+  const r = size / 2;
+  // 원 + 흰색 침대 아이콘 (카카오맵 스타일)
+  const bed =
+    '<rect x="9" y="8" width="6" height="2.5" rx="0.5" fill="#fff"/>' +
+    '<rect x="7" y="10.5" width="10" height="5" rx="0.5" fill="#fff"/>' +
+    '<rect x="8" y="11" width="3" height="2" rx="0.3" fill="#fff"/>' +
+    '<rect x="13" y="11" width="3" height="2" rx="0.3" fill="#fff"/>';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${r}" cy="${r}" r="${r - 1}" fill="#1d4ed8" stroke="#fff" stroke-width="1.5"/>${bed}</svg>`;
+  const src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return new maps.MarkerImage(src, new maps.Size(size, size), {
+    offset: new maps.Point(r, r),
+  });
+}
+
 // ── Props ─────────────────────────────────────────────────────────
 const HIGHLIGHT_MARKER_SIZE = 16;
 const HIGHLIGHT_MARKER_COLOR = "#f97316";
+const ZOOM_LIMIT_ACCOMMODATION = 7;
 
 function highlightCircleMarkerHtml(size: number): string {
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`;
@@ -184,6 +247,15 @@ export default function KakaoMap({
   const onPinRef = useRef(onPin);
   const [mapReady, setMapReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
+  const [showAccommodations, setShowAccommodations] = useState(false);
+  const [accommodationLoading, setAccommodationLoading] = useState(false);
+  const [bookedPlaceIds, setBookedPlaceIds] = useState<Set<string>>(new Set());
+  const accommodationOverlaysRef = useRef<KakaoMarker[]>([]);
+  const onBookmarkChangeRef = useRef<((placeId: string, isAdded: boolean) => void) | null>(null);
+  const activeAccommodationInfoRef = useRef<{
+    doc: KakaoPlaceDoc;
+    infoWindow: KakaoInfoWindow;
+  } | null>(null);
 
   onPositionChangeRef.current = onPositionChange;
   isPinnedRef.current = isPinned;
@@ -394,6 +466,154 @@ export default function KakaoMap({
     [drawRoute, route],
   );
 
+  const fetchBookmarks = useCallback(async (): Promise<Set<string>> => {
+    const res = await fetch("/api/bookmarks");
+    if (!res.ok) return new Set();
+    const data = (await res.json()) as { place_id: string }[];
+    const ids = new Set(data.map((b) => b.place_id));
+    setBookedPlaceIds(ids);
+    return ids;
+  }, []);
+
+  const handleAccommodationToggle = useCallback(async () => {
+    const map = mapInstanceRef.current as KakaoMapInstance | null;
+    const maps = window.kakao?.maps;
+    if (!map || !maps) return;
+
+    if (showAccommodations) {
+      accommodationOverlaysRef.current.forEach((m) => {
+        if (m.setMap) m.setMap(null);
+      });
+      accommodationOverlaysRef.current = [];
+      setShowAccommodations(false);
+      return;
+    }
+
+    const bounds = map.getBounds?.();
+    if (!bounds) return;
+
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const swLng = sw.getLng();
+    const swLat = sw.getLat();
+    const neLng = ne.getLng();
+    const neLat = ne.getLat();
+    const rect = `${swLng},${swLat},${neLng},${neLat}`;
+
+    setAccommodationLoading(true);
+    try {
+      const res = await fetch(
+        `/api/kakao/local/category?rect=${encodeURIComponent(rect)}`,
+      );
+      if (!res.ok) throw new Error("Failed to fetch");
+      const { documents } = (await res.json()) as { documents: KakaoPlaceDoc[] };
+      const bookedIds = await fetchBookmarks();
+      const markerImage = getAccommodationMarkerImage(maps);
+
+      const list: KakaoMarker[] = [];
+      for (const doc of documents) {
+        const pos = new maps.LatLng(Number(doc.y), Number(doc.x));
+        const marker = new maps.Marker({
+          map: map as never,
+          position: pos,
+          title: doc.place_name,
+          image: markerImage,
+        });
+        list.push(marker);
+
+        const infoContent = buildAccommodationTooltipHtml(
+          doc,
+          bookedIds.has(doc.id),
+        );
+        const infoWindow = new maps.InfoWindow({
+          content: infoContent,
+          removable: true,
+        });
+
+        maps.event.addListener(marker, "click", () => {
+          if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+          const nextContent = buildAccommodationTooltipHtml(
+            doc,
+            bookedIds.has(doc.id),
+          );
+          infoWindow.setContent?.(nextContent);
+          infoWindow.open(map, marker);
+          openInfoWindowRef.current = infoWindow;
+          activeAccommodationInfoRef.current = { doc, infoWindow };
+        });
+      }
+      accommodationOverlaysRef.current = list;
+      setShowAccommodations(true);
+    } catch {
+      setShowAccommodations(false);
+    } finally {
+      setAccommodationLoading(false);
+    }
+  }, [showAccommodations, fetchBookmarks]);
+
+  onBookmarkChangeRef.current = (placeId: string, isAdded: boolean) => {
+    setBookedPlaceIds((prev) => {
+      const next = new Set(prev);
+      if (isAdded) next.add(placeId);
+      else next.delete(placeId);
+      return next;
+    });
+    const activeInfo = activeAccommodationInfoRef.current;
+    if (activeInfo && activeInfo.doc.id === placeId) {
+      activeInfo.infoWindow.setContent?.(
+        buildAccommodationTooltipHtml(activeInfo.doc, isAdded),
+      );
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest(".bookmark-toggle-btn");
+      if (!target) return;
+      e.preventDefault();
+      const btn = target as HTMLButtonElement;
+      const placeId = btn.dataset.placeId;
+      const placeName = btn.dataset.placeName;
+      const placeUrl = btn.dataset.placeUrl;
+      const address = btn.dataset.address;
+      const lat = btn.dataset.lat;
+      const lng = btn.dataset.lng;
+      if (!placeId || !placeName) return;
+
+      const isBookmarked = bookedPlaceIds.has(placeId);
+      if (isBookmarked) {
+        fetch(`/api/bookmarks/${encodeURIComponent(placeId)}`, {
+          method: "DELETE",
+        }).then((res) => {
+          if (res.ok) onBookmarkChangeRef.current?.(placeId, false);
+          if (!res.ok) alert("찜 해제에 실패했습니다.");
+        });
+      } else {
+        fetch("/api/bookmarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            place_id: placeId,
+            place_name: placeName,
+            place_url: placeUrl || null,
+            address_name: address || null,
+            lat: lat ? Number(lat) : null,
+            lng: lng ? Number(lng) : null,
+          }),
+        }).then((res) => {
+          if (res.status === 401) {
+            alert("로그인 후 찜할 수 있습니다.");
+            return;
+          }
+          if (res.ok) onBookmarkChangeRef.current?.(placeId, true);
+          if (!res.ok) alert("찜 저장에 실패했습니다.");
+        });
+      }
+    };
+    document.addEventListener("click", handler, true);
+    return () => document.removeEventListener("click", handler, true);
+  }, [bookedPlaceIds]);
+
   const computeBounds = useCallback(() => {
     const points = route?.track_points;
     if (!points?.length || !window.kakao?.maps) return null;
@@ -548,6 +768,30 @@ export default function KakaoMap({
             aria-label="전체 경로 보기"
           >
             <Expand className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleAccommodationToggle}
+            disabled={
+              zoomLevel == null ||
+              zoomLevel > ZOOM_LIMIT_ACCOMMODATION ||
+              accommodationLoading
+            }
+            className={btnClass}
+            aria-label="숙박업소 표시"
+            title={
+              zoomLevel != null && zoomLevel > ZOOM_LIMIT_ACCOMMODATION
+                ? "줌 레벨 7 이하에서만 사용 가능"
+                : "숙박업소 표시"
+            }
+          >
+            {accommodationLoading ? (
+              <span className="size-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+            ) : (
+              <Bed
+                className={`size-4 ${showAccommodations ? "text-pink-600" : ""}`}
+              />
+            )}
           </button>
           {isPinned && onUnpin && (
             <button

@@ -62,6 +62,27 @@ CREATE TABLE IF NOT EXISTS public.stage (
 -- Index for querying stages by plan efficiently
 CREATE INDEX IF NOT EXISTS stage_plan_id_idx ON public.stage (plan_id);
 
+-- 4. Bookmarks Table (숙박업소 찜)
+CREATE TABLE IF NOT EXISTS public.bookmark (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    user_id uuid NOT NULL,
+    place_id text NOT NULL,
+    place_name text NOT NULL,
+    place_url text,
+    address_name text,
+    lat numeric,
+    lng numeric,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT bookmark_pkey PRIMARY KEY (id),
+    CONSTRAINT bookmark_user_id_fkey FOREIGN KEY (user_id)
+        REFERENCES next_auth.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE,
+    CONSTRAINT bookmark_user_place_unique UNIQUE (user_id, place_id)
+);
+
+CREATE INDEX IF NOT EXISTS bookmark_user_id_idx ON public.bookmark (user_id);
+
 -- Grants
 GRANT ALL ON TABLE public.route TO postgres;
 GRANT ALL ON TABLE public.route TO service_role;
@@ -72,6 +93,9 @@ GRANT ALL ON TABLE public.plan TO service_role;
 
 GRANT ALL ON TABLE public.stage TO postgres;
 GRANT ALL ON TABLE public.stage TO service_role;
+
+GRANT ALL ON TABLE public.bookmark TO postgres;
+GRANT ALL ON TABLE public.bookmark TO service_role;
 
 -- If stage table already exists without elevation columns, run:
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS elevation_gain numeric;
