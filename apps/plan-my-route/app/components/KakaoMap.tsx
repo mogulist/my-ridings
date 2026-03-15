@@ -98,6 +98,10 @@ interface KakaoLatLng {
 
 interface KakaoMapInstance {
   setBounds: (bounds: unknown) => void;
+  setCenter?: (latLng: unknown) => void;
+  getCenter?: () => KakaoLatLng;
+  setLevel?: (level: number) => void;
+  getLevel?: () => number;
   getBounds?: () => {
     getSouthWest: () => KakaoLatLng;
     getNorthEast: () => KakaoLatLng;
@@ -367,6 +371,7 @@ export default function KakaoMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
   const mapInstanceRef = useRef<unknown>(null);
+  const lastRouteIdRef = useRef<number | null>(null);
   const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
   const onPositionChangeRef = useRef(onPositionChange);
   const isPinnedRef = useRef(isPinned);
@@ -400,6 +405,14 @@ export default function KakaoMap({
 
       const points = routeData.track_points;
       const firstPoint = points[0];
+      const previousMap = mapInstanceRef.current as KakaoMapInstance | null;
+      const isSameRouteRerender = lastRouteIdRef.current === routeData.id;
+      const previousCenter = previousMap?.getCenter?.();
+      const previousLevel = previousMap?.getLevel?.();
+      const shouldPreserveViewport =
+        isSameRouteRerender &&
+        previousCenter != null &&
+        typeof previousLevel === "number";
 
       const map = new kakaoMaps.Map(containerRef.current, {
         center: new kakaoMaps.LatLng(firstPoint.y, firstPoint.x),
@@ -418,9 +431,11 @@ export default function KakaoMap({
           strokeStyle: "solid",
         });
 
-        const bounds = new kakaoMaps.LatLngBounds();
-        for (const latlng of path) bounds.extend(latlng);
-        map.setBounds(bounds);
+        if (!shouldPreserveViewport) {
+          const bounds = new kakaoMaps.LatLngBounds();
+          for (const latlng of path) bounds.extend(latlng);
+          map.setBounds(bounds);
+        }
       } else {
         const totalDistanceKm = routeData.distance / 1000;
 
@@ -490,10 +505,12 @@ export default function KakaoMap({
         }
 
         // 전체 경로 bounds
-        const allPath = points.map((p) => new kakaoMaps.LatLng(p.y, p.x));
-        const bounds = new kakaoMaps.LatLngBounds();
-        for (const latlng of allPath) bounds.extend(latlng);
-        map.setBounds(bounds);
+        if (!shouldPreserveViewport) {
+          const allPath = points.map((p) => new kakaoMaps.LatLng(p.y, p.x));
+          const bounds = new kakaoMaps.LatLngBounds();
+          for (const latlng of allPath) bounds.extend(latlng);
+          map.setBounds(bounds);
+        }
       }
 
       // CP 마커
@@ -531,6 +548,18 @@ export default function KakaoMap({
       new kakaoMaps.Marker({ map, position: lastPos, title: "FINISH" });
 
       mapInstanceRef.current = map;
+      lastRouteIdRef.current = routeData.id;
+      if (
+        shouldPreserveViewport &&
+        previousCenter &&
+        map.setCenter &&
+        map.setLevel
+      ) {
+        map.setCenter(
+          new kakaoMaps.LatLng(previousCenter.getLat(), previousCenter.getLng()),
+        );
+        map.setLevel(previousLevel);
+      }
       setMapReady(true);
 
       // 지도 mousemove → 고도 프로필 마커 연동 (isPinned 시에는 갱신하지 않음)
