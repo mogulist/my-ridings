@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 
-type BookmarkRow = {
+export type ReviewState = "up2" | "up1" | "neutral" | "down";
+
+export type PlaceReviewRow = {
   id: string;
   place_id: string;
   place_name: string;
@@ -10,7 +12,14 @@ type BookmarkRow = {
   address_name: string | null;
   lat: number | null;
   lng: number | null;
+  place_kind: string;
+  review_state: ReviewState;
+  note: string | null;
+  route_id: string | null;
+  plan_id: string | null;
+  stage_id: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 type SupabaseLikeError = {
@@ -18,11 +27,14 @@ type SupabaseLikeError = {
   message?: string;
 };
 
-function isBookmarkSchemaError(error: SupabaseLikeError | null): boolean {
+function isPlaceReviewSchemaError(error: SupabaseLikeError | null): boolean {
   if (!error) return false;
   if (error.code === "42P01" || error.code === "PGRST205") return true;
   return false;
 }
+
+const SELECT_COLS =
+  "id, place_id, place_name, place_url, address_name, lat, lng, place_kind, review_state, note, route_id, plan_id, stage_id, created_at, updated_at";
 
 export async function GET() {
   const session = await auth();
@@ -31,17 +43,17 @@ export async function GET() {
   }
 
   const { data, error } = await supabaseAdmin
-    .from("bookmark")
-    .select("id, place_id, place_name, place_url, address_name, lat, lng, created_at")
+    .from("place_review")
+    .select(SELECT_COLS)
     .eq("user_id", session.user.id)
-    .order("created_at", { ascending: false });
+    .order("updated_at", { ascending: false });
 
   if (error) {
-    if (isBookmarkSchemaError(error))
+    if (isPlaceReviewSchemaError(error))
       return NextResponse.json(
         {
           error:
-            "bookmark 테이블이 없습니다. supabase-migration-bookmark.sql 을 먼저 실행해 주세요.",
+            "place_review 테이블이 없습니다. supabase-migration-place-review.sql 을 먼저 실행해 주세요.",
           code: error.code ?? null,
           detail: error.message ?? null,
         },
@@ -70,6 +82,13 @@ export async function POST(request: NextRequest) {
       address_name,
       lat,
       lng,
+      provider = "kakao",
+      place_kind = "accommodation",
+      review_state = "neutral",
+      note,
+      route_id,
+      plan_id,
+      stage_id,
     } = body;
 
     if (!place_id || !place_name) {
@@ -79,49 +98,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: existing, error: existingError } = await supabaseAdmin
-      .from("bookmark")
-      .select("id, place_id, place_name, place_url, address_name, lat, lng, created_at")
-      .eq("user_id", session.user.id)
-      .eq("place_id", String(place_id))
-      .maybeSingle();
+    const validStates: ReviewState[] = ["up2", "up1", "neutral", "down"];
+    const state = validStates.includes(review_state) ? review_state : "neutral";
 
-    if (existingError) {
-      if (isBookmarkSchemaError(existingError))
-        return NextResponse.json(
-          {
-            error:
-              "bookmark 테이블이 없습니다. supabase-migration-bookmark.sql 을 먼저 실행해 주세요.",
-            code: existingError.code ?? null,
-            detail: existingError.message ?? null,
-          },
-          { status: 503 },
-        );
-      throw existingError;
-    }
-
-    if (existing) return NextResponse.json(existing, { status: 200 });
+    const row = {
+      user_id: session.user.id,
+      provider: String(provider),
+      place_id: String(place_id),
+      place_name: String(place_name),
+      place_url: place_url != null ? String(place_url) : null,
+      address_name: address_name != null ? String(address_name) : null,
+      lat: lat != null ? Number(lat) : null,
+      lng: lng != null ? Number(lng) : null,
+      place_kind: String(place_kind),
+      review_state: state,
+      note: note != null && note !== "" ? String(note) : null,
+      route_id: route_id != null ? String(route_id) : null,
+      plan_id: plan_id != null ? String(plan_id) : null,
+      stage_id: stage_id != null ? String(stage_id) : null,
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await supabaseAdmin
-      .from("bookmark")
-      .insert({
-        user_id: session.user.id,
-        place_id: String(place_id),
-        place_name: String(place_name),
-        place_url: place_url ?? null,
-        address_name: address_name ?? null,
-        lat: lat != null ? Number(lat) : null,
-        lng: lng != null ? Number(lng) : null,
+      .from("place_review")
+      .upsert(row, {
+        onConflict: "user_id,provider,place_id",
+        ignoreDuplicates: false,
       })
-      .select()
+      .select(SELECT_COLS)
       .single();
 
     if (error) {
-      if (isBookmarkSchemaError(error))
+      if (isPlaceReviewSchemaError(error))
         return NextResponse.json(
           {
             error:
-              "bookmark 테이블이 없습니다. supabase-migration-bookmark.sql 을 먼저 실행해 주세요.",
+              "place_review 테이블이 없습니다. supabase-migration-place-review.sql 을 먼저 실행해 주세요.",
             code: error.code ?? null,
             detail: error.message ?? null,
           },
@@ -129,9 +141,10 @@ export async function POST(request: NextRequest) {
         );
       throw error;
     }
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json(data, { status: 200 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Failed to add bookmark";
+    const message =
+      err instanceof Error ? err.message : "Failed to save place review";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

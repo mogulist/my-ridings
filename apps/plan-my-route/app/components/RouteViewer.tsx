@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
@@ -189,6 +189,19 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         : stages.length > 0
           ? 1
           : null;
+
+  const reviewContext = useMemo(
+    () => ({
+      routeId,
+      planId: activePlanId,
+      stageId:
+        effectiveSelectedDay != null
+          ? stages.find((s) => s.dayNumber === effectiveSelectedDay)?.id ??
+            null
+          : null,
+    }),
+    [routeId, activePlanId, effectiveSelectedDay, stages],
+  );
 
   return (
     <>
@@ -454,6 +467,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               isPinned={isPinned}
               onPin={handlePin}
               onUnpin={handleUnpin}
+              reviewContext={reviewContext}
             />
           )}
         </section>

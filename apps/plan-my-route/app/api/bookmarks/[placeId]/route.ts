@@ -7,7 +7,7 @@ type SupabaseLikeError = {
   message?: string;
 };
 
-function isBookmarkSchemaError(error: SupabaseLikeError | null): boolean {
+function isPlaceReviewSchemaError(error: SupabaseLikeError | null): boolean {
   if (!error) return false;
   if (error.code === "42P01" || error.code === "PGRST205") return true;
   return false;
@@ -24,21 +24,25 @@ export async function DELETE(
 
   const { placeId } = await context.params;
   if (!placeId) {
-    return NextResponse.json({ error: "placeId is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "placeId is required" },
+      { status: 400 },
+    );
   }
 
   const { error } = await supabaseAdmin
-    .from("bookmark")
+    .from("place_review")
     .delete()
     .eq("user_id", session.user.id)
+    .eq("provider", "kakao")
     .eq("place_id", decodeURIComponent(placeId));
 
   if (error) {
-    if (isBookmarkSchemaError(error))
+    if (isPlaceReviewSchemaError(error))
       return NextResponse.json(
         {
           error:
-            "bookmark 테이블이 없습니다. supabase-migration-bookmark.sql 을 먼저 실행해 주세요.",
+            "place_review 테이블이 없습니다. supabase-migration-place-review.sql 을 먼저 실행해 주세요.",
           code: error.code ?? null,
           detail: error.message ?? null,
         },
