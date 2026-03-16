@@ -135,12 +135,21 @@ function SortablePlanRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-start gap-1 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectPlan(plan.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelectPlan(plan.id);
+        }
+      }}
+      className={`flex cursor-pointer items-start gap-1 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
         isDragging
           ? "opacity-50 shadow-md"
           : isActive
             ? "border-orange-500 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/40"
-            : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800"
+            : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
       }`}
     >
       <button
@@ -153,20 +162,16 @@ function SortablePlanRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <button
-        type="button"
-        onClick={() => onSelectPlan(plan.id)}
+      <div
         className={`min-w-0 flex-1 text-left ${
-          isActive
-            ? "text-zinc-900 dark:text-zinc-100"
-            : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-700 dark:text-zinc-300"
         }`}
       >
         <div className="font-medium">{plan.name}</div>
         <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
           {stageCount > 0 ? `${stageCount}일 계획` : "스테이지 없음"}
         </div>
-      </button>
+      </div>
       {showActions && (
         <DropdownMenu
           open={openMenuPlanId === plan.id}
