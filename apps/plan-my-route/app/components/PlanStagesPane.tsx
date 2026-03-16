@@ -1,6 +1,4 @@
 "use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
 import StageCard from "./StageCard";
 import AddStageForm from "./AddStageForm";
 import type { Stage } from "../types/plan";
@@ -34,7 +32,6 @@ type PlanStagesPaneProps = {
   planName?: string | null;
   planId?: string | null;
   planStartDate?: string | null;
-  onUpdatePlanStartDate?: (startDate: string | null) => void;
   stages: Stage[];
   activeStageId: string | null;
   setActiveStageId: (id: string | null) => void;
@@ -50,7 +47,6 @@ export function PlanStagesPane({
   planName,
   planId,
   planStartDate,
-  onUpdatePlanStartDate,
   stages,
   activeStageId,
   setActiveStageId,
@@ -61,22 +57,6 @@ export function PlanStagesPane({
   addStage,
   addLastStage,
 }: PlanStagesPaneProps) {
-  const [localStartDate, setLocalStartDate] = useState(planStartDate ?? "");
-  const dateInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setLocalStartDate(planStartDate ?? "");
-  }, [planStartDate]);
-
-  const handleStartDateChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value || "";
-      setLocalStartDate(value);
-      onUpdatePlanStartDate?.(value || null);
-    },
-    [onUpdatePlanStartDate],
-  );
-
   const progressPercent =
     totalRouteDistanceKm > 0
       ? ((totalRouteDistanceKm - unplannedDistanceKm) / totalRouteDistanceKm) *
@@ -90,35 +70,14 @@ export function PlanStagesPane({
           {planName ? `${planName} — 스테이지` : "스테이지"}
         </h3>
         {stages.length > 0 && (
-          <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
-            {stages.length}일 계획
-          </span>
-        )}
-        {planId && (
-          <div className="relative mt-2">
-            <label className="block text-xs text-zinc-500 dark:text-zinc-400">
-              시작일
-            </label>
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={localStartDate}
-              onChange={handleStartDateChange}
-              className="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
-              aria-hidden
-            />
-            <button
-              type="button"
-              onClick={() =>
-                dateInputRef.current?.showPicker?.() ??
-                dateInputRef.current?.click()
-              }
-              className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-left text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
-            >
-              {localStartDate
-                ? formatDateForDisplay(localStartDate)
-                : "날짜 선택"}
-            </button>
+          <div className="mt-0.5 flex items-center justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+            <span>{stages.length}일 계획</span>
+            {planId && (
+              <span>
+                시작일{" "}
+                {planStartDate ? formatDateForDisplay(planStartDate) : "-"}
+              </span>
+            )}
           </div>
         )}
       </div>

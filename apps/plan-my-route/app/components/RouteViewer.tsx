@@ -380,30 +380,6 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [dbRoute?.plans, routeId],
   );
 
-  const handleUpdatePlanStartDate = useCallback(
-    async (startDate: string | null) => {
-      if (!activePlanId) return;
-      try {
-        const res = await fetch(`/api/plans/${activePlanId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ start_date: startDate }),
-        });
-        if (!res.ok) throw new Error("Plan start date update failed");
-        setDbRoute((prev: any) => ({
-          ...prev,
-          plans: (prev?.plans ?? []).map((p: any) =>
-            p.id === activePlanId ? { ...p, start_date: startDate } : p,
-          ),
-        }));
-      } catch (err) {
-        console.error(err);
-        alert("시작일 저장에 실패했습니다.");
-      }
-    },
-    [activePlanId],
-  );
-
   const handleUpdatePlanStartDateByPlanId = useCallback(
     async (planId: string, startDate: string | null) => {
       try {
@@ -527,7 +503,6 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               planName={activePlanName}
               planId={activePlanId}
               planStartDate={activePlanStartDate}
-              onUpdatePlanStartDate={handleUpdatePlanStartDate}
               stages={stages}
               activeStageId={activeStageId}
               setActiveStageId={setActiveStageId}
