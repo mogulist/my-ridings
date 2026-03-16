@@ -86,8 +86,8 @@ export default function StageCard({
 			onMouseEnter={() => onHover(stage.id)}
 			onMouseLeave={() => onHover(null)}
 		>
-			{/* 헤더: 색상 도트 + 일차 + 날짜(오른쪽) + 액션 메뉴 */}
-			<div className="flex items-center justify-between mb-2">
+			{/* 헤더: 색상 도트 + 일차 + 날짜(텍스트 옆) + 액션 메뉴 */}
+			<div className="mb-2 flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<div
 						className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white"
@@ -95,9 +95,16 @@ export default function StageCard({
 					>
 						{stage.dayNumber}
 					</div>
-					<span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-						스테이지 {stage.dayNumber}
-					</span>
+					<div className="flex items-baseline gap-1">
+						<span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+							스테이지 {stage.dayNumber}
+						</span>
+						{dateLabel && (
+							<span className="text-xs text-zinc-500 dark:text-zinc-400">
+								{dateLabel}
+							</span>
+						)}
+					</div>
 					{stage.isLastStage && (
 						<span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
 							마지막
@@ -105,11 +112,6 @@ export default function StageCard({
 					)}
 				</div>
 				<div className="flex items-center gap-1">
-					{dateLabel && (
-						<span className="text-xs text-zinc-500 dark:text-zinc-400">
-							{dateLabel}
-						</span>
-					)}
 					<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
