@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
@@ -59,6 +59,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [planActionInProgress, setPlanActionInProgress] = useState<
     null | "create" | "update" | "duplicate" | "delete"
   >(null);
+  const [isStagesPending, startStagesTransition] = useTransition();
 
   const handlePin = useCallback((index: number) => {
     setPositionIndex(index);
@@ -235,7 +236,11 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     (planId: string) => {
       setActivePlanId(planId);
       const plan = dbRoute?.plans?.find((p: any) => p.id === planId);
-      if (plan) setDbStages(normalizeDbStages(plan.stages || []));
+      if (plan) {
+        startStagesTransition(() => {
+          setDbStages(normalizeDbStages(plan.stages || []));
+        });
+      }
     },
     [dbRoute?.plans],
   );
@@ -515,6 +520,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               requestDeleteStage={requestDeleteStage}
               addStage={addStage}
               addLastStage={addLastStage}
+              isPending={isStagesPending}
             />
           </>
         )}
