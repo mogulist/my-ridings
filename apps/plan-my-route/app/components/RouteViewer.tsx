@@ -223,10 +223,13 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)
       ?.name ?? null;
 
+  const routeStartDate = dbRoute?.start_date ?? null;
+
   const activePlanStartDate =
     dbRoute?.plans?.find(
       (p: { id: string; start_date?: string | null }) => p.id === activePlanId,
     )?.start_date ?? null;
+  const effectivePlanStartDate = activePlanStartDate ?? routeStartDate;
 
   const handlePlanSelect = useCallback(
     (planId: string) => {
@@ -502,7 +505,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             <PlanStagesPane
               planName={activePlanName}
               planId={activePlanId}
-              planStartDate={activePlanStartDate}
+              planStartDate={effectivePlanStartDate}
               stages={stages}
               activeStageId={activeStageId}
               setActiveStageId={setActiveStageId}
