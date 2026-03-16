@@ -13,7 +13,7 @@ import {
 	DropdownMenuTrigger,
 } from "@my-ridings/ui";
 
-interface StageCardProps {
+type StageCardProps = {
 	stage: Stage;
 	isActive: boolean;
 	onHover: (id: string | null) => void;
@@ -21,7 +21,9 @@ interface StageCardProps {
 	onDelete: (stageId: string) => void;
 	/** 거리 수정 가능한 최대값 (다음 Stage 거리를 초과하지 않기 위해) */
 	maxDistanceKm: number;
-}
+	/** 스테이지 일차에 해당하는 날짜 라벨 (예: 4.27(일)) */
+	dateLabel?: string;
+};
 
 function formatNumber(n: number): string {
 	return n.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
@@ -39,6 +41,7 @@ export default function StageCard({
 	onUpdateDistance,
 	onDelete,
 	maxDistanceKm,
+	dateLabel,
 }: StageCardProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState("");
@@ -83,7 +86,7 @@ export default function StageCard({
 			onMouseEnter={() => onHover(stage.id)}
 			onMouseLeave={() => onHover(null)}
 		>
-			{/* 헤더: 색상 도트 + 일차 + 액션 메뉴 */}
+			{/* 헤더: 색상 도트 + 일차 + 날짜(오른쪽) + 액션 메뉴 */}
 			<div className="flex items-center justify-between mb-2">
 				<div className="flex items-center gap-2">
 					<div
@@ -101,7 +104,13 @@ export default function StageCard({
 						</span>
 					)}
 				</div>
-				<DropdownMenu>
+				<div className="flex items-center gap-1">
+					{dateLabel && (
+						<span className="text-xs text-zinc-500 dark:text-zinc-400">
+							{dateLabel}
+						</span>
+					)}
+					<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
 							variant="ghost"
@@ -135,6 +144,7 @@ export default function StageCard({
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
+				</div>
 			</div>
 
 			{/* 1행: 거리(좌) | 획득/하강고도(우) */}

@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS public.plan (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     route_id uuid NOT NULL,
     name text NOT NULL,
+    sort_order integer,
+    start_date date,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT plan_pkey PRIMARY KEY (id),

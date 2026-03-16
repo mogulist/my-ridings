@@ -31,6 +31,16 @@ export async function GET(
 		return NextResponse.json({ error: error.message }, { status: 404 });
 	}
 
+	// Sort plans by sort_order (nulls last), then by created_at
+	const plans = (data as any).plans ?? [];
+	plans.sort((a: any, b: any) => {
+		const ao = a.sort_order ?? Infinity;
+		const bo = b.sort_order ?? Infinity;
+		if (ao !== bo) return ao - bo;
+		return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+	});
+	(data as any).plans = plans;
+
 	return NextResponse.json(data);
 }
 

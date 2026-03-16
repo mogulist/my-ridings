@@ -55,6 +55,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     null,
   );
   const [planListCollapsed, setPlanListCollapsed] = useState(false);
+  const [isReorderingPlans, setIsReorderingPlans] = useState(false);
   const [planActionInProgress, setPlanActionInProgress] = useState<
     null | "create" | "update" | "duplicate" | "delete"
   >(null);
@@ -222,6 +223,11 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)
       ?.name ?? null;
 
+  const activePlanStartDate =
+    dbRoute?.plans?.find(
+      (p: { id: string; start_date?: string | null }) => p.id === activePlanId,
+    )?.start_date ?? null;
+
   const handlePlanSelect = useCallback(
     (planId: string) => {
       setActivePlanId(planId);
@@ -346,6 +352,81 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [routeId],
   );
 
+  const handleReorderPlans = useCallback(
+    async (planIds: string[]) => {
+      const prevPlans = dbRoute?.plans ?? [];
+      const orderMap = new Map(planIds.map((id, i) => [id, i]));
+      const reorderedPlans = [...prevPlans].sort(
+        (a: any, b: any) =>
+          (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0),
+      );
+      setDbRoute((prev: any) => ({ ...prev, plans: reorderedPlans }));
+      setIsReorderingPlans(true);
+      try {
+        const res = await fetch(`/api/routes/${routeId}/plans/order`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planIds }),
+        });
+        if (!res.ok) throw new Error("Plan reorder failed");
+      } catch (err) {
+        console.error(err);
+        setDbRoute((prev: any) => ({ ...prev, plans: prevPlans }));
+        alert("플랜 순서 변경에 실패했습니다.");
+      } finally {
+        setIsReorderingPlans(false);
+      }
+    },
+    [dbRoute?.plans, routeId],
+  );
+
+  const handleUpdatePlanStartDate = useCallback(
+    async (startDate: string | null) => {
+      if (!activePlanId) return;
+      try {
+        const res = await fetch(`/api/plans/${activePlanId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ start_date: startDate }),
+        });
+        if (!res.ok) throw new Error("Plan start date update failed");
+        setDbRoute((prev: any) => ({
+          ...prev,
+          plans: (prev?.plans ?? []).map((p: any) =>
+            p.id === activePlanId ? { ...p, start_date: startDate } : p,
+          ),
+        }));
+      } catch (err) {
+        console.error(err);
+        alert("시작일 저장에 실패했습니다.");
+      }
+    },
+    [activePlanId],
+  );
+
+  const handleUpdatePlanStartDateByPlanId = useCallback(
+    async (planId: string, startDate: string | null) => {
+      try {
+        const res = await fetch(`/api/plans/${planId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ start_date: startDate }),
+        });
+        if (!res.ok) throw new Error("Plan start date update failed");
+        setDbRoute((prev: any) => ({
+          ...prev,
+          plans: (prev?.plans ?? []).map((p: any) =>
+            p.id === planId ? { ...p, start_date: startDate } : p,
+          ),
+        }));
+      } catch (err) {
+        console.error(err);
+        alert("시작일 저장에 실패했습니다.");
+      }
+    },
+    [],
+  );
+
   const planActionMessage =
     planActionInProgress === "duplicate"
       ? "플랜 복제 중…"
@@ -428,10 +509,13 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               routeSummary={routeSummary ?? undefined}
               plans={dbRoute?.plans ?? []}
               activePlanId={activePlanId}
+              isReorderingPlans={isReorderingPlans}
               onSelectPlan={handlePlanSelect}
               onUpdatePlan={handleUpdatePlan}
+              onUpdatePlanStartDate={handleUpdatePlanStartDateByPlanId}
               onDuplicatePlan={handleDuplicatePlan}
               onDeletePlan={handleDeletePlan}
+              onReorderPlans={handleReorderPlans}
               newPlanName={newPlanName}
               setNewPlanName={setNewPlanName}
               onSubmitNewPlan={handleCreatePlan}
@@ -441,6 +525,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             />
             <PlanStagesPane
               planName={activePlanName}
+              planId={activePlanId}
+              planStartDate={activePlanStartDate}
+              onUpdatePlanStartDate={handleUpdatePlanStartDate}
               stages={stages}
               activeStageId={activeStageId}
               setActiveStageId={setActiveStageId}

@@ -1,11 +1,40 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import StageCard from "./StageCard";
 import AddStageForm from "./AddStageForm";
 import type { Stage } from "../types/plan";
 
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+/** yyyy-mm-dd → YYYY. M. D. (ko locale order) */
+function formatDateForDisplay(isoDate: string): string {
+  if (!isoDate) return "";
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return isoDate;
+  return `${y}. ${m}. ${d}.`;
+}
+
+function stageDayLabel(
+  dayNumber: number,
+  planStartDate: string | null | undefined,
+): string {
+  if (!planStartDate) return "";
+  const start = new Date(planStartDate + "T12:00:00");
+  if (Number.isNaN(start.getTime())) return "";
+  const d = new Date(start);
+  d.setDate(d.getDate() + (dayNumber - 1));
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const w = WEEKDAY_LABELS[d.getDay()];
+  return `${m}.${day}(${w})`;
+}
+
 type PlanStagesPaneProps = {
   planName?: string | null;
+  planId?: string | null;
+  planStartDate?: string | null;
+  onUpdatePlanStartDate?: (startDate: string | null) => void;
   stages: Stage[];
   activeStageId: string | null;
   setActiveStageId: (id: string | null) => void;
@@ -19,6 +48,9 @@ type PlanStagesPaneProps = {
 
 export function PlanStagesPane({
   planName,
+  planId,
+  planStartDate,
+  onUpdatePlanStartDate,
   stages,
   activeStageId,
   setActiveStageId,
@@ -29,6 +61,22 @@ export function PlanStagesPane({
   addStage,
   addLastStage,
 }: PlanStagesPaneProps) {
+  const [localStartDate, setLocalStartDate] = useState(planStartDate ?? "");
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setLocalStartDate(planStartDate ?? "");
+  }, [planStartDate]);
+
+  const handleStartDateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value || "";
+      setLocalStartDate(value);
+      onUpdatePlanStartDate?.(value || null);
+    },
+    [onUpdatePlanStartDate],
+  );
+
   const progressPercent =
     totalRouteDistanceKm > 0
       ? ((totalRouteDistanceKm - unplannedDistanceKm) / totalRouteDistanceKm) *
@@ -45,6 +93,33 @@ export function PlanStagesPane({
           <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
             {stages.length}일 계획
           </span>
+        )}
+        {planId && (
+          <div className="relative mt-2">
+            <label className="block text-xs text-zinc-500 dark:text-zinc-400">
+              시작일
+            </label>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={localStartDate}
+              onChange={handleStartDateChange}
+              className="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
+              aria-hidden
+            />
+            <button
+              type="button"
+              onClick={() =>
+                dateInputRef.current?.showPicker?.() ??
+                dateInputRef.current?.click()
+              }
+              className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-left text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+            >
+              {localStartDate
+                ? formatDateForDisplay(localStartDate)
+                : "날짜 선택"}
+            </button>
+          </div>
         )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
@@ -63,6 +138,7 @@ export function PlanStagesPane({
                 onUpdateDistance={updateStageDistance}
                 onDelete={requestDeleteStage}
                 maxDistanceKm={maxDist}
+                dateLabel={stageDayLabel(stage.dayNumber, planStartDate)}
               />
             );
           })}

@@ -15,19 +15,14 @@ export async function PUT(
 
 	try {
 		const json = await request.json();
-		const { name } = json;
+		const { name, start_date } = json;
 
-		// The security check to ensure this plan belongs to the user is somewhat complex 
-		// via direct table join. We can check if plan.route.user_id == session.user.id
-		// For simplicity, we assume frontend passes correct IDs, or we enforce via a quick check:
-		
 		const { data: planData, error: planError } = await supabaseAdmin
 			.from("plan")
 			.select("route!inner(user_id)")
 			.eq("id", id)
 			.single();
 
-		// Supabase join syntax: planData.route.user_id
 		if (planError || (planData as any).route.user_id !== session.user.id) {
 			return NextResponse.json(
 				{ error: "Unauthorized or Plan not found" },
@@ -35,12 +30,15 @@ export async function PUT(
 			);
 		}
 
+		const updatePayload: Record<string, unknown> = {
+			updated_at: new Date().toISOString(),
+		};
+		if (name !== undefined) updatePayload.name = name;
+		if (start_date !== undefined) updatePayload.start_date = start_date === null || start_date === "" ? null : start_date;
+
 		const { data, error } = await supabaseAdmin
 			.from("plan")
-			.update({
-				name,
-				updated_at: new Date().toISOString(),
-			})
+			.update(updatePayload)
 			.eq("id", id)
 			.select()
 			.single();
