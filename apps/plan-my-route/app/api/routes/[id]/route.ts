@@ -65,19 +65,25 @@ export async function PUT(
 			elevation_gain,
 			elevation_loss,
 			smoothing_param,
+			start_date,
 		} = json;
+
+		const updatePayload: Record<string, any> = {
+			name,
+			rwgps_url,
+			total_distance,
+			elevation_gain,
+			elevation_loss,
+			smoothing_param,
+			updated_at: new Date().toISOString(),
+		};
+		if (start_date !== undefined) {
+			updatePayload.start_date = start_date === null || start_date === "" ? null : start_date;
+		}
 
 		const { data, error } = await supabaseAdmin
 			.from("route")
-			.update({
-				name,
-				rwgps_url,
-				total_distance,
-				elevation_gain,
-				elevation_loss,
-				smoothing_param,
-				updated_at: new Date().toISOString(),
-			})
+			.update(updatePayload)
 			.eq("id", id)
 			.eq("user_id", session.user.id)
 			.select()
