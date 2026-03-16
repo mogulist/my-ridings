@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
 import { PlanListPane } from "./PlanListPane";
-import { PlanStagesPane } from "./PlanStagesPane";
+import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
+import { MemoPane } from "./MemoPane";
 import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,
@@ -22,6 +23,7 @@ type DbStage = {
   end_distance: number;
   elevation_gain: number | string | null;
   elevation_loss: number | string | null;
+  memo?: string | null;
 };
 
 function normalizeDbStages(rawStages: DbStage[]): Stage[] {
@@ -37,6 +39,7 @@ function normalizeDbStages(rawStages: DbStage[]): Stage[] {
     elevationGain: Number(s.elevation_gain) || 0,
     elevationLoss: Number(s.elevation_loss) || 0,
     isLastStage: false,
+    memo: s.memo ?? undefined,
   }));
 }
 
@@ -55,6 +58,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     null,
   );
   const [planListCollapsed, setPlanListCollapsed] = useState(false);
+  const [memoPaneStageId, setMemoPaneStageId] = useState<string | null>(null);
+  const planListCollapsedBeforeMemo = useRef(false);
   const [isReorderingPlans, setIsReorderingPlans] = useState(false);
   const [planActionInProgress, setPlanActionInProgress] = useState<
     null | "create" | "update" | "duplicate" | "delete"
@@ -177,6 +182,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     requestDeleteStage,
     executeDeleteStage,
     cancelDeleteConfirmation,
+
+    updateStageMemo,
   } = usePlanStages(
     route?.track_points ?? [],
     route?.elevation_gain ?? 0,
@@ -232,9 +239,31 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     )?.start_date ?? null;
   const effectivePlanStartDate = activePlanStartDate ?? routeStartDate;
 
+  const handleOpenMemo = useCallback(
+    (stageId: string) => {
+      planListCollapsedBeforeMemo.current = planListCollapsed;
+      setMemoPaneStageId(stageId);
+      setPlanListCollapsed(true);
+    },
+    [planListCollapsed],
+  );
+
+  const handleCloseMemo = useCallback(() => {
+    setMemoPaneStageId(null);
+    setPlanListCollapsed(planListCollapsedBeforeMemo.current);
+  }, []);
+
+  const handleSaveMemo = useCallback(
+    (stageId: string, memo: string) => {
+      updateStageMemo(stageId, memo);
+    },
+    [updateStageMemo],
+  );
+
   const handlePlanSelect = useCallback(
     (planId: string) => {
       setActivePlanId(planId);
+      setMemoPaneStageId(null);
       const plan = dbRoute?.plans?.find((p: any) => p.id === planId);
       if (plan) {
         startStagesTransition(() => {
@@ -521,7 +550,20 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               addStage={addStage}
               addLastStage={addLastStage}
               isPending={isStagesPending}
+              onMemoClick={handleOpenMemo}
             />
+            {memoPaneStageId && (() => {
+              const memoStage = stages.find((s) => s.id === memoPaneStageId);
+              return memoStage ? (
+                <MemoPane
+                  key={memoPaneStageId}
+                  stage={memoStage}
+                  dateLabel={stageDayLabel(memoStage.dayNumber, effectivePlanStartDate)}
+                  onClose={handleCloseMemo}
+                  onSave={handleSaveMemo}
+                />
+              ) : null;
+            })()}
           </>
         )}
       </aside>

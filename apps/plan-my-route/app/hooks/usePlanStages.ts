@@ -717,6 +717,12 @@ export function usePlanStages(
 
 	const cancelDeleteConfirmation = () => setDeleteConfirmation(null);
 
+	const updateStageMemo = useCallback((stageId: string, memo: string) => {
+		setStages((prev) =>
+			prev.map((s) => (s.id === stageId ? { ...s, memo: memo || undefined } : s)),
+		);
+	}, []);
+
 	return {
 		stages,
 		activeStageId,
@@ -744,5 +750,7 @@ export function usePlanStages(
 		requestDeleteStage,
 		executeDeleteStage,
 		cancelDeleteConfirmation,
+
+		updateStageMemo,
 	};
 }

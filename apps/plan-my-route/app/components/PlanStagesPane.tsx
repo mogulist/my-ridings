@@ -13,21 +13,6 @@ function formatDateForDisplay(isoDate: string): string {
   return `${y}. ${m}. ${d}.`;
 }
 
-function stageDayLabel(
-  dayNumber: number,
-  planStartDate: string | null | undefined,
-): string {
-  if (!planStartDate) return "";
-  const start = new Date(planStartDate + "T12:00:00");
-  if (Number.isNaN(start.getTime())) return "";
-  const d = new Date(start);
-  d.setDate(d.getDate() + (dayNumber - 1));
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  const w = WEEKDAY_LABELS[d.getDay()];
-  return `${m}.${day}(${w})`;
-}
-
 type PlanStagesPaneProps = {
   planName?: string | null;
   planId?: string | null;
@@ -42,7 +27,23 @@ type PlanStagesPaneProps = {
   addStage: (distanceKm: number) => void;
   addLastStage: () => void;
   isPending?: boolean;
+  onMemoClick?: (stageId: string) => void;
 };
+
+export function stageDayLabel(
+  dayNumber: number,
+  planStartDate: string | null | undefined,
+): string {
+  if (!planStartDate) return "";
+  const start = new Date(planStartDate + "T12:00:00");
+  if (Number.isNaN(start.getTime())) return "";
+  const d = new Date(start);
+  d.setDate(d.getDate() + (dayNumber - 1));
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const w = WEEKDAY_LABELS[d.getDay()];
+  return `${m}.${day}(${w})`;
+}
 
 export function PlanStagesPane({
   planName,
@@ -58,6 +59,7 @@ export function PlanStagesPane({
   addStage,
   addLastStage,
   isPending = false,
+  onMemoClick,
 }: PlanStagesPaneProps) {
   const progressPercent =
     totalRouteDistanceKm > 0
@@ -125,6 +127,7 @@ export function PlanStagesPane({
                 onDelete={requestDeleteStage}
                 maxDistanceKm={maxDist}
                 dateLabel={stageDayLabel(stage.dayNumber, planStartDate)}
+                onMemoClick={onMemoClick}
               />
             );
           })}

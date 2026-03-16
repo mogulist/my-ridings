@@ -3,7 +3,7 @@
 import { getStageColor } from "../types/plan";
 import type { Stage } from "../types/plan";
 import { useCallback, useState } from "react";
-import { MoreHorizontalIcon, PencilIcon, TrashIcon } from "lucide-react";
+import { MoreHorizontalIcon, PencilIcon, StickyNoteIcon, TrashIcon } from "lucide-react";
 import {
   Badge,
   Button,
@@ -28,6 +28,7 @@ type StageCardProps = {
   maxDistanceKm: number;
   /** 스테이지 일차에 해당하는 날짜 라벨 (예: 4.27(일)) */
   dateLabel?: string;
+  onMemoClick?: (stageId: string) => void;
 };
 
 function formatNumber(n: number): string {
@@ -50,6 +51,7 @@ export default function StageCard({
   onDelete,
   maxDistanceKm,
   dateLabel,
+  onMemoClick,
 }: StageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -215,6 +217,27 @@ export default function StageCard({
           </Tooltip>
         </TooltipProvider>
       </div>
+
+      {/* 메모 미리보기 */}
+      {onMemoClick && (
+        <button
+          type="button"
+          className="mt-2 flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMemoClick(stage.id);
+          }}
+        >
+          <StickyNoteIcon className="h-3 w-3 shrink-0 text-zinc-400" />
+          {stage.memo ? (
+            <span className="line-clamp-1 text-zinc-500 dark:text-zinc-400">
+              {stage.memo}
+            </span>
+          ) : (
+            <span className="text-zinc-400 dark:text-zinc-500">메모 추가</span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
