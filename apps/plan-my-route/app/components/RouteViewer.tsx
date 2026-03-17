@@ -7,6 +7,7 @@ import { usePlanStages } from "../hooks/usePlanStages";
 import { PlanListPane } from "./PlanListPane";
 import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
 import { MemoPane } from "./MemoPane";
+import { MemoReviewPane } from "./MemoReviewPane";
 import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,
@@ -59,6 +60,10 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   );
   const [planListCollapsed, setPlanListCollapsed] = useState(false);
   const [memoPaneStageId, setMemoPaneStageId] = useState<string | null>(null);
+  const [memoExpandedStageIds, setMemoExpandedStageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isMemoReviewOpen, setIsMemoReviewOpen] = useState(false);
   const planListCollapsedBeforeMemo = useRef(false);
   const [isReorderingPlans, setIsReorderingPlans] = useState(false);
   const [planActionInProgress, setPlanActionInProgress] = useState<
@@ -260,10 +265,32 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [updateStageMemo],
   );
 
+  const toggleMemoExpand = useCallback((stageId: string) => {
+    setMemoExpandedStageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(stageId)) next.delete(stageId);
+      else next.add(stageId);
+      return next;
+    });
+  }, []);
+
+  const expandAllMemos = useCallback(() => {
+    setMemoExpandedStageIds(new Set(stages.map((s) => s.id)));
+  }, [stages]);
+
+  const collapseAllMemos = useCallback(() => {
+    setMemoExpandedStageIds(new Set());
+  }, []);
+
+  const handleMemoReviewClose = useCallback(() => {
+    setIsMemoReviewOpen(false);
+  }, []);
+
   const handlePlanSelect = useCallback(
     (planId: string) => {
       setActivePlanId(planId);
       setMemoPaneStageId(null);
+      setIsMemoReviewOpen(false);
       const plan = dbRoute?.plans?.find((p: any) => p.id === planId);
       if (plan) {
         startStagesTransition(() => {
@@ -536,34 +563,51 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               isCollapsed={planListCollapsed}
               onToggleCollapse={() => setPlanListCollapsed((c) => !c)}
             />
-            <PlanStagesPane
-              planName={activePlanName}
-              planId={activePlanId}
-              planStartDate={effectivePlanStartDate}
-              stages={stages}
-              activeStageId={activeStageId}
-              setActiveStageId={setActiveStageId}
-              totalRouteDistanceKm={totalRouteDistanceKm}
-              unplannedDistanceKm={unplannedDistanceKm}
-              updateStageDistance={updateStageDistance}
-              requestDeleteStage={requestDeleteStage}
-              addStage={addStage}
-              addLastStage={addLastStage}
-              isPending={isStagesPending}
-              onMemoClick={handleOpenMemo}
-            />
-            {memoPaneStageId && (() => {
-              const memoStage = stages.find((s) => s.id === memoPaneStageId);
-              return memoStage ? (
-                <MemoPane
-                  key={memoPaneStageId}
-                  stage={memoStage}
-                  dateLabel={stageDayLabel(memoStage.dayNumber, effectivePlanStartDate)}
-                  onClose={handleCloseMemo}
-                  onSave={handleSaveMemo}
+            {isMemoReviewOpen ? (
+              <MemoReviewPane
+                stages={stages}
+                planStartDate={effectivePlanStartDate}
+                onClose={handleMemoReviewClose}
+                onSaveMemo={handleSaveMemo}
+              />
+            ) : (
+              <>
+                <PlanStagesPane
+                  planName={activePlanName}
+                  planId={activePlanId}
+                  planStartDate={effectivePlanStartDate}
+                  stages={stages}
+                  activeStageId={activeStageId}
+                  setActiveStageId={setActiveStageId}
+                  totalRouteDistanceKm={totalRouteDistanceKm}
+                  unplannedDistanceKm={unplannedDistanceKm}
+                  updateStageDistance={updateStageDistance}
+                  requestDeleteStage={requestDeleteStage}
+                  addStage={addStage}
+                  addLastStage={addLastStage}
+                  isPending={isStagesPending}
+                  onMemoClick={handleOpenMemo}
+                  memoExpandedStageIds={memoExpandedStageIds}
+                  onToggleMemoExpand={toggleMemoExpand}
+                  onExpandAllMemos={expandAllMemos}
+                  onCollapseAllMemos={collapseAllMemos}
+                  onSaveMemo={handleSaveMemo}
+                  onMemoReviewClick={() => setIsMemoReviewOpen(true)}
                 />
-              ) : null;
-            })()}
+                {memoPaneStageId && (() => {
+                  const memoStage = stages.find((s) => s.id === memoPaneStageId);
+                  return memoStage ? (
+                    <MemoPane
+                      key={memoPaneStageId}
+                      stage={memoStage}
+                      dateLabel={stageDayLabel(memoStage.dayNumber, effectivePlanStartDate)}
+                      onClose={handleCloseMemo}
+                      onSave={handleSaveMemo}
+                    />
+                  ) : null;
+                })()}
+              </>
+            )}
           </>
         )}
       </aside>

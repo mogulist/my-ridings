@@ -1,4 +1,10 @@
 "use client";
+
+import {
+  BookOpenIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "lucide-react";
 import StageCard from "./StageCard";
 import AddStageForm from "./AddStageForm";
 import type { Stage } from "../types/plan";
@@ -28,6 +34,12 @@ type PlanStagesPaneProps = {
   addLastStage: () => void;
   isPending?: boolean;
   onMemoClick?: (stageId: string) => void;
+  memoExpandedStageIds?: Set<string>;
+  onToggleMemoExpand?: (stageId: string) => void;
+  onExpandAllMemos?: () => void;
+  onCollapseAllMemos?: () => void;
+  onSaveMemo?: (stageId: string, memo: string) => void;
+  onMemoReviewClick?: () => void;
 };
 
 export function stageDayLabel(
@@ -60,6 +72,12 @@ export function PlanStagesPane({
   addLastStage,
   isPending = false,
   onMemoClick,
+  memoExpandedStageIds = new Set(),
+  onToggleMemoExpand,
+  onExpandAllMemos,
+  onCollapseAllMemos,
+  onSaveMemo,
+  onMemoReviewClick,
 }: PlanStagesPaneProps) {
   const progressPercent =
     totalRouteDistanceKm > 0
@@ -84,6 +102,45 @@ export function PlanStagesPane({
             )}
           </div>
         )}
+        {stages.length > 0 &&
+          onExpandAllMemos &&
+          onCollapseAllMemos &&
+          (() => {
+            const allExpanded =
+              stages.length > 0 &&
+              stages.every((s) => memoExpandedStageIds.has(s.id));
+            return (
+              <div className="mt-2 flex gap-1">
+                <button
+                  type="button"
+                  onClick={allExpanded ? onCollapseAllMemos : onExpandAllMemos}
+                  className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                >
+                  {allExpanded ? (
+                    <>
+                      <ChevronUpIcon className="h-3.5 w-3.5" />
+                      전체 메모 접기
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDownIcon className="h-3.5 w-3.5" />
+                      전체 메모 펼치기
+                    </>
+                  )}
+                </button>
+                {onMemoReviewClick && (
+                  <button
+                    type="button"
+                    onClick={onMemoReviewClick}
+                    className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <BookOpenIcon className="h-3.5 w-3.5" />
+                    메모 리뷰
+                  </button>
+                )}
+              </div>
+            );
+          })()}
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
         {isPending && (
@@ -128,6 +185,13 @@ export function PlanStagesPane({
                 maxDistanceKm={maxDist}
                 dateLabel={stageDayLabel(stage.dayNumber, planStartDate)}
                 onMemoClick={onMemoClick}
+                isMemoExpanded={memoExpandedStageIds.has(stage.id)}
+                onToggleMemoExpand={
+                  onToggleMemoExpand
+                    ? () => onToggleMemoExpand(stage.id)
+                    : undefined
+                }
+                onSaveMemo={onSaveMemo}
               />
             );
           })}

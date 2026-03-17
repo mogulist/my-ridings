@@ -2,8 +2,16 @@
 
 import { getStageColor } from "../types/plan";
 import type { Stage } from "../types/plan";
-import { useCallback, useState } from "react";
-import { MoreHorizontalIcon, PencilIcon, StickyNoteIcon, TrashIcon } from "lucide-react";
+import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  StickyNoteIcon,
+  TrashIcon,
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -29,6 +37,9 @@ type StageCardProps = {
   /** 스테이지 일차에 해당하는 날짜 라벨 (예: 4.27(일)) */
   dateLabel?: string;
   onMemoClick?: (stageId: string) => void;
+  isMemoExpanded?: boolean;
+  onToggleMemoExpand?: () => void;
+  onSaveMemo?: (stageId: string, memo: string) => void;
 };
 
 function formatNumber(n: number): string {
@@ -52,10 +63,24 @@ export default function StageCard({
   maxDistanceKm,
   dateLabel,
   onMemoClick,
+  isMemoExpanded = false,
+  onToggleMemoExpand,
+  onSaveMemo,
 }: StageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const [memoDraft, setMemoDraft] = useState(stage.memo ?? "");
+  const [isSavingMemo, setIsSavingMemo] = useState(false);
   const color = getStageColor(stage.dayNumber);
+  const memoTextareaRef = useAutoResizeTextarea({
+    value: memoDraft,
+    minHeightPx: 40,
+    maxHeightPx: 160,
+  });
+
+  useEffect(() => {
+    setMemoDraft(stage.memo ?? "");
+  }, [stage.id, stage.memo]);
 
   const handleStartEdit = useCallback(() => {
     setEditValue(String(stage.distanceKm));
@@ -77,6 +102,39 @@ export default function StageCard({
     },
     [handleSaveEdit],
   );
+
+  const saveMemo = useCallback(async () => {
+    if (!onSaveMemo || isSavingMemo) return;
+    const value = memoDraft.trim();
+    if (value === (stage.memo ?? "")) return;
+    setIsSavingMemo(true);
+    try {
+      const res = await fetch(`/api/stages/${stage.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memo: value || null }),
+      });
+      if (!res.ok) throw new Error("Failed to save memo");
+      onSaveMemo(stage.id, value);
+    } catch {
+      alert("메모 저장에 실패했습니다.");
+    } finally {
+      setIsSavingMemo(false);
+    }
+  }, [stage.id, stage.memo, memoDraft, onSaveMemo, isSavingMemo]);
+
+  const handleMemoKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        saveMemo();
+      }
+    },
+    [saveMemo],
+  );
+
+  const hasMemoControls =
+    onToggleMemoExpand != null || (onMemoClick != null && !onToggleMemoExpand);
 
   return (
     <div
@@ -146,6 +204,17 @@ export default function StageCard({
                 <PencilIcon className="h-4 w-4" />
                 수정
               </DropdownMenuItem>
+              {onMemoClick && (
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onMemoClick(stage.id);
+                  }}
+                >
+                  <StickyNoteIcon className="h-4 w-4" />
+                  메모 편집
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
@@ -218,25 +287,74 @@ export default function StageCard({
         </TooltipProvider>
       </div>
 
-      {/* 메모 미리보기 */}
-      {onMemoClick && (
-        <button
-          type="button"
-          className="mt-2 flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMemoClick(stage.id);
-          }}
-        >
-          <StickyNoteIcon className="h-3 w-3 shrink-0 text-zinc-400" />
-          {stage.memo ? (
-            <span className="line-clamp-1 text-zinc-500 dark:text-zinc-400">
-              {stage.memo}
-            </span>
+      {/* 메모: 접기/펼치기 + 인라인 편집 또는 클릭 시 MemoPane */}
+      {hasMemoControls && (
+        <div className="mt-2">
+          {onToggleMemoExpand ? (
+            <>
+              <button
+                type="button"
+                className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleMemoExpand();
+                }}
+              >
+                {isMemoExpanded ? (
+                  <ChevronDownIcon className="h-3 w-3 shrink-0 text-zinc-400" />
+                ) : (
+                  <ChevronRightIcon className="h-3 w-3 shrink-0 text-zinc-400" />
+                )}
+                <StickyNoteIcon className="h-3 w-3 shrink-0 text-zinc-400" />
+                {stage.memo ? (
+                  <span
+                    className={`flex-1 truncate text-zinc-500 dark:text-zinc-400 ${!isMemoExpanded ? "line-clamp-1" : ""}`}
+                  >
+                    {stage.memo}
+                  </span>
+                ) : (
+                  <span className="text-zinc-400 dark:text-zinc-500">
+                    메모 추가
+                  </span>
+                )}
+              </button>
+              {isMemoExpanded && onSaveMemo && (
+                <div className="mt-1.5">
+                  <textarea
+                    ref={memoTextareaRef}
+                    className="min-h-[2.5rem] w-full resize-none overflow-y-auto rounded border border-zinc-200 bg-transparent px-2 py-1.5 text-xs text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:text-zinc-300 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
+                    placeholder="메모를 입력하세요... (Cmd+Enter 저장)"
+                    value={memoDraft}
+                    onChange={(e) => setMemoDraft(e.target.value)}
+                    onBlur={saveMemo}
+                    onKeyDown={handleMemoKeyDown}
+                    rows={2}
+                  />
+                </div>
+              )}
+            </>
           ) : (
-            <span className="text-zinc-400 dark:text-zinc-500">메모 추가</span>
+            <button
+              type="button"
+              className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMemoClick?.(stage.id);
+              }}
+            >
+              <StickyNoteIcon className="h-3 w-3 shrink-0 text-zinc-400" />
+              {stage.memo ? (
+                <span className="line-clamp-1 text-zinc-500 dark:text-zinc-400">
+                  {stage.memo}
+                </span>
+              ) : (
+                <span className="text-zinc-400 dark:text-zinc-500">
+                  메모 추가
+                </span>
+              )}
+            </button>
           )}
-        </button>
+        </div>
       )}
     </div>
   );
