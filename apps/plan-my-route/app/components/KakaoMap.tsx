@@ -184,7 +184,67 @@ function slicePointsByDistance(
 ): TrackPoint[] {
   const startM = startKm * 1000;
   const endM = endKm * 1000;
-  return points.filter((p) => p.d != null && p.d >= startM && p.d <= endM);
+  if (startM > endM) return [];
+
+  const pointsWithDistance = points.filter(
+    (point): point is TrackPoint & { d: number } => point.d != null,
+  );
+  if (pointsWithDistance.length === 0) return [];
+
+  const stagePoints = pointsWithDistance.filter(
+    (point) => point.d >= startM && point.d <= endM,
+  );
+
+  const startBoundary = interpolateBoundaryPoint(pointsWithDistance, startM);
+  if (startBoundary && (stagePoints[0]?.d ?? Number.POSITIVE_INFINITY) > startM) {
+    stagePoints.unshift(startBoundary);
+  }
+
+  const endBoundary = interpolateBoundaryPoint(pointsWithDistance, endM);
+  if (
+    endBoundary &&
+    (stagePoints[stagePoints.length - 1]?.d ?? Number.NEGATIVE_INFINITY) < endM
+  ) {
+    stagePoints.push(endBoundary);
+  }
+
+  return stagePoints;
+}
+
+function interpolateBoundaryPoint(
+  points: (TrackPoint & { d: number })[],
+  targetDistanceM: number,
+): (TrackPoint & { d: number }) | null {
+  if (points.length === 0) return null;
+
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+  if (targetDistanceM <= firstPoint.d) return firstPoint;
+  if (targetDistanceM >= lastPoint.d) return lastPoint;
+
+  for (let index = 0; index < points.length - 1; index++) {
+    const currentPoint = points[index];
+    const nextPoint = points[index + 1];
+    if (currentPoint.d === targetDistanceM) return currentPoint;
+    if (nextPoint.d === targetDistanceM) return nextPoint;
+    if (currentPoint.d > targetDistanceM || nextPoint.d < targetDistanceM) continue;
+
+    const segmentDistance = nextPoint.d - currentPoint.d;
+    if (segmentDistance <= 0) return currentPoint;
+
+    const ratio = (targetDistanceM - currentPoint.d) / segmentDistance;
+    return {
+      x: currentPoint.x + (nextPoint.x - currentPoint.x) * ratio,
+      y: currentPoint.y + (nextPoint.y - currentPoint.y) * ratio,
+      e:
+        currentPoint.e != null && nextPoint.e != null
+          ? currentPoint.e + (nextPoint.e - currentPoint.e) * ratio
+          : undefined,
+      d: targetDistanceM,
+    };
+  }
+
+  return null;
 }
 
 // ── 숙박업소 타입 ──────────────────────────────────────────────────

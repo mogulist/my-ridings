@@ -126,48 +126,71 @@ function buildChartData(
 		return idx === -1 ? withEle.length : idx;
 	});
 
-	const step = Math.ceil(withEle.length / maxSamples);
-	return withEle
-		.filter((_, i) => i % step === 0)
-		.map((p, mapIndex) => {
-			const withEleIndex = mapIndex * step;
-			const distanceKm = Math.round((withEle[withEleIndex].d! / 1000) * 100) / 100;
-			let stageIndex: number | null = null;
-			for (let i = 0; i < stages.length; i++) {
-				if (
-					distanceKm >= stages[i].startDistanceKm &&
-					distanceKm <= stages[i].endDistanceKm
-				) {
-					stageIndex = i;
-					break;
-				}
+	const findFirstIndexAtOrAfter = (distanceKm: number) => {
+		const idx = withEle.findIndex((p) => p.d! / 1000 >= distanceKm);
+		return idx === -1 ? withEle.length - 1 : idx;
+	};
+
+	const step = Math.max(1, Math.ceil(withEle.length / maxSamples));
+	const sampledIndexSet = new Set<number>();
+	for (let i = 0; i < withEle.length; i += step) sampledIndexSet.add(i);
+	sampledIndexSet.add(withEle.length - 1);
+
+	for (const stage of stages) {
+		const startIdx = findFirstIndexAtOrAfter(stage.startDistanceKm);
+		const endIdx = findFirstIndexAtOrAfter(stage.endDistanceKm);
+		sampledIndexSet.add(startIdx);
+		sampledIndexSet.add(endIdx);
+		if (startIdx > 0) sampledIndexSet.add(startIdx - 1);
+		if (endIdx > 0) sampledIndexSet.add(endIdx - 1);
+	}
+
+	const sampledIndices = [...sampledIndexSet]
+		.filter((idx) => idx >= 0 && idx < withEle.length)
+		.sort((a, b) => a - b);
+
+	return sampledIndices.map((withEleIndex) => {
+		const rawDistanceKm = withEle[withEleIndex].d! / 1000;
+		const distanceKm = Math.round(rawDistanceKm * 100) / 100;
+		let stageIndex: number | null = null;
+		for (let i = 0; i < stages.length; i++) {
+			if (
+				rawDistanceKm >= stages[i].startDistanceKm &&
+				rawDistanceKm <= stages[i].endDistanceKm
+			) {
+				stageIndex = i;
+				break;
 			}
+		}
 
-			const datum: ChartDatum = {
-				distanceKm,
-				ele: Math.round(withEle[withEleIndex].e!),
-				index: points.indexOf(withEle[withEleIndex]),
-				stageIndex,
-			};
+		const datum: ChartDatum = {
+			distanceKm,
+			ele: Math.round(withEle[withEleIndex].e!),
+			index: points.indexOf(withEle[withEleIndex]),
+			stageIndex,
+		};
 
-			if (stageIndex !== null) {
-				const stage = stages[stageIndex];
-				datum.distanceFromStageStartKm = Math.round((distanceKm - stage.startDistanceKm) * 100) / 100;
-				if (useSmoothedGain && stageGainCurves[stageIndex]) {
-					datum.elevationGainFromStageStart = lookupGainAtDistanceKm(
-						stageGainCurves[stageIndex],
-						distanceKm,
-					);
-				} else {
-					const startIdx = stageStartIndices[stageIndex];
-					datum.elevationGainFromStageStart = Math.round(
-						(startIdx < withEleIndex ? cumulativeGain[withEleIndex] - cumulativeGain[startIdx] : 0),
-					);
-				}
+		if (stageIndex !== null) {
+			const stage = stages[stageIndex];
+			datum.distanceFromStageStartKm =
+				Math.round((rawDistanceKm - stage.startDistanceKm) * 100) / 100;
+			if (useSmoothedGain && stageGainCurves[stageIndex]) {
+				datum.elevationGainFromStageStart = lookupGainAtDistanceKm(
+					stageGainCurves[stageIndex],
+					rawDistanceKm,
+				);
+			} else {
+				const startIdx = stageStartIndices[stageIndex];
+				datum.elevationGainFromStageStart = Math.round(
+					startIdx < withEleIndex
+						? cumulativeGain[withEleIndex] - cumulativeGain[startIdx]
+						: 0,
+				);
 			}
+		}
 
-			return datum;
-		});
+		return datum;
+	});
 }
 
 /** 선택 일차 기준 표시 구간: 선택 일차 전체 + 이전/다음 일차 15% */
