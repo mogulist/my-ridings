@@ -247,6 +247,40 @@ function interpolateBoundaryPoint(
   return null;
 }
 
+function buildBufferedRouteRect(
+  points: TrackPoint[] | undefined,
+  bufferKm: number,
+): string | null {
+  if (!points?.length) return null;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+
+  for (const point of points) {
+    if (point.y < minLat) minLat = point.y;
+    if (point.y > maxLat) maxLat = point.y;
+    if (point.x < minLng) minLng = point.x;
+    if (point.x > maxLng) maxLng = point.x;
+  }
+  if (minLat === Infinity) return null;
+
+  const kmPerDegreeLat = 111.32;
+  const midLat = (minLat + maxLat) / 2;
+  const kmPerDegreeLng = Math.max(
+    kmPerDegreeLat * Math.cos((midLat * Math.PI) / 180),
+    0.000001,
+  );
+
+  const latPadding = bufferKm / kmPerDegreeLat;
+  const lngPadding = bufferKm / kmPerDegreeLng;
+  const swLng = minLng - lngPadding;
+  const swLat = minLat - latPadding;
+  const neLng = maxLng + lngPadding;
+  const neLat = maxLat + latPadding;
+  return `${swLng},${swLat},${neLng},${neLat}`;
+}
+
 // ── 숙박업소 타입 ──────────────────────────────────────────────────
 type KakaoPlaceDoc = {
   id: string;
@@ -568,6 +602,7 @@ function nearbyCategoryIcon(categoryId: NearbyCategoryId) {
 const HIGHLIGHT_MARKER_SIZE = 16;
 const HIGHLIGHT_MARKER_COLOR = "#f97316";
 const ZOOM_LIMIT_ACCOMMODATION = 7;
+const NEARBY_SEARCH_BUFFER_KM = 2;
 
 function highlightCircleMarkerHtml(size: number): string {
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`;
@@ -958,16 +993,22 @@ export default function KakaoMap({
       const map = mapInstanceRef.current as KakaoMapInstance | null;
       if (!map) return;
 
-      const bounds = map.getBounds?.();
-      if (!bounds) return;
-
-      const sw = bounds.getSouthWest();
-      const ne = bounds.getNorthEast();
-      const swLng = sw.getLng();
-      const swLat = sw.getLat();
-      const neLng = ne.getLng();
-      const neLat = ne.getLat();
-      const rect = `${swLng},${swLat},${neLng},${neLat}`;
+      const routeRect = buildBufferedRouteRect(
+        route?.track_points,
+        NEARBY_SEARCH_BUFFER_KM,
+      );
+      let rect = routeRect;
+      if (!rect) {
+        const bounds = map.getBounds?.();
+        if (!bounds) return;
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const swLng = sw.getLng();
+        const swLat = sw.getLat();
+        const neLng = ne.getLng();
+        const neLat = ne.getLat();
+        rect = `${swLng},${swLat},${neLng},${neLat}`;
+      }
       const code = NEARBY_CATEGORIES.find((c) => c.id === categoryId)
         ?.categoryGroupCode;
 
@@ -998,7 +1039,7 @@ export default function KakaoMap({
         setLoadingCategory(null);
       }
     },
-    [fetchPlaceReviews],
+    [fetchPlaceReviews, route?.track_points],
   );
 
   const handleNearbyVisibilityToggle = useCallback(() => {
