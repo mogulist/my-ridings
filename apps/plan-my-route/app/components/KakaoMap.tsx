@@ -1,7 +1,7 @@
 "use client";
 
+import { Bed, Coffee, Expand, Locate, MapPinOff, Store, UtensilsCrossed } from "lucide-react";
 import Script from "next/script";
-import { Expand, Locate, MapPinOff, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
@@ -383,6 +383,61 @@ function parseAccommodationFiltersFromStorage(
   }
 }
 
+type NearbyCategoryId = "restaurant" | "cafe" | "convenience" | "accommodation";
+
+type NearbyCategoryConfig = {
+  id: NearbyCategoryId;
+  label: string;
+  categoryGroupCode: string;
+  bookmarkPlaceKind: string;
+  notePlaceholder: string;
+};
+
+const NEARBY_CATEGORIES: NearbyCategoryConfig[] = [
+  {
+    id: "restaurant",
+    label: "음식점",
+    categoryGroupCode: "FD6",
+    bookmarkPlaceKind: "restaurant",
+    notePlaceholder: "메모",
+  },
+  {
+    id: "cafe",
+    label: "카페",
+    categoryGroupCode: "CE7",
+    bookmarkPlaceKind: "cafe",
+    notePlaceholder: "메모",
+  },
+  {
+    id: "convenience",
+    label: "편의점",
+    categoryGroupCode: "CS2",
+    bookmarkPlaceKind: "convenience",
+    notePlaceholder: "메모",
+  },
+  {
+    id: "accommodation",
+    label: "숙박",
+    categoryGroupCode: "AD5",
+    bookmarkPlaceKind: "accommodation",
+    notePlaceholder: "숙박비, 소감 등",
+  },
+];
+
+type NearbyDocsState = {
+  restaurant: KakaoPlaceDoc[];
+  cafe: KakaoPlaceDoc[];
+  convenience: KakaoPlaceDoc[];
+  accommodation: ClassifiedAccommodationDoc[];
+};
+
+const EMPTY_NEARBY_DOCS = (): NearbyDocsState => ({
+  restaurant: [],
+  cafe: [],
+  convenience: [],
+  accommodation: [],
+});
+
 const REVIEW_STATE_COLORS: Record<ReviewState, string> = {
   up2: "#16a34a",
   up1: "#2563eb",
@@ -409,7 +464,10 @@ function buildNaverMapUrls(
 function buildAccommodationTooltipHtml(
   doc: KakaoPlaceDoc,
   review: PlaceReviewRow | null,
+  tooltipMeta?: { placeKind: string; notePlaceholder: string },
 ): string {
+  const placeKind = tooltipMeta?.placeKind ?? "accommodation";
+  const notePlaceholder = tooltipMeta?.notePlaceholder ?? "숙박비, 소감 등";
   const badgeStyle =
     "display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;background:#f3f4f6;color:#1976d2;border:1px solid #e5e7eb;";
   const link = doc.place_url
@@ -431,7 +489,7 @@ function buildAccommodationTooltipHtml(
     link || naverLink
       ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;">${link ?? ""}${naverLink ?? ""}</div>`
       : "";
-  return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
+  return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
   ${linksBlock}
   <div style="margin-bottom:6px;font-size:11px;color:#6b7280;">평가</div>
@@ -442,7 +500,7 @@ function buildAccommodationTooltipHtml(
     <button type="button" class="place-review-state-btn" data-state="down" aria-label="제외" title="제외" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "down" ? REVIEW_STATE_COLORS.down : "#fff"};color:${state === "down" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👎</button>
   </div>
   <div style="margin-bottom:4px;font-size:11px;color:#6b7280;">메모</div>
-  <textarea class="place-review-note" rows="2" placeholder="숙박비, 소감 등" style="width:100%;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box;">${esc(note)}</textarea>
+  <textarea class="place-review-note" rows="2" placeholder="${esc(notePlaceholder)}" style="width:100%;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box;">${esc(note)}</textarea>
   <button type="button" class="place-review-save" style="margin-top:8px;padding:6px 12px;background:#f97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">저장</button>
 </div>`;
 }
@@ -466,6 +524,44 @@ function getAccommodationMarkerImage(
   return new maps.MarkerImage(src, new maps.Size(size, size), {
     offset: new maps.Point(r, r),
   });
+}
+
+function getNearbyCategoryMarkerImage(
+  maps: KakaoMapsAPI,
+  reviewState: ReviewState,
+  categoryId: NearbyCategoryId,
+): unknown {
+  if (categoryId === "accommodation") {
+    return getAccommodationMarkerImage(maps, reviewState);
+  }
+  const size = ACCOMMODATION_MARKER_SIZE;
+  const r = size / 2;
+  const fill = REVIEW_STATE_COLORS[reviewState];
+  const icon =
+    categoryId === "restaurant"
+      ? '<path fill="#fff" d="M8 4.5h1.2v7H8v-7zm3.8 0H13v7h-1.2v-7zM7.5 13h6v1.2h-6V13z"/>'
+      : categoryId === "cafe"
+        ? '<path fill="none" stroke="#fff" stroke-width="1.2" d="M9 6.5h4.5v3.5a2.25 2.25 0 01-4.5 0V6.5zm.8 7.5h3"/>'
+        : '<text x="12" y="15.5" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">24</text>';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${fill}" stroke="#fff" stroke-width="1.5"/>${icon}</svg>`;
+  const src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return new maps.MarkerImage(src, new maps.Size(size, size), {
+    offset: new maps.Point(r, r),
+  });
+}
+
+function nearbyCategoryIcon(categoryId: NearbyCategoryId) {
+  const className = "size-4 shrink-0";
+  switch (categoryId) {
+    case "restaurant":
+      return <UtensilsCrossed className={className} aria-hidden />;
+    case "cafe":
+      return <Coffee className={className} aria-hidden />;
+    case "convenience":
+      return <Store className={className} aria-hidden />;
+    default:
+      return <Bed className={className} aria-hidden />;
+  }
 }
 
 // ── Props ─────────────────────────────────────────────────────────
@@ -520,14 +616,16 @@ export default function KakaoMap({
   const reviewContextRef = useRef(reviewContext);
   const [mapReady, setMapReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
-  const [showAccommodations, setShowAccommodations] = useState(false);
-  const [accommodationLoading, setAccommodationLoading] = useState(false);
+  const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
+  const [loadingCategory, setLoadingCategory] = useState<NearbyCategoryId | null>(
+    null,
+  );
+  const [activeCategory, setActiveCategory] =
+    useState<NearbyCategoryId>("accommodation");
   const [showSearchPopover, setShowSearchPopover] = useState(false);
   const [accommodationFilters, setAccommodationFilters] =
     useState<AccommodationFilterState>(DEFAULT_ACCOMMODATION_FILTERS);
-  const [accommodationDocuments, setAccommodationDocuments] = useState<
-    ClassifiedAccommodationDoc[]
-  >([]);
+  const [nearbyDocs, setNearbyDocs] = useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
   const [placeReviewsMap, setPlaceReviewsMap] = useState<
     Record<string, PlaceReviewRow>
   >({});
@@ -536,9 +634,10 @@ export default function KakaoMap({
   const onReviewChangeRef = useRef<
     ((placeId: string, review: PlaceReviewRow) => void) | null
   >(null);
-  const activeAccommodationInfoRef = useRef<{
-    doc: ClassifiedAccommodationDoc;
+  const activePlaceInfoRef = useRef<{
+    doc: KakaoPlaceDoc;
     infoWindow: KakaoInfoWindow;
+    tooltipMeta: { placeKind: string; notePlaceholder: string };
   } | null>(null);
   const afterRouteDrawRef = useRef<
     ((map: KakaoMapInstance, maps: KakaoMapsAPI) => void) | null
@@ -789,13 +888,18 @@ export default function KakaoMap({
     accommodationOverlaysRef.current = [];
   }, []);
 
-  const renderAccommodationMarkers = useCallback(
+  const renderNearbyMarkers = useCallback(
     (
       map: KakaoMapInstance,
       maps: KakaoMapsAPI,
-      docs: ClassifiedAccommodationDoc[],
+      categoryId: NearbyCategoryId,
+      docs: (KakaoPlaceDoc | ClassifiedAccommodationDoc)[],
       reviewsMap: Record<string, PlaceReviewRow>,
     ) => {
+      const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
+      const tooltipMeta = cfg
+        ? { placeKind: cfg.bookmarkPlaceKind, notePlaceholder: cfg.notePlaceholder }
+        : { placeKind: "accommodation", notePlaceholder: "숙박비, 소감 등" };
       if (openInfoWindowRef.current) {
         openInfoWindowRef.current.close();
         openInfoWindowRef.current = null;
@@ -808,23 +912,31 @@ export default function KakaoMap({
           map: map as never,
           position: new maps.LatLng(Number(doc.y), Number(doc.x)),
           title: doc.place_name,
-          image: getAccommodationMarkerImage(maps, state),
+          image: getNearbyCategoryMarkerImage(maps, state, categoryId),
         });
         nextMarkers.push(marker);
 
         const infoWindow = new maps.InfoWindow({
-          content: buildAccommodationTooltipHtml(doc, reviewsMap[doc.id] ?? null),
+          content: buildAccommodationTooltipHtml(
+            doc,
+            reviewsMap[doc.id] ?? null,
+            tooltipMeta,
+          ),
           removable: true,
         });
 
         maps.event.addListener(marker, "click", () => {
           if (openInfoWindowRef.current) openInfoWindowRef.current.close();
           infoWindow.setContent?.(
-            buildAccommodationTooltipHtml(doc, reviewsMap[doc.id] ?? null),
+            buildAccommodationTooltipHtml(
+              doc,
+              reviewsMap[doc.id] ?? null,
+              tooltipMeta,
+            ),
           );
           infoWindow.open(map, marker);
           openInfoWindowRef.current = infoWindow;
-          activeAccommodationInfoRef.current = { doc, infoWindow };
+          activePlaceInfoRef.current = { doc, infoWindow, tooltipMeta };
         });
       }
       accommodationOverlaysRef.current = nextMarkers;
@@ -833,67 +945,81 @@ export default function KakaoMap({
   );
 
   const accommodationCategoryCounts = useMemo(
-    () => buildAccommodationCategoryCounts(accommodationDocuments),
-    [accommodationDocuments],
+    () => buildAccommodationCategoryCounts(nearbyDocs.accommodation),
+    [nearbyDocs.accommodation],
   );
 
-  const handleReloadAccommodations = useCallback(async () => {
-    const map = mapInstanceRef.current as KakaoMapInstance | null;
-    const maps = window.kakao?.maps;
-    if (!map || !maps) return;
+  const isDocsEmptyForCategory = useCallback((categoryId: NearbyCategoryId) => {
+    return nearbyDocs[categoryId].length === 0;
+  }, [nearbyDocs]);
 
-    const bounds = map.getBounds?.();
-    if (!bounds) return;
+  const handleReloadNearby = useCallback(
+    async (categoryId: NearbyCategoryId) => {
+      const map = mapInstanceRef.current as KakaoMapInstance | null;
+      if (!map) return;
 
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    const swLng = sw.getLng();
-    const swLat = sw.getLat();
-    const neLng = ne.getLng();
-    const neLat = ne.getLat();
-    const rect = `${swLng},${swLat},${neLng},${neLat}`;
+      const bounds = map.getBounds?.();
+      if (!bounds) return;
 
-    setAccommodationLoading(true);
-    try {
-      const res = await fetch(
-        `/api/kakao/local/category?rect=${encodeURIComponent(rect)}`,
-      );
-      if (!res.ok) throw new Error("Failed to fetch");
-      const { documents } = (await res.json()) as { documents: KakaoPlaceDoc[] };
-      const classifiedDocuments = classifyAccommodationDocuments(documents);
-      setAccommodationDocuments(classifiedDocuments);
-      await fetchPlaceReviews();
-      setShowAccommodations(true);
-    } catch {
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      const swLng = sw.getLng();
+      const swLat = sw.getLat();
+      const neLng = ne.getLng();
+      const neLat = ne.getLat();
+      const rect = `${swLng},${swLat},${neLng},${neLat}`;
+      const code = NEARBY_CATEGORIES.find((c) => c.id === categoryId)
+        ?.categoryGroupCode;
+
+      setLoadingCategory(categoryId);
+      try {
+        const res = await fetch(
+          `/api/kakao/local/category?rect=${encodeURIComponent(rect)}&category_group_code=${encodeURIComponent(code ?? "AD5")}`,
+        );
+        if (!res.ok) throw new Error("Failed to fetch");
+        const { documents } = (await res.json()) as { documents: KakaoPlaceDoc[] };
+        if (categoryId === "accommodation") {
+          setNearbyDocs((prev) => ({
+            ...prev,
+            accommodation: classifyAccommodationDocuments(documents),
+          }));
+        } else {
+          setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+        }
+        await fetchPlaceReviews();
+        setShowNearbyPlaces(true);
+      } catch {
+        if (categoryId === "accommodation") {
+          setNearbyDocs((prev) => ({ ...prev, accommodation: [] }));
+        } else {
+          setNearbyDocs((prev) => ({ ...prev, [categoryId]: [] }));
+        }
+      } finally {
+        setLoadingCategory(null);
+      }
+    },
+    [fetchPlaceReviews],
+  );
+
+  const handleNearbyVisibilityToggle = useCallback(() => {
+    if (showNearbyPlaces) {
       clearAccommodationMarkers();
-      setAccommodationDocuments([]);
-      setShowAccommodations(false);
-    } finally {
-      setAccommodationLoading(false);
-    }
-  }, [clearAccommodationMarkers, fetchPlaceReviews]);
-
-  const handleAccommodationVisibilityToggle = useCallback(async () => {
-    const map = mapInstanceRef.current as KakaoMapInstance | null;
-    const maps = window.kakao?.maps;
-    if (!map || !maps) return;
-
-    if (showAccommodations) {
-      clearAccommodationMarkers();
-      setShowAccommodations(false);
+      setShowNearbyPlaces(false);
       return;
     }
-
-    // 표시: 기존에 가져온 documents로만 다시 렌더 (API 호출 없음)
-    setShowAccommodations(true);
-  }, [showAccommodations, clearAccommodationMarkers]);
+    setShowNearbyPlaces(true);
+  }, [showNearbyPlaces, clearAccommodationMarkers]);
 
   onReviewChangeRef.current = (placeId: string, review: PlaceReviewRow) => {
     setPlaceReviewsMap((prev) => ({ ...prev, [placeId]: review }));
-    const activeInfo = activeAccommodationInfoRef.current;
+    const activeInfo = activePlaceInfoRef.current;
     if (activeInfo && activeInfo.doc.id === placeId) {
       activeInfo.infoWindow.setContent?.(
-        buildAccommodationTooltipHtml(activeInfo.doc, review),
+        buildAccommodationTooltipHtml(
+          activeInfo.doc,
+          review,
+          activeInfo.tooltipMeta,
+        ),
       );
     }
   };
@@ -923,7 +1049,7 @@ export default function KakaoMap({
         const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
         if (!root) return;
         (root as HTMLElement).dataset.currentState = state;
-        const activeInfo = activeAccommodationInfoRef.current;
+        const activeInfo = activePlaceInfoRef.current;
         if (activeInfo) {
           const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
           const note = noteEl?.value?.trim() ?? "";
@@ -932,7 +1058,11 @@ export default function KakaoMap({
             note: note || null,
           };
           activeInfo.infoWindow.setContent?.(
-            buildAccommodationTooltipHtml(activeInfo.doc, syntheticReview as PlaceReviewRow),
+            buildAccommodationTooltipHtml(
+              activeInfo.doc,
+              syntheticReview as PlaceReviewRow,
+              activeInfo.tooltipMeta,
+            ),
           );
         }
         return;
@@ -955,6 +1085,7 @@ export default function KakaoMap({
       const note = noteEl?.value?.trim() ?? "";
       if (!placeId || !placeName) return;
 
+      const placeKind = el.dataset.placeKind || "accommodation";
       const ctx = reviewContextRef.current;
       fetch("/api/bookmarks", {
         method: "POST",
@@ -966,6 +1097,7 @@ export default function KakaoMap({
           address_name: address || null,
           lat: lat ? Number(lat) : null,
           lng: lng ? Number(lng) : null,
+          place_kind: placeKind,
           review_state: state,
           note: note || null,
           route_id: ctx.routeId || null,
@@ -1016,32 +1148,46 @@ export default function KakaoMap({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showSearchPopover]);
 
+  const visibleNearbyDocs = useMemo(() => {
+    if (activeCategory === "accommodation") {
+      return filterAccommodationDocuments(
+        nearbyDocs.accommodation,
+        accommodationFilters,
+      );
+    }
+    return nearbyDocs[activeCategory];
+  }, [activeCategory, nearbyDocs, accommodationFilters]);
+
   useEffect(() => {
-    if (!showAccommodations) {
+    if (!showNearbyPlaces) {
       afterRouteDrawRef.current = null;
       return;
     }
     const map = mapInstanceRef.current as KakaoMapInstance | null;
     const maps = window.kakao?.maps;
     if (!map || !maps) return;
-    const visibleDocs = filterAccommodationDocuments(
-      accommodationDocuments,
-      accommodationFilters,
+    renderNearbyMarkers(
+      map,
+      maps,
+      activeCategory,
+      visibleNearbyDocs,
+      placeReviewsMap,
     );
-    renderAccommodationMarkers(map, maps, visibleDocs, placeReviewsMap);
     afterRouteDrawRef.current = (drawMap, drawMaps) => {
-      const docs = filterAccommodationDocuments(
-        accommodationDocuments,
-        accommodationFilters,
+      renderNearbyMarkers(
+        drawMap,
+        drawMaps,
+        activeCategory,
+        visibleNearbyDocs,
+        placeReviewsMap,
       );
-      renderAccommodationMarkers(drawMap, drawMaps, docs, placeReviewsMap);
     };
   }, [
-    showAccommodations,
-    accommodationDocuments,
-    accommodationFilters,
+    showNearbyPlaces,
+    activeCategory,
+    visibleNearbyDocs,
     placeReviewsMap,
-    renderAccommodationMarkers,
+    renderNearbyMarkers,
   ]);
 
   const computeBounds = useCallback(() => {
@@ -1108,23 +1254,41 @@ export default function KakaoMap({
     map.setBounds(bounds);
   }, [computeBounds]);
 
-  const isAccommodationSearchDisabled =
-    zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION || accommodationLoading;
+  const isNearbySearchDisabled =
+    zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION || loadingCategory != null;
 
-  const handleAccommodationSearchClick = useCallback(async () => {
-    if (isAccommodationSearchDisabled) return;
-    // 최초 1회는 자동 로드. 이후 새 검색은 popover 내 '다시 찾기' 버튼으로 수행.
-    if (!showAccommodations) {
-      setShowAccommodations(true);
-      if (accommodationDocuments.length === 0) await handleReloadAccommodations();
-    }
-    setShowSearchPopover((prev) => !prev);
-  }, [
-    isAccommodationSearchDisabled,
-    showAccommodations,
-    accommodationDocuments.length,
-    handleReloadAccommodations,
-  ]);
+  const handleNearbyCategoryClick = useCallback(
+    (categoryId: NearbyCategoryId) => {
+      if (isNearbySearchDisabled) return;
+      if (categoryId === activeCategory) {
+        setShowSearchPopover((prev) => !prev);
+        if (!showNearbyPlaces) {
+          setShowNearbyPlaces(true);
+          if (isDocsEmptyForCategory(categoryId)) {
+            void handleReloadNearby(categoryId);
+          }
+        }
+        return;
+      }
+      setActiveCategory(categoryId);
+      setShowSearchPopover(true);
+      if (!showNearbyPlaces) {
+        setShowNearbyPlaces(true);
+        if (isDocsEmptyForCategory(categoryId)) {
+          void handleReloadNearby(categoryId);
+        }
+      } else if (isDocsEmptyForCategory(categoryId)) {
+        void handleReloadNearby(categoryId);
+      }
+    },
+    [
+      isNearbySearchDisabled,
+      activeCategory,
+      showNearbyPlaces,
+      isDocsEmptyForCategory,
+      handleReloadNearby,
+    ],
+  );
 
   const handleAccommodationFilterChange = useCallback(
     (category: AccommodationCategory) => {
@@ -1209,87 +1373,122 @@ export default function KakaoMap({
       {mapReady && (
         <div
           ref={searchPopoverRef}
-          className="absolute top-4 right-4 z-10 flex items-start gap-2"
+          className="absolute top-4 right-4 z-10 flex max-w-[min(100vw-2rem,28rem)] flex-wrap items-start justify-end gap-2"
         >
-          <button
-            type="button"
-            onClick={handleAccommodationSearchClick}
-            disabled={isAccommodationSearchDisabled}
-            className="inline-flex h-9 items-center gap-1 rounded border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="숙박 검색 필터"
-            title={
-              zoomLevel != null && zoomLevel > ZOOM_LIMIT_ACCOMMODATION
-                ? "줌 레벨 7 이하에서만 사용 가능"
-                : "숙박 검색 필터"
-            }
-          >
-            {accommodationLoading ? (
-              <span className="size-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
-            ) : (
-              <Search className="size-4" />
-            )}
-            <span>숙박</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {NEARBY_CATEGORIES.map((cat) => {
+              const isActive = activeCategory === cat.id;
+              const isLoading = loadingCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => handleNearbyCategoryClick(cat.id)}
+                  disabled={isNearbySearchDisabled}
+                  className={
+                    isActive
+                      ? "inline-flex h-9 items-center gap-1 rounded border border-blue-500 bg-blue-500 px-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      : "inline-flex h-9 items-center gap-1 rounded border border-gray-200 bg-white px-2.5 text-sm font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  }
+                  aria-label={`${cat.label} 주변 탐색`}
+                  aria-pressed={isActive}
+                  title={
+                    zoomLevel != null && zoomLevel > ZOOM_LIMIT_ACCOMMODATION
+                      ? "줌 레벨 7 이하에서만 사용 가능"
+                      : `${cat.label} 주변 탐색`
+                  }
+                >
+                  {isLoading ? (
+                    <span
+                      className={
+                        isActive
+                          ? "size-4 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent"
+                          : "size-4 shrink-0 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
+                      }
+                    />
+                  ) : (
+                    <span className={isActive ? "text-white" : "text-gray-600"}>
+                      {nearbyCategoryIcon(cat.id)}
+                    </span>
+                  )}
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
           {showSearchPopover && (
-            <div className="w-64 rounded border border-gray-200 bg-white p-3 shadow-lg">
+            <div className="w-64 shrink-0 rounded border border-gray-200 bg-white p-3 shadow-lg">
               <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2">
-                <span className="text-sm font-semibold text-gray-800">숙박</span>
+                <span className="text-sm font-semibold text-gray-800">
+                  {
+                    NEARBY_CATEGORIES.find((c) => c.id === activeCategory)
+                      ?.label
+                  }
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => void handleReloadAccommodations()}
-                    disabled={isAccommodationSearchDisabled}
+                    onClick={() => void handleReloadNearby(activeCategory)}
+                    disabled={isNearbySearchDisabled}
                     className="text-xs font-medium text-gray-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     다시 찾기
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleAccommodationVisibilityToggle()}
+                    onClick={() => void handleNearbyVisibilityToggle()}
                     className="text-xs font-medium text-blue-600 hover:underline"
                   >
-                    {showAccommodations ? "숨기기" : "표시"}
+                    {showNearbyPlaces ? "숨기기" : "표시"}
                   </button>
                 </div>
               </div>
               <p className="mb-2 text-xs text-gray-500">현재 지도 범위 내 결과</p>
-              <div className="grid grid-cols-2 gap-2">
-                {ACCOMMODATION_CATEGORY_OPTIONS.map((option) => (
-                  <label
-                    key={option.category}
-                    className="flex cursor-pointer items-center justify-between rounded border border-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                  >
-                    <span>{option.label}</span>
-                    <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
-                      {accommodationCategoryCounts[option.category]}
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="ml-2"
-                      checked={accommodationFilters[option.category]}
-                      onChange={() =>
-                        handleAccommodationFilterChange(option.category)
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="mt-3 flex items-center justify-end gap-2 border-t border-gray-100 pt-2">
-                <button
-                  type="button"
-                  className="text-xs font-medium text-gray-600 hover:underline"
-                  onClick={handleSelectAllAccommodationFilters}
-                >
-                  전체
-                </button>
-                <button
-                  type="button"
-                  className="text-xs font-medium text-gray-600 hover:underline"
-                  onClick={handleResetAccommodationFilters}
-                >
-                  초기화
-                </button>
-              </div>
+              {activeCategory === "accommodation" ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ACCOMMODATION_CATEGORY_OPTIONS.map((option) => (
+                      <label
+                        key={option.category}
+                        className="flex cursor-pointer items-center justify-between rounded border border-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                      >
+                        <span>{option.label}</span>
+                        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
+                          {accommodationCategoryCounts[option.category]}
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="ml-2"
+                          checked={accommodationFilters[option.category]}
+                          onChange={() =>
+                            handleAccommodationFilterChange(option.category)
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center justify-end gap-2 border-t border-gray-100 pt-2">
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-gray-600 hover:underline"
+                      onClick={handleSelectAllAccommodationFilters}
+                    >
+                      전체
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-gray-600 hover:underline"
+                      onClick={handleResetAccommodationFilters}
+                    >
+                      초기화
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-700">
+                  {nearbyDocs[activeCategory].length}개 장소
+                </p>
+              )}
             </div>
           )}
         </div>
