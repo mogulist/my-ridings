@@ -845,16 +845,10 @@ export default function KakaoMap({
     [accommodationDocuments],
   );
 
-  const handleAccommodationToggle = useCallback(async () => {
+  const handleReloadAccommodations = useCallback(async () => {
     const map = mapInstanceRef.current as KakaoMapInstance | null;
     const maps = window.kakao?.maps;
     if (!map || !maps) return;
-
-    if (showAccommodations) {
-      clearAccommodationMarkers();
-      setShowAccommodations(false);
-      return;
-    }
 
     const bounds = map.getBounds?.();
     if (!bounds) return;
@@ -885,7 +879,22 @@ export default function KakaoMap({
     } finally {
       setAccommodationLoading(false);
     }
-  }, [showAccommodations, clearAccommodationMarkers, fetchPlaceReviews]);
+  }, [clearAccommodationMarkers, fetchPlaceReviews]);
+
+  const handleAccommodationVisibilityToggle = useCallback(async () => {
+    const map = mapInstanceRef.current as KakaoMapInstance | null;
+    const maps = window.kakao?.maps;
+    if (!map || !maps) return;
+
+    if (showAccommodations) {
+      clearAccommodationMarkers();
+      setShowAccommodations(false);
+      return;
+    }
+
+    // 표시: 기존에 가져온 documents로만 다시 렌더 (API 호출 없음)
+    setShowAccommodations(true);
+  }, [showAccommodations, clearAccommodationMarkers]);
 
   onReviewChangeRef.current = (placeId: string, review: PlaceReviewRow) => {
     setPlaceReviewsMap((prev) => ({ ...prev, [placeId]: review }));
@@ -1112,12 +1121,17 @@ export default function KakaoMap({
 
   const handleAccommodationSearchClick = useCallback(async () => {
     if (isAccommodationSearchDisabled) return;
-    if (!showAccommodations) await handleAccommodationToggle();
+    // 최초 1회는 자동 로드. 이후 새 검색은 popover 내 '다시 찾기' 버튼으로 수행.
+    if (!showAccommodations) {
+      setShowAccommodations(true);
+      if (accommodationDocuments.length === 0) await handleReloadAccommodations();
+    }
     setShowSearchPopover((prev) => !prev);
   }, [
     isAccommodationSearchDisabled,
     showAccommodations,
-    handleAccommodationToggle,
+    accommodationDocuments.length,
+    handleReloadAccommodations,
   ]);
 
   const handleAccommodationFilterChange = useCallback(
@@ -1203,7 +1217,7 @@ export default function KakaoMap({
       {mapReady && (
         <div
           ref={searchPopoverRef}
-          className="absolute top-4 right-16 z-10 flex items-start gap-2"
+          className="absolute top-4 right-4 z-10 flex items-start gap-2"
         >
           <button
             type="button"
@@ -1228,13 +1242,23 @@ export default function KakaoMap({
             <div className="w-64 rounded border border-gray-200 bg-white p-3 shadow-lg">
               <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2">
                 <span className="text-sm font-semibold text-gray-800">숙박</span>
-                <button
-                  type="button"
-                  onClick={() => void handleAccommodationToggle()}
-                  className="text-xs font-medium text-blue-600 hover:underline"
-                >
-                  {showAccommodations ? "숨기기" : "표시"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleReloadAccommodations()}
+                    disabled={isAccommodationSearchDisabled}
+                    className="text-xs font-medium text-gray-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    다시 찾기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleAccommodationVisibilityToggle()}
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    {showAccommodations ? "숨기기" : "표시"}
+                  </button>
+                </div>
               </div>
               <p className="mb-2 text-xs text-gray-500">현재 지도 범위 내 결과</p>
               <div className="grid grid-cols-2 gap-2">
