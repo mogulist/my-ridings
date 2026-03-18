@@ -317,7 +317,7 @@ function BoundaryTooltip({
 			style={{
 				left: `${Math.max(8, Math.min(92, leftPct))}%`,
 				top: 4,
-				transform: leftPct > 70 ? "translateX(-100%)" : "translateX(-50%)",
+				transform: leftPct > 25 ? "translateX(calc(-100% - 32px))" : "translateX(32px)",
 			}}
 		>
 			<p className="font-semibold text-zinc-800 dark:text-zinc-100">
