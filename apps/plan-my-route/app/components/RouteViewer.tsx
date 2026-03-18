@@ -427,6 +427,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
           elevation_gain?: number | null;
           elevation_loss?: number | null;
           title?: string | null;
+          memo?: string | null;
         }[];
         const sortedStages = [...rawStages].sort(
           (a, b) => a.start_distance - b.start_distance,
@@ -443,6 +444,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               elevation_gain: s.elevation_gain ?? null,
               elevation_loss: s.elevation_loss ?? null,
               title: s.title ?? null,
+              memo: s.memo ?? null,
             }),
           });
           if (!stageRes.ok) throw new Error("Stage creation failed");
