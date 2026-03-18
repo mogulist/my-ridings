@@ -566,8 +566,11 @@ export default function KakaoMap({
         typeof previousLevel === "number";
 
       const map = new kakaoMaps.Map(containerRef.current, {
-        center: new kakaoMaps.LatLng(firstPoint.y, firstPoint.x),
-        level: 12,
+        center:
+          shouldPreserveViewport && previousCenter
+            ? new kakaoMaps.LatLng(previousCenter.getLat(), previousCenter.getLng())
+            : new kakaoMaps.LatLng(firstPoint.y, firstPoint.x),
+        level: shouldPreserveViewport && previousLevel ? previousLevel : 12,
       });
 
       // Stage가 없는 경우: 기존처럼 단일 Polyline
@@ -700,17 +703,6 @@ export default function KakaoMap({
 
       mapInstanceRef.current = map;
       lastRouteIdRef.current = routeData.id;
-      if (
-        shouldPreserveViewport &&
-        previousCenter &&
-        map.setCenter &&
-        map.setLevel
-      ) {
-        map.setCenter(
-          new kakaoMaps.LatLng(previousCenter.getLat(), previousCenter.getLng()),
-        );
-        map.setLevel(previousLevel);
-      }
       setMapReady(true);
       afterRouteDrawRef.current?.(map, kakaoMaps);
 
