@@ -27,6 +27,15 @@ type DbStage = {
   memo?: string | null;
 };
 
+type DbPlanSnapshot = {
+  id: string;
+  stages?: DbStage[];
+};
+
+type DbRouteSnapshot = {
+  plans?: DbPlanSnapshot[];
+};
+
 function normalizeDbStages(rawStages: DbStage[]): Stage[] {
   const sortedStages = [...rawStages].sort(
     (a, b) => a.start_distance - b.start_distance,
@@ -42,6 +51,33 @@ function normalizeDbStages(rawStages: DbStage[]): Stage[] {
     isLastStage: false,
     memo: s.memo ?? undefined,
   }));
+}
+
+function serializeStagesForPlanCache(stages: Stage[]): DbStage[] {
+  return stages.map((stage) => ({
+    id: stage.id,
+    start_distance: Math.round(stage.startDistanceKm * 1000),
+    end_distance: Math.round(stage.endDistanceKm * 1000),
+    elevation_gain: stage.elevationGain,
+    elevation_loss: stage.elevationLoss,
+    memo: stage.memo ?? null,
+  }));
+}
+
+function isSamePlanStages(a: DbStage[] | undefined, b: DbStage[]): boolean {
+  if ((a?.length ?? 0) !== b.length) return false;
+  if (!a) return b.length === 0;
+  return a.every((stage, index) => {
+    const next = b[index];
+    return (
+      stage.id === next.id &&
+      stage.start_distance === next.start_distance &&
+      stage.end_distance === next.end_distance &&
+      Number(stage.elevation_gain ?? 0) === Number(next.elevation_gain ?? 0) &&
+      Number(stage.elevation_loss ?? 0) === Number(next.elevation_loss ?? 0) &&
+      (stage.memo ?? null) === (next.memo ?? null)
+    );
+  });
 }
 
 export default function RouteViewer({ routeId }: RouteViewerProps) {
@@ -195,6 +231,22 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     dbStages, // Pass initial stages loaded from DB
     activePlanId, // Pass active plan ID to let hook sync updates with API
   );
+
+  useEffect(() => {
+    if (!activePlanId) return;
+    const nextStages = serializeStagesForPlanCache(stages);
+    setDbRoute((prev: DbRouteSnapshot | null) => {
+      if (!prev?.plans) return prev;
+      const planIndex = prev.plans.findIndex((plan) => plan.id === activePlanId);
+      if (planIndex === -1) return prev;
+      const targetPlan = prev.plans[planIndex];
+      if (isSamePlanStages(targetPlan.stages, nextStages)) return prev;
+
+      const nextPlans = [...prev.plans];
+      nextPlans[planIndex] = { ...targetPlan, stages: nextStages };
+      return { ...prev, plans: nextPlans };
+    });
+  }, [activePlanId, stages]);
 
   // stages 변경 시 selectedDayNumber 유효성 유지. null = 전체 구간 표시
   const effectiveSelectedDay =
