@@ -1,6 +1,16 @@
 "use client";
 
-import { Bed, Coffee, Expand, Locate, MapPinOff, Store, UtensilsCrossed } from "lucide-react";
+import {
+  Bed,
+  Coffee,
+  Expand,
+  Locate,
+  MapPinOff,
+  ShoppingCart,
+  Store,
+  UtensilsCrossed,
+  Warehouse,
+} from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Stage } from "../types/plan";
@@ -428,12 +438,20 @@ function parseAccommodationFiltersFromStorage(
   }
 }
 
-type NearbyCategoryId = "restaurant" | "cafe" | "convenience" | "accommodation";
+type NearbyCategoryId =
+  | "restaurant"
+  | "cafe"
+  | "convenience"
+  | "mart"
+  | "bigMart"
+  | "accommodation";
 
 type NearbyCategoryConfig = {
   id: NearbyCategoryId;
   label: string;
   categoryGroupCode: string;
+  /** 있으면 카테고리 대신 키워드 검색(복수 쿼리 시 id 기준 병합) */
+  keywordQueries?: string[];
   bookmarkPlaceKind: string;
   notePlaceholder: string;
 };
@@ -442,6 +460,8 @@ function placeKindToCategory(kind: string): NearbyCategoryId {
   if (kind === "restaurant") return "restaurant";
   if (kind === "cafe") return "cafe";
   if (kind === "convenience") return "convenience";
+  if (kind === "mart") return "mart";
+  if (kind === "big_mart") return "bigMart";
   return "accommodation";
 }
 
@@ -468,8 +488,23 @@ const NEARBY_CATEGORIES: NearbyCategoryConfig[] = [
     notePlaceholder: "메모",
   },
   {
+    id: "mart",
+    label: "마트",
+    categoryGroupCode: "",
+    keywordQueries: ["마트"],
+    bookmarkPlaceKind: "mart",
+    notePlaceholder: "메모",
+  },
+  {
+    id: "bigMart",
+    label: "대형마트",
+    categoryGroupCode: "MT1",
+    bookmarkPlaceKind: "big_mart",
+    notePlaceholder: "메모",
+  },
+  {
     id: "accommodation",
-    label: "숙박",
+    label: "숙소",
     categoryGroupCode: "AD5",
     bookmarkPlaceKind: "accommodation",
     notePlaceholder: "숙박비, 소감 등",
@@ -480,6 +515,8 @@ type NearbyDocsState = {
   restaurant: KakaoPlaceDoc[];
   cafe: KakaoPlaceDoc[];
   convenience: KakaoPlaceDoc[];
+  mart: KakaoPlaceDoc[];
+  bigMart: KakaoPlaceDoc[];
   accommodation: ClassifiedAccommodationDoc[];
 };
 
@@ -487,6 +524,8 @@ const EMPTY_NEARBY_DOCS = (): NearbyDocsState => ({
   restaurant: [],
   cafe: [],
   convenience: [],
+  mart: [],
+  bigMart: [],
   accommodation: [],
 });
 
@@ -594,7 +633,13 @@ function getNearbyCategoryMarkerImage(
       ? '<path fill="#fff" d="M8 4.5h1.2v7H8v-7zm3.8 0H13v7h-1.2v-7zM7.5 13h6v1.2h-6V13z"/>'
       : categoryId === "cafe"
         ? '<path fill="none" stroke="#fff" stroke-width="1.2" d="M9 6.5h4.5v3.5a2.25 2.25 0 01-4.5 0V6.5zm.8 7.5h3"/>'
-        : '<text x="12" y="15.5" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">24</text>';
+        : categoryId === "convenience"
+          ? '<text x="12" y="15.5" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">24</text>'
+          : categoryId === "mart"
+            ? '<path fill="#fff" d="M6 6h1.2l.3 1.5h8.2l.9-1.5H17l-1.2 2H7.8L6 6zm1.5 3.5h9l-.8 6.5H8.5l-1-6.5z"/>'
+            : categoryId === "bigMart"
+              ? '<path fill="#fff" d="M5 8h14v9H5V8zm1.5 1.5v6h4.5v-6H6.5zm6 0v6h4.5v-6h-4.5zM8 5.5h8v1.5H8V5.5z"/>'
+              : '<text x="12" y="15.5" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">24</text>';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${fill}" stroke="#fff" stroke-width="1.5"/>${icon}</svg>`;
   const src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
   return new maps.MarkerImage(src, new maps.Size(size, size), {
@@ -611,6 +656,10 @@ function nearbyCategoryIcon(categoryId: NearbyCategoryId) {
       return <Coffee className={className} aria-hidden />;
     case "convenience":
       return <Store className={className} aria-hidden />;
+    case "mart":
+      return <ShoppingCart className={className} aria-hidden />;
+    case "bigMart":
+      return <Warehouse className={className} aria-hidden />;
     default:
       return <Bed className={className} aria-hidden />;
   }
@@ -1113,23 +1162,50 @@ export default function KakaoMap({
         NEARBY_SEARCH_BUFFER_KM,
       );
       const rect = routeRect ?? toRectString(viewportRectBounds);
-      const code = NEARBY_CATEGORIES.find((c) => c.id === categoryId)
-        ?.categoryGroupCode;
+      const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
 
       setLoadingCategory(categoryId);
       try {
-        const res = await fetch(
-          `/api/kakao/local/category?rect=${encodeURIComponent(rect)}&category_group_code=${encodeURIComponent(code ?? "AD5")}`,
-        );
-        if (!res.ok) throw new Error("Failed to fetch");
-        const { documents } = (await res.json()) as { documents: KakaoPlaceDoc[] };
-        if (categoryId === "accommodation") {
-          setNearbyDocs((prev) => ({
-            ...prev,
-            accommodation: classifyAccommodationDocuments(documents),
-          }));
+        if (cfg?.keywordQueries?.length) {
+          const seen = new Set<string>();
+          const merged: KakaoPlaceDoc[] = [];
+          for (const q of cfg.keywordQueries) {
+            const res = await fetch(
+              `/api/kakao/local/keyword?rect=${encodeURIComponent(rect)}&query=${encodeURIComponent(q)}`,
+            );
+            if (!res.ok) throw new Error("Failed to fetch");
+            const { documents } = (await res.json()) as {
+              documents: KakaoPlaceDoc[];
+            };
+            for (const d of documents) {
+              if (seen.has(d.id)) continue;
+              seen.add(d.id);
+              merged.push({
+                id: d.id,
+                place_name: d.place_name,
+                place_url: d.place_url ?? "",
+                address_name: d.address_name,
+                x: d.x,
+                y: d.y,
+              });
+            }
+          }
+          setNearbyDocs((prev) => ({ ...prev, [categoryId]: merged }));
         } else {
-          setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+          const code = cfg?.categoryGroupCode ?? "AD5";
+          const res = await fetch(
+            `/api/kakao/local/category?rect=${encodeURIComponent(rect)}&category_group_code=${encodeURIComponent(code)}`,
+          );
+          if (!res.ok) throw new Error("Failed to fetch");
+          const { documents } = (await res.json()) as { documents: KakaoPlaceDoc[] };
+          if (categoryId === "accommodation") {
+            setNearbyDocs((prev) => ({
+              ...prev,
+              accommodation: classifyAccommodationDocuments(documents),
+            }));
+          } else {
+            setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+          }
         }
         await fetchPlaceReviews();
         setShowNearbyPlaces(true);
@@ -1533,9 +1609,9 @@ export default function KakaoMap({
       {mapReady && (
         <div
           ref={searchPopoverRef}
-          className="absolute top-4 right-4 z-10 flex max-w-[min(100vw-2rem,28rem)] flex-wrap items-start justify-end gap-2"
+          className="absolute top-4 right-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
         >
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex max-w-[calc(100vw-2rem)] flex-nowrap items-center justify-end gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NEARBY_CATEGORIES.map((cat) => {
               const isActive = activeCategory === cat.id;
               const isLoading = loadingCategory === cat.id;
@@ -1547,8 +1623,8 @@ export default function KakaoMap({
                   disabled={isNearbySearchDisabled}
                   className={
                     isActive
-                      ? "inline-flex h-9 items-center gap-1 rounded border border-blue-500 bg-blue-500 px-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      : "inline-flex h-9 items-center gap-1 rounded border border-gray-200 bg-white px-2.5 text-sm font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      ? "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-blue-500 bg-blue-500 px-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      : "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-gray-200 bg-white px-2 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   }
                   aria-label={`${cat.label} 주변 탐색`}
                   aria-pressed={isActive}
