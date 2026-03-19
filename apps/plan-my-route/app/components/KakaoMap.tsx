@@ -438,6 +438,13 @@ type NearbyCategoryConfig = {
   notePlaceholder: string;
 };
 
+function placeKindToCategory(kind: string): NearbyCategoryId {
+  if (kind === "restaurant") return "restaurant";
+  if (kind === "cafe") return "cafe";
+  if (kind === "convenience") return "convenience";
+  return "accommodation";
+}
+
 const NEARBY_CATEGORIES: NearbyCategoryConfig[] = [
   {
     id: "restaurant",
@@ -677,6 +684,7 @@ export default function KakaoMap({
   >({});
   const searchPopoverRef = useRef<HTMLDivElement | null>(null);
   const accommodationOverlaysRef = useRef<KakaoMarker[]>([]);
+  const starredMarkersRef = useRef<KakaoMarker[]>([]);
   const onReviewChangeRef = useRef<
     ((placeId: string, review: PlaceReviewRow) => void) | null
   >(null);
@@ -929,10 +937,66 @@ export default function KakaoMap({
     return map;
   }, []);
 
+  useEffect(() => {
+    if (!mapReady) return;
+    void fetchPlaceReviews();
+  }, [mapReady, fetchPlaceReviews]);
+
   const clearAccommodationMarkers = useCallback(() => {
     accommodationOverlaysRef.current.forEach((marker) => marker.setMap?.(null));
     accommodationOverlaysRef.current = [];
   }, []);
+
+  const clearStarredMarkers = useCallback(() => {
+    starredMarkersRef.current.forEach((marker) => marker.setMap?.(null));
+    starredMarkersRef.current = [];
+  }, []);
+
+  const renderStarredMarkers = useCallback(
+    (
+      map: KakaoMapInstance,
+      maps: KakaoMapsAPI,
+      items: {
+        doc: KakaoPlaceDoc;
+        categoryId: NearbyCategoryId;
+        review: PlaceReviewRow;
+      }[],
+    ) => {
+      clearStarredMarkers();
+      const nextMarkers: KakaoMarker[] = [];
+      for (const { doc, categoryId, review } of items) {
+        const state = review.review_state as ReviewState;
+        const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
+        const tooltipMeta = cfg
+          ? { placeKind: cfg.bookmarkPlaceKind, notePlaceholder: cfg.notePlaceholder }
+          : { placeKind: "accommodation", notePlaceholder: "숙박비, 소감 등" };
+        const marker = new maps.Marker({
+          map: map as never,
+          position: new maps.LatLng(Number(doc.y), Number(doc.x)),
+          title: doc.place_name,
+          image: getNearbyCategoryMarkerImage(maps, state, categoryId),
+        });
+        nextMarkers.push(marker);
+
+        const infoWindow = new maps.InfoWindow({
+          content: buildAccommodationTooltipHtml(doc, review, tooltipMeta),
+          removable: true,
+        });
+
+        maps.event.addListener(marker, "click", () => {
+          if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+          infoWindow.setContent?.(
+            buildAccommodationTooltipHtml(doc, review, tooltipMeta),
+          );
+          infoWindow.open(map, marker);
+          openInfoWindowRef.current = infoWindow;
+          activePlaceInfoRef.current = { doc, infoWindow, tooltipMeta };
+        });
+      }
+      starredMarkersRef.current = nextMarkers;
+    },
+    [clearStarredMarkers],
+  );
 
   const renderNearbyMarkers = useCallback(
     (
@@ -994,6 +1058,30 @@ export default function KakaoMap({
     () => buildAccommodationCategoryCounts(nearbyDocs.accommodation),
     [nearbyDocs.accommodation],
   );
+
+  const starredDocs = useMemo(() => {
+    const docs: {
+      doc: KakaoPlaceDoc;
+      categoryId: NearbyCategoryId;
+      review: PlaceReviewRow;
+    }[] = [];
+    for (const review of Object.values(placeReviewsMap)) {
+      if (review.review_state !== "up1" && review.review_state !== "up2")
+        continue;
+      if (review.lat == null || review.lng == null) continue;
+      const categoryId = placeKindToCategory(review.place_kind);
+      const doc: KakaoPlaceDoc = {
+        id: review.place_id,
+        place_name: review.place_name,
+        place_url: review.place_url ?? "",
+        address_name: review.address_name ?? "",
+        x: String(review.lng),
+        y: String(review.lat),
+      };
+      docs.push({ doc, categoryId, review });
+    }
+    return docs;
+  }, [placeReviewsMap]);
 
   const isDocsEmptyForCategory = useCallback((categoryId: NearbyCategoryId) => {
     return nearbyDocs[categoryId].length === 0;
@@ -1216,28 +1304,40 @@ export default function KakaoMap({
   }, [activeCategory, nearbyDocs, accommodationFilters]);
 
   useEffect(() => {
-    if (!showNearbyPlaces) {
-      afterRouteDrawRef.current = null;
-      return;
-    }
     const map = mapInstanceRef.current as KakaoMapInstance | null;
     const maps = window.kakao?.maps;
     if (!map || !maps) return;
-    renderNearbyMarkers(
-      map,
-      maps,
-      activeCategory,
-      visibleNearbyDocs,
-      placeReviewsMap,
-    );
-    afterRouteDrawRef.current = (drawMap, drawMaps) => {
+    renderStarredMarkers(map, maps, starredDocs);
+  }, [starredDocs, renderStarredMarkers]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current as KakaoMapInstance | null;
+    const maps = window.kakao?.maps;
+    if (!map || !maps) return;
+    if (showNearbyPlaces) {
       renderNearbyMarkers(
-        drawMap,
-        drawMaps,
+        map,
+        maps,
         activeCategory,
         visibleNearbyDocs,
         placeReviewsMap,
       );
+    } else {
+      clearAccommodationMarkers();
+    }
+    afterRouteDrawRef.current = (drawMap, drawMaps) => {
+      if (showNearbyPlaces) {
+        renderNearbyMarkers(
+          drawMap,
+          drawMaps,
+          activeCategory,
+          visibleNearbyDocs,
+          placeReviewsMap,
+        );
+      } else {
+        clearAccommodationMarkers();
+      }
+      renderStarredMarkers(drawMap, drawMaps, starredDocs);
     };
   }, [
     showNearbyPlaces,
@@ -1245,6 +1345,9 @@ export default function KakaoMap({
     visibleNearbyDocs,
     placeReviewsMap,
     renderNearbyMarkers,
+    clearAccommodationMarkers,
+    starredDocs,
+    renderStarredMarkers,
   ]);
 
   const computeBounds = useCallback(() => {
