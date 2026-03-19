@@ -281,6 +281,17 @@ function buildBufferedRouteRect(
   return `${swLng},${swLat},${neLng},${neLat}`;
 }
 
+type RectBounds = {
+  swLng: number;
+  swLat: number;
+  neLng: number;
+  neLat: number;
+};
+
+function toRectString(bounds: RectBounds): string {
+  return `${bounds.swLng},${bounds.swLat},${bounds.neLng},${bounds.neLat}`;
+}
+
 // ── 숙박업소 타입 ──────────────────────────────────────────────────
 type KakaoPlaceDoc = {
   id: string;
@@ -993,22 +1004,27 @@ export default function KakaoMap({
       const map = mapInstanceRef.current as KakaoMapInstance | null;
       if (!map) return;
 
+      const bounds = map.getBounds?.();
+      if (!bounds) return;
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      const viewportRectBounds: RectBounds = {
+        swLng: sw.getLng(),
+        swLat: sw.getLat(),
+        neLng: ne.getLng(),
+        neLat: ne.getLat(),
+      };
+      const visibleRoutePoints = (route?.track_points ?? []).filter((point) => (
+        point.x >= viewportRectBounds.swLng &&
+        point.x <= viewportRectBounds.neLng &&
+        point.y >= viewportRectBounds.swLat &&
+        point.y <= viewportRectBounds.neLat
+      ));
       const routeRect = buildBufferedRouteRect(
-        route?.track_points,
+        visibleRoutePoints,
         NEARBY_SEARCH_BUFFER_KM,
       );
-      let rect = routeRect;
-      if (!rect) {
-        const bounds = map.getBounds?.();
-        if (!bounds) return;
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-        const swLng = sw.getLng();
-        const swLat = sw.getLat();
-        const neLng = ne.getLng();
-        const neLat = ne.getLat();
-        rect = `${swLng},${swLat},${neLng},${neLat}`;
-      }
+      const rect = routeRect ?? toRectString(viewportRectBounds);
       const code = NEARBY_CATEGORIES.find((c) => c.id === categoryId)
         ?.categoryGroupCode;
 
