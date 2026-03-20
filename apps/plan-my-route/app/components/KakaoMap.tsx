@@ -694,6 +694,31 @@ interface KakaoMapProps {
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
 const ZOOM_LEVEL_ON_MARKER = 7;
+const NEARBY_CACHE_TTL_MS = 10 * 60 * 1000;
+const NEARBY_CATEGORY_IDS: NearbyCategoryId[] = [
+  "restaurant",
+  "cafe",
+  "convenience",
+  "mart",
+  "bigMart",
+  "accommodation",
+];
+
+type NearbyCategoryCacheMeta = {
+  fetchedAt: number | null;
+  isInvalidated: boolean;
+};
+
+type NearbyCacheMetaState = Record<NearbyCategoryId, NearbyCategoryCacheMeta>;
+
+const EMPTY_NEARBY_CACHE_META = (): NearbyCacheMetaState => ({
+  restaurant: { fetchedAt: null, isInvalidated: true },
+  cafe: { fetchedAt: null, isInvalidated: true },
+  convenience: { fetchedAt: null, isInvalidated: true },
+  mart: { fetchedAt: null, isInvalidated: true },
+  bigMart: { fetchedAt: null, isInvalidated: true },
+  accommodation: { fetchedAt: null, isInvalidated: true },
+});
 
 export default function KakaoMap({
   route,
@@ -728,6 +753,9 @@ export default function KakaoMap({
   const [accommodationFilters, setAccommodationFilters] =
     useState<AccommodationFilterState>(DEFAULT_ACCOMMODATION_FILTERS);
   const [nearbyDocs, setNearbyDocs] = useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
+  const [nearbyCacheMeta, setNearbyCacheMeta] = useState<NearbyCacheMetaState>(
+    EMPTY_NEARBY_CACHE_META,
+  );
   const [placeReviewsMap, setPlaceReviewsMap] = useState<
     Record<string, PlaceReviewRow>
   >({});
@@ -751,6 +779,20 @@ export default function KakaoMap({
   onPositionChangeRef.current = onPositionChange;
   isPinnedRef.current = isPinned;
   onPinRef.current = onPin;
+
+  const invalidateAllNearbyCache = useCallback(() => {
+    setNearbyCacheMeta((prev) => {
+      let shouldUpdate = false;
+      const next = { ...prev };
+      for (const categoryId of NEARBY_CATEGORY_IDS) {
+        const currentMeta = prev[categoryId];
+        if (currentMeta.isInvalidated) continue;
+        shouldUpdate = true;
+        next[categoryId] = { ...currentMeta, isInvalidated: true };
+      }
+      return shouldUpdate ? next : prev;
+    });
+  }, []);
 
   const drawRoute = useCallback(
     (kakaoMaps: KakaoMapsAPI, routeData: RideWithGPSRoute) => {
@@ -947,8 +989,11 @@ export default function KakaoMap({
           if (mapWithLevel.getLevel) setZoomLevel(mapWithLevel.getLevel());
         });
       }
+      kakaoMaps.event.addListener(map, "idle", () => {
+        invalidateAllNearbyCache();
+      });
     },
-    [stages, activeStageId],
+    [stages, activeStageId, invalidateAllNearbyCache],
   );
 
   const handleScriptLoad = useCallback(() => {
@@ -1132,9 +1177,14 @@ export default function KakaoMap({
     return docs;
   }, [placeReviewsMap]);
 
-  const isDocsEmptyForCategory = useCallback((categoryId: NearbyCategoryId) => {
-    return nearbyDocs[categoryId].length === 0;
-  }, [nearbyDocs]);
+  const isNearbyCacheUsable = useCallback(
+    (categoryId: NearbyCategoryId) => {
+      const cacheMeta = nearbyCacheMeta[categoryId];
+      if (cacheMeta.isInvalidated || cacheMeta.fetchedAt == null) return false;
+      return Date.now() - cacheMeta.fetchedAt <= NEARBY_CACHE_TTL_MS;
+    },
+    [nearbyCacheMeta],
+  );
 
   const handleReloadNearby = useCallback(
     async (categoryId: NearbyCategoryId) => {
@@ -1207,6 +1257,10 @@ export default function KakaoMap({
             setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
           }
         }
+        setNearbyCacheMeta((prev) => ({
+          ...prev,
+          [categoryId]: { fetchedAt: Date.now(), isInvalidated: false },
+        }));
         await fetchPlaceReviews();
         setShowNearbyPlaces(true);
       } catch {
@@ -1215,6 +1269,10 @@ export default function KakaoMap({
         } else {
           setNearbyDocs((prev) => ({ ...prev, [categoryId]: [] }));
         }
+        setNearbyCacheMeta((prev) => ({
+          ...prev,
+          [categoryId]: { fetchedAt: null, isInvalidated: true },
+        }));
       } finally {
         setLoadingCategory(null);
       }
@@ -1369,6 +1427,11 @@ export default function KakaoMap({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showSearchPopover]);
 
+  useEffect(() => {
+    if (!route?.id) return;
+    invalidateAllNearbyCache();
+  }, [route?.id, invalidateAllNearbyCache]);
+
   const visibleNearbyDocs = useMemo(() => {
     if (activeCategory === "accommodation") {
       return filterAccommodationDocuments(
@@ -1490,38 +1553,37 @@ export default function KakaoMap({
     map.setBounds(bounds);
   }, [computeBounds]);
 
-  const isNearbySearchDisabled =
-    zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION || loadingCategory != null;
+  const isZoomRestricted = zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION;
+  const isNearbySearchDisabled = isZoomRestricted || loadingCategory != null;
+
+  const wasZoomRestrictedRef = useRef<boolean>(true);
+  useEffect(() => {
+    if (wasZoomRestrictedRef.current !== isZoomRestricted) {
+      invalidateAllNearbyCache();
+      wasZoomRestrictedRef.current = isZoomRestricted;
+    }
+  }, [isZoomRestricted, invalidateAllNearbyCache]);
 
   const handleNearbyCategoryClick = useCallback(
     (categoryId: NearbyCategoryId) => {
       if (isNearbySearchDisabled) return;
+      const shouldReload = !isNearbyCacheUsable(categoryId);
       if (categoryId === activeCategory) {
         setShowSearchPopover((prev) => !prev);
-        if (!showNearbyPlaces) {
-          setShowNearbyPlaces(true);
-          if (isDocsEmptyForCategory(categoryId)) {
-            void handleReloadNearby(categoryId);
-          }
-        }
+        if (!showNearbyPlaces) setShowNearbyPlaces(true);
+        if (shouldReload) void handleReloadNearby(categoryId);
         return;
       }
       setActiveCategory(categoryId);
       setShowSearchPopover(true);
-      if (!showNearbyPlaces) {
-        setShowNearbyPlaces(true);
-        if (isDocsEmptyForCategory(categoryId)) {
-          void handleReloadNearby(categoryId);
-        }
-      } else if (isDocsEmptyForCategory(categoryId)) {
-        void handleReloadNearby(categoryId);
-      }
+      if (!showNearbyPlaces) setShowNearbyPlaces(true);
+      if (shouldReload) void handleReloadNearby(categoryId);
     },
     [
       isNearbySearchDisabled,
+      isNearbyCacheUsable,
       activeCategory,
       showNearbyPlaces,
-      isDocsEmptyForCategory,
       handleReloadNearby,
     ],
   );
@@ -1662,14 +1724,6 @@ export default function KakaoMap({
                   }
                 </span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleReloadNearby(activeCategory)}
-                    disabled={isNearbySearchDisabled}
-                    className="text-xs font-medium text-gray-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    다시 찾기
-                  </button>
                   <button
                     type="button"
                     onClick={() => void handleNearbyVisibilityToggle()}
