@@ -31,12 +31,21 @@ export default function HeaderAuth() {
 	}
 
 	return (
-		<button
-			type="button"
-			onClick={() => signIn("github")}
-			className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
-		>
-			GitHub 로그인
-		</button>
+		<div className="flex items-center gap-2">
+			<button
+				type="button"
+				onClick={() => signIn("google")}
+				className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
+			>
+				Google 로그인
+			</button>
+			<button
+				type="button"
+				onClick={() => signIn("github")}
+				className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
+			>
+				GitHub 로그인
+			</button>
+		</div>
 	);
 }
