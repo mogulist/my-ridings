@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import HeaderAuth from "./components/HeaderAuth";
 import RouteList from "./components/RouteList";
-import { signIn } from "@/auth";
+import Link from "next/link";
 
 export default async function Home() {
 	const session = await auth();
@@ -39,34 +39,12 @@ export default async function Home() {
 							필요합니다.
 						</p>
 
-						<form
-							className="w-full max-w-xs"
-							action={async () => {
-								"use server";
-								await signIn("google");
-							}}
+						<Link
+							href="/signin?callbackUrl=%2F"
+							className="w-full max-w-xs rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
 						>
-							<button
-								type="submit"
-								className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-							>
-								<span>Google로 로그인</span>
-							</button>
-						</form>
-						<form
-							className="w-full max-w-xs"
-							action={async () => {
-								"use server";
-								await signIn("github");
-							}}
-						>
-							<button
-								type="submit"
-								className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-							>
-								<span>GitHub으로 로그인</span>
-							</button>
-						</form>
+							로그인
+						</Link>
 					</div>
 				) : (
 					<RouteList />

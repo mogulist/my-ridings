@@ -1,9 +1,17 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 
 export default function HeaderAuth() {
 	const { data: session, status } = useSession();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
+
+	const query = searchParams.toString();
+	const callbackUrl = query ? `${pathname}?${query}` : pathname;
+	const signInHref = `/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
 	if (status === "loading") {
 		return (
@@ -31,21 +39,11 @@ export default function HeaderAuth() {
 	}
 
 	return (
-		<div className="flex items-center gap-2">
-			<button
-				type="button"
-				onClick={() => signIn("google")}
-				className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
-			>
-				Google 로그인
-			</button>
-			<button
-				type="button"
-				onClick={() => signIn("github")}
-				className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
-			>
-				GitHub 로그인
-			</button>
-		</div>
+		<Link
+			href={signInHref}
+			className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
+		>
+			로그인
+		</Link>
 	);
 }
