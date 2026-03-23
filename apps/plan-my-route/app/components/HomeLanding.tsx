@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { HeroRouteBackground } from "./HeroRouteBackground";
 import { PlanMyRouteHeader } from "./PlanMyRouteHeader";
 
 const SIGN_IN_HREF = `/signin?callbackUrl=${encodeURIComponent("/")}`;
@@ -28,7 +29,6 @@ const COPY = {
 	hero: {
 		badge: "멀티데이 라이딩 전략 도구",
 		headline: "경로는 정했다.\n이제 전략을 짜야 할 시간.",
-		subHeadline: "한국 라이딩 준비에 필요한 모든 결정을 한 곳에서.",
 		body: "경로를 보면서 카카오맵으로 숙소와 보급 지점을 찾고, 플랜을 만들어 비교하세요.\n분산된 탐색 과정을 하나의 흐름으로 통합했습니다.",
 		cta: "지금 시작하기",
 		ctaSub: "어떻게 작동하나요?",
@@ -285,44 +285,7 @@ export default function HomeLanding() {
 			<PlanMyRouteHeader />
 
 			<section className="relative overflow-hidden bg-white dark:bg-zinc-950">
-				<svg
-					className="pointer-events-none absolute left-0 top-0 h-full w-full opacity-30 dark:opacity-20"
-					viewBox="0 0 1200 800"
-					preserveAspectRatio="none"
-					aria-hidden
-				>
-					<defs>
-						<linearGradient id="routeGradient" x1="0%" x2="100%" y1="0%" y2="100%">
-							<stop offset="0%" stopColor="#4F46E5" />
-							<stop offset="100%" stopColor="#EC4899" />
-						</linearGradient>
-					</defs>
-					<path
-						d="M50,400 Q200,200 400,350 T800,300 Q950,250 1150,400"
-						fill="none"
-						stroke="url(#routeGradient)"
-						strokeDasharray="1200"
-						strokeDashoffset="1200"
-						strokeWidth="3"
-						style={{ animation: "drawRoute 3s ease-in-out forwards" }}
-					/>
-					{[
-						{ x: 50, y: 400, delay: "0s" },
-						{ x: 400, y: 350, delay: "1s" },
-						{ x: 800, y: 300, delay: "2s" },
-						{ x: 1150, y: 400, delay: "2.8s" },
-					].map((point, i) => (
-						<circle
-							key={i}
-							cx={point.x}
-							cy={point.y}
-							fill="#4F46E5"
-							opacity="0"
-							r="8"
-							style={{ animation: `fadeIn 0.5s ${point.delay} ease-in forwards` }}
-						/>
-					))}
-				</svg>
+				<HeroRouteBackground />
 
 				<div className="absolute right-10 top-20 opacity-50" aria-hidden>
 					<div
@@ -359,10 +322,6 @@ export default function HomeLanding() {
 						</h1>
 					</div>
 
-					<p className="mb-6 max-w-2xl text-lg font-medium text-slate-600 dark:text-zinc-400">
-						{COPY.hero.subHeadline}
-					</p>
-
 					<div className="mb-7 flex flex-wrap gap-2">
 						{[
 							{ label: "경로 연동", icon: LinkIcon },
@@ -371,15 +330,16 @@ export default function HomeLanding() {
 							{ label: "전략 확정", icon: CheckCircle },
 						].map((item, i) => {
 							const Icon = item.icon;
+							const isActive = i === 0;
 							return (
 								<Badge
 									key={item.label}
-									variant={i === 0 ? "default" : "outline"}
-									className={`cursor-pointer px-4 py-2 text-sm font-semibold transition-all hover:scale-105 hover:shadow-md ${
-										i === 0
-											? "border-transparent bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-500"
-											: "dark:border-zinc-600 dark:hover:bg-zinc-800"
-									}`}
+									variant={isActive ? "default" : "outline"}
+									className={
+										isActive
+											? "cursor-pointer rounded-lg border-transparent bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-500"
+											: "cursor-pointer rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-gray-400 hover:bg-gray-50 dark:border-zinc-500 dark:bg-transparent dark:text-zinc-100 dark:hover:border-zinc-400 dark:hover:bg-zinc-900/50"
+									}
 									style={{ animation: `fadeInUp 0.6s ease-out ${i * 0.1}s both` }}
 								>
 									<Icon className="mr-1.5 h-4 w-4" aria-hidden />
@@ -400,17 +360,14 @@ export default function HomeLanding() {
 						</span>
 					</div>
 
-					<div className="flex flex-col gap-3 sm:flex-row">
-						<Button asChild size="lg" className="rounded-xl border-0 bg-transparent p-0 shadow-none hover:bg-transparent">
-							<Link
-								href={SIGN_IN_HREF}
-								className="group relative inline-flex items-center justify-center overflow-hidden rounded-xl bg-indigo-600 px-8 py-6 text-base font-bold text-white transition-colors hover:bg-indigo-700 dark:hover:bg-indigo-500"
-							>
-								<span className="relative z-10">{COPY.hero.cta}</span>
-								<span
-									className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 opacity-0 transition-opacity group-hover:opacity-100"
-									aria-hidden
-								/>
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+						<Button
+							asChild
+							size="lg"
+							className="h-12 rounded-xl border-0 bg-indigo-600 px-8 text-base font-bold text-white shadow-none hover:bg-indigo-700 dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-500"
+						>
+							<Link href={SIGN_IN_HREF} className="inline-flex items-center justify-center">
+								{COPY.hero.cta}
 							</Link>
 						</Button>
 						<Button
@@ -418,7 +375,7 @@ export default function HomeLanding() {
 							variant="outline"
 							size="lg"
 							onClick={() => scrollToSection("how-it-works")}
-							className="rounded-xl border-2 border-slate-200 bg-slate-50 px-8 py-6 text-base font-semibold text-slate-700 hover:border-indigo-500 hover:text-indigo-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+							className="h-12 rounded-xl border-2 border-slate-200 bg-slate-50 px-8 text-base font-semibold text-slate-700 hover:border-indigo-500 hover:text-indigo-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
 						>
 							{COPY.hero.ctaSub} ↓
 						</Button>
