@@ -40,7 +40,6 @@ type PlanStagesPaneProps = {
   onCollapseAllMemos?: () => void;
   onSaveMemo?: (stageId: string, memo: string) => void;
   onMemoReviewClick?: () => void;
-  readOnly?: boolean;
 };
 
 export function stageDayLabel(
@@ -79,7 +78,6 @@ export function PlanStagesPane({
   onCollapseAllMemos,
   onSaveMemo,
   onMemoReviewClick,
-  readOnly = false,
 }: PlanStagesPaneProps) {
   const progressPercent =
     totalRouteDistanceKm > 0
@@ -130,7 +128,7 @@ export function PlanStagesPane({
                     </>
                   )}
                 </button>
-                {!readOnly && onMemoReviewClick && (
+                {onMemoReviewClick && (
                   <button
                     type="button"
                     onClick={onMemoReviewClick}
@@ -194,19 +192,16 @@ export function PlanStagesPane({
                     : undefined
                 }
                 onSaveMemo={onSaveMemo}
-                readOnly={readOnly}
               />
             );
           })}
         </div>
-        {!readOnly && (
-          <AddStageForm
-            unplannedDistanceKm={unplannedDistanceKm}
-            onAddStage={addStage}
-            onAddLastStage={addLastStage}
-            nextDayNumber={stages.length + 1}
-          />
-        )}
+        <AddStageForm
+          unplannedDistanceKm={unplannedDistanceKm}
+          onAddStage={addStage}
+          onAddLastStage={addLastStage}
+          nextDayNumber={stages.length + 1}
+        />
         {stages.length > 0 && (
           <div className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
             <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
