@@ -33,6 +33,7 @@ type PublicPlanResponse = {
 		elevation_loss: number | null;
 		memo: string | null;
 	}[];
+	author: { nickname: string | null };
 };
 
 type PublicPlanViewerProps = {
@@ -228,6 +229,11 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 						<h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
 							{publicPlan.plan.name}
 						</h3>
+						{publicPlan.author?.nickname ? (
+							<p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+								작성 · {publicPlan.author.nickname}
+							</p>
+						) : null}
 						<div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
 							<span>{stages.length}일 계획</span>
 						</div>

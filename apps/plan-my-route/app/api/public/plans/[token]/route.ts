@@ -11,7 +11,7 @@ type PublicPlanStage = {
 	memo: string | null;
 };
 
-type PublicPlanRoute = {
+type PublicPlanRouteForClient = {
 	name: string;
 	rwgps_url: string;
 	total_distance: number | null;
@@ -19,13 +19,15 @@ type PublicPlanRoute = {
 	elevation_loss: number | null;
 };
 
+type PublicPlanRouteRow = PublicPlanRouteForClient & { user_id: string };
+
 type PublicPlanRow = {
 	id: string;
 	name: string;
 	start_date: string | null;
 	public_share_token: string;
 	shared_at: string | null;
-	route: PublicPlanRoute;
+	route: PublicPlanRouteRow;
 	stages: PublicPlanStage[];
 };
 
@@ -54,7 +56,8 @@ export async function GET(
 				rwgps_url,
 				total_distance,
 				elevation_gain,
-				elevation_loss
+				elevation_loss,
+				user_id
 			),
 			stages:stage (
 				id,
@@ -78,6 +81,28 @@ export async function GET(
 		(a, b) => (a.start_distance ?? 0) - (b.start_distance ?? 0)
 	);
 
+	const routeRow = publicPlan.route;
+	let authorNickname: string | null = null;
+	if (routeRow.user_id) {
+		const { data: profileRow, error: profileError } = await supabaseAdmin
+			.from("user_profile")
+			.select("nickname")
+			.eq("user_id", routeRow.user_id)
+			.maybeSingle();
+		if (!profileError && profileRow?.nickname) {
+			const t = profileRow.nickname.trim();
+			authorNickname = t || null;
+		}
+	}
+
+	const routeForClient: PublicPlanRouteForClient = {
+		name: routeRow.name,
+		rwgps_url: routeRow.rwgps_url,
+		total_distance: routeRow.total_distance,
+		elevation_gain: routeRow.elevation_gain,
+		elevation_loss: routeRow.elevation_loss,
+	};
+
 	return NextResponse.json({
 		plan: {
 			id: publicPlan.id,
@@ -86,7 +111,8 @@ export async function GET(
 			public_share_token: publicPlan.public_share_token,
 			shared_at: publicPlan.shared_at,
 		},
-		route: publicPlan.route,
+		route: routeForClient,
 		stages: sortedStages,
+		author: { nickname: authorNickname },
 	});
 }
