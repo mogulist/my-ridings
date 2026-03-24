@@ -40,6 +40,7 @@ type StageCardProps = {
   isMemoExpanded?: boolean;
   onToggleMemoExpand?: () => void;
   onSaveMemo?: (stageId: string, memo: string) => void;
+  readOnly?: boolean;
 };
 
 function formatNumber(n: number): string {
@@ -66,6 +67,7 @@ export default function StageCard({
   isMemoExpanded = false,
   onToggleMemoExpand,
   onSaveMemo,
+  readOnly = false,
 }: StageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -179,56 +181,58 @@ export default function StageCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
+        {!readOnly && (
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontalIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreHorizontalIcon className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  handleStartEdit();
-                }}
-              >
-                <PencilIcon className="h-4 w-4" />
-                수정
-              </DropdownMenuItem>
-              {onMemoClick && (
                 <DropdownMenuItem
                   onSelect={(e) => {
                     e.preventDefault();
-                    onMemoClick(stage.id);
+                    handleStartEdit();
                   }}
                 >
-                  <StickyNoteIcon className="h-4 w-4" />
-                  메모 편집
+                  <PencilIcon className="h-4 w-4" />
+                  수정
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={(e) => {
-                  e.preventDefault();
-                  onDelete(stage.id);
-                }}
-              >
-                <TrashIcon className="h-4 w-4" />
-                삭제
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                {onMemoClick && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      onMemoClick(stage.id);
+                    }}
+                  >
+                    <StickyNoteIcon className="h-4 w-4" />
+                    메모 편집
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onDelete(stage.id);
+                  }}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  삭제
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       {/* 거리·고도(좌) | 환산 거리 badge(우) */}
@@ -318,7 +322,16 @@ export default function StageCard({
                   </span>
                 )}
               </button>
-              {isMemoExpanded && onSaveMemo && (
+              {isMemoExpanded && readOnly && (
+                <div className="mt-1.5 rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  {stage.memo ? (
+                    <p className="whitespace-pre-wrap">{stage.memo}</p>
+                  ) : (
+                    <p className="text-zinc-400 dark:text-zinc-500">메모 없음</p>
+                  )}
+                </div>
+              )}
+              {isMemoExpanded && !readOnly && onSaveMemo && (
                 <div className="mt-1.5">
                   <textarea
                     ref={memoTextareaRef}
