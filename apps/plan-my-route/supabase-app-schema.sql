@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS public.plan (
     name text NOT NULL,
     sort_order integer,
     start_date date,
+    public_share_token uuid,
+    shared_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT plan_pkey PRIMARY KEY (id),
@@ -42,6 +44,7 @@ CREATE TABLE IF NOT EXISTS public.plan (
 
 -- Index for querying plans by route efficiently
 CREATE INDEX IF NOT EXISTS plan_route_id_idx ON public.plan (route_id);
+CREATE UNIQUE INDEX IF NOT EXISTS plan_public_share_token_idx ON public.plan (public_share_token);
 
 -- 3. Stages Table
 CREATE TABLE IF NOT EXISTS public.stage (
