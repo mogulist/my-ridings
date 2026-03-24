@@ -279,7 +279,6 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 						isPinned={isPinned}
 						onPin={handlePin}
 						onUnpin={handleUnpin}
-						autoCenterOnPin
 						reviewContext={{ routeId: "", planId: null, stageId: null }}
 					/>
 				</section>
