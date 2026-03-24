@@ -103,7 +103,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   const planListCollapsedBeforeMemo = useRef(false);
   const [isReorderingPlans, setIsReorderingPlans] = useState(false);
   const [planActionInProgress, setPlanActionInProgress] = useState<
-    null | "create" | "update" | "duplicate" | "delete"
+    null | "create" | "update" | "duplicate" | "delete" | "share"
   >(null);
   const [isStagesPending, startStagesTransition] = useTransition();
 
@@ -521,6 +521,58 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [],
   );
 
+  const handleTogglePlanShare = useCallback(
+    async (planId: string, enabled: boolean) => {
+      setPlanActionInProgress("share");
+      try {
+        const res = await fetch(`/api/plans/${planId}/share`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        });
+        if (!res.ok) throw new Error("Plan share update failed");
+        const data = (await res.json()) as {
+          public_share_token: string | null;
+          shared_at: string | null;
+        };
+        setDbRoute((prev: any) => ({
+          ...prev,
+          plans: (prev?.plans ?? []).map((plan: any) =>
+            plan.id === planId
+              ? {
+                  ...plan,
+                  public_share_token: data.public_share_token,
+                  shared_at: data.shared_at,
+                }
+              : plan,
+          ),
+        }));
+        if (enabled && data.public_share_token) {
+          alert("공개 링크가 생성되었습니다. 메뉴에서 링크를 복사하세요.");
+        } else {
+          alert("공개 링크가 해제되었습니다.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("공개 공유 설정에 실패했습니다.");
+      } finally {
+        setPlanActionInProgress(null);
+      }
+    },
+    [],
+  );
+
+  const handleCopyPlanShareLink = useCallback(async (token: string) => {
+    const shareUrl = `${window.location.origin}/share/${token}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      alert("공유 링크를 복사했습니다.");
+    } catch (err) {
+      console.error(err);
+      alert(`링크 복사에 실패했습니다. 수동으로 복사하세요: ${shareUrl}`);
+    }
+  }, []);
+
   const planActionMessage =
     planActionInProgress === "duplicate"
       ? "플랜 복제 중…"
@@ -530,6 +582,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
           ? "이름 수정 중…"
           : planActionInProgress === "create"
             ? "플랜 추가 중…"
+            : planActionInProgress === "share"
+              ? "공유 설정 반영 중…"
             : "";
 
   return (
@@ -609,6 +663,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               onUpdatePlanStartDate={handleUpdatePlanStartDateByPlanId}
               onDuplicatePlan={handleDuplicatePlan}
               onDeletePlan={handleDeletePlan}
+              onTogglePlanShare={handleTogglePlanShare}
+              onCopyPlanShareLink={handleCopyPlanShareLink}
               onReorderPlans={handleReorderPlans}
               newPlanName={newPlanName}
               setNewPlanName={setNewPlanName}

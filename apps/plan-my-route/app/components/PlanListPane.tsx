@@ -21,6 +21,7 @@ import {
   TrashIcon,
   CopyIcon,
   GripVertical,
+  Share2Icon,
 } from "lucide-react";
 import {
   Button,
@@ -36,6 +37,8 @@ type PlanItem = {
   name: string;
   stages?: unknown[];
   start_date?: string | null;
+  public_share_token?: string | null;
+  shared_at?: string | null;
 };
 
 type RouteSummary = {
@@ -56,6 +59,8 @@ type PlanListPaneProps = {
   onUpdatePlanStartDate?: (planId: string, startDate: string | null) => void;
   onDuplicatePlan?: (plan: PlanItem) => void;
   onDeletePlan?: (planId: string) => void;
+  onTogglePlanShare?: (planId: string, enabled: boolean) => void;
+  onCopyPlanShareLink?: (token: string) => void;
   onReorderPlans?: (planIds: string[]) => void;
   newPlanName: string;
   setNewPlanName: (value: string) => void;
@@ -100,6 +105,8 @@ type SortablePlanRowProps = {
   onDuplicatePlan?: (plan: PlanItem) => void;
   onUpdatePlan?: (planId: string, newName: string) => void;
   onDeletePlan?: (planId: string) => void;
+  onTogglePlanShare?: (planId: string, enabled: boolean) => void;
+  onCopyPlanShareLink?: (token: string) => void;
 };
 
 function SortablePlanRow({
@@ -114,6 +121,8 @@ function SortablePlanRow({
   onDuplicatePlan,
   onUpdatePlan,
   onDeletePlan,
+  onTogglePlanShare,
+  onCopyPlanShareLink,
 }: SortablePlanRowProps) {
   const {
     attributes,
@@ -130,6 +139,7 @@ function SortablePlanRow({
   };
 
   const stageCount = plan.stages?.length ?? 0;
+  const hasShareLink = Boolean(plan.public_share_token);
 
   return (
     <div
@@ -170,6 +180,7 @@ function SortablePlanRow({
         <div className="font-medium">{plan.name}</div>
         <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
           {stageCount > 0 ? `${stageCount}일 계획` : "스테이지 없음"}
+          {hasShareLink ? " · 공유중" : ""}
         </div>
       </div>
       {showActions && (
@@ -213,7 +224,34 @@ function SortablePlanRow({
                 복제
               </DropdownMenuItem>
             )}
-            {(onUpdatePlan || onDuplicatePlan) && onDeletePlan && (
+            {onTogglePlanShare && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setOpenMenuPlanId(null);
+                  onTogglePlanShare(plan.id, !hasShareLink);
+                }}
+              >
+                <Share2Icon className="h-4 w-4" />
+                {hasShareLink ? "공개 해제" : "공개 링크 생성"}
+              </DropdownMenuItem>
+            )}
+            {plan.public_share_token && onCopyPlanShareLink && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setOpenMenuPlanId(null);
+                  const shareToken = plan.public_share_token;
+                  if (!shareToken) return;
+                  onCopyPlanShareLink(shareToken);
+                }}
+              >
+                <CopyIcon className="h-4 w-4" />
+                링크 복사
+              </DropdownMenuItem>
+            )}
+            {(onUpdatePlan || onDuplicatePlan || onTogglePlanShare || onCopyPlanShareLink) &&
+              onDeletePlan && (
               <DropdownMenuSeparator />
             )}
             {onDeletePlan && (
@@ -245,6 +283,8 @@ export function PlanListPane({
   onUpdatePlan,
   onDuplicatePlan,
   onDeletePlan,
+  onTogglePlanShare,
+  onCopyPlanShareLink,
   onUpdatePlanStartDate,
   onReorderPlans,
   newPlanName,
@@ -444,7 +484,11 @@ export function PlanListPane({
                     plan={plan}
                     isActive={activePlanId === plan.id}
                     showActions={Boolean(
-                      onUpdatePlan || onDuplicatePlan || onDeletePlan,
+                      onUpdatePlan ||
+                        onDuplicatePlan ||
+                        onDeletePlan ||
+                        onTogglePlanShare ||
+                        onCopyPlanShareLink,
                     )}
                     openMenuPlanId={openMenuPlanId}
                     setOpenMenuPlanId={setOpenMenuPlanId}
@@ -454,6 +498,8 @@ export function PlanListPane({
                     onDuplicatePlan={onDuplicatePlan}
                     onUpdatePlan={onUpdatePlan}
                     onDeletePlan={onDeletePlan}
+                    onTogglePlanShare={onTogglePlanShare}
+                    onCopyPlanShareLink={onCopyPlanShareLink}
                   />
                 ))}
               </SortableContext>
