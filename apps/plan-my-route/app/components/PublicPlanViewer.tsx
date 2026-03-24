@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BookOpenIcon } from "lucide-react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { getStageColor, type Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
+import { MemoReviewPane } from "./MemoReviewPane";
 
 type PublicPlanResponse = {
 	plan: {
@@ -43,7 +45,9 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [activeStageId, setActiveStageId] = useState<string | null>(null);
 	const [positionIndex, setPositionIndex] = useState<number | null>(null);
+	const [isPinned, setIsPinned] = useState(false);
 	const [selectedDayNumber, setSelectedDayNumber] = useState<number | null>(null);
+	const [isMemoReviewOpen, setIsMemoReviewOpen] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -122,6 +126,15 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 			: null;
 	}, [selectedDayNumber, stages]);
 
+	const handlePin = (index: number) => {
+		setPositionIndex(index);
+		setIsPinned(true);
+	};
+
+	const handleUnpin = () => {
+		setIsPinned(false);
+	};
+
 	if (loading) {
 		return (
 			<div className="flex h-full items-center justify-center bg-zinc-100 dark:bg-zinc-800">
@@ -166,71 +179,88 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 
 	return (
 		<div className="flex min-h-0 flex-1">
-			<aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
-				<div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-					<h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-						{publicPlan.plan.name}
-					</h3>
-					<p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-						{publicPlan.route.name}
-					</p>
-					<div className="mt-2 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-						<span>{stages.length}일 계획</span>
-						<span>{totalRouteDistanceKm.toFixed(1)}km</span>
+			{isMemoReviewOpen ? (
+				<div className="hidden shrink-0 lg:flex">
+					<MemoReviewPane
+						stages={stages}
+						planStartDate={publicPlan.plan.start_date}
+						onClose={() => setIsMemoReviewOpen(false)}
+						readOnly
+					/>
+				</div>
+			) : (
+				<aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
+					<div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+						<h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+							{publicPlan.plan.name}
+						</h3>
+						<p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+							{publicPlan.route.name}
+						</p>
+						<div className="mt-2 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+							<span>{stages.length}일 계획</span>
+							<span>{totalRouteDistanceKm.toFixed(1)}km</span>
+						</div>
+						<button
+							type="button"
+							onClick={() => setIsMemoReviewOpen(true)}
+							className="mt-2 flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+						>
+							<BookOpenIcon className="h-3.5 w-3.5" />
+							메모 리뷰
+						</button>
 					</div>
-				</div>
-
-				<div className="space-y-2 p-4">
-					{stages.map((stage) => {
-						const color = getStageColor(stage.dayNumber);
-						const isActive = activeStageId === stage.id;
-						return (
-							<div
-								key={stage.id}
-								className={`rounded-lg border p-3 transition-colors ${
-									isActive
-										? "border-zinc-400 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-800"
-										: "border-zinc-200 dark:border-zinc-700"
-								}`}
-								onMouseEnter={() => setActiveStageId(stage.id)}
-								onMouseLeave={() => setActiveStageId(null)}
-							>
-								<div className="flex items-center gap-2">
-									<div
-										className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white"
-										style={{ backgroundColor: color.stroke }}
-									>
-										{stage.dayNumber}
-									</div>
-									<div className="min-w-0">
-										<p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
-											스테이지 {stage.dayNumber}
-										</p>
-										{publicPlan.plan.start_date && (
-											<p className="text-xs text-zinc-500 dark:text-zinc-400">
-												{stageDayLabel(stage.dayNumber, publicPlan.plan.start_date)}
+					<div className="space-y-2 p-4">
+						{stages.map((stage) => {
+							const color = getStageColor(stage.dayNumber);
+							const isActive = activeStageId === stage.id;
+							return (
+								<div
+									key={stage.id}
+									className={`rounded-lg border p-3 transition-colors ${
+										isActive
+											? "border-zinc-400 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-800"
+											: "border-zinc-200 dark:border-zinc-700"
+									}`}
+									onMouseEnter={() => setActiveStageId(stage.id)}
+									onMouseLeave={() => setActiveStageId(null)}
+								>
+									<div className="flex items-center gap-2">
+										<div
+											className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white"
+											style={{ backgroundColor: color.stroke }}
+										>
+											{stage.dayNumber}
+										</div>
+										<div className="min-w-0">
+											<p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+												스테이지 {stage.dayNumber}
 											</p>
-										)}
+											{publicPlan.plan.start_date && (
+												<p className="text-xs text-zinc-500 dark:text-zinc-400">
+													{stageDayLabel(stage.dayNumber, publicPlan.plan.start_date)}
+												</p>
+											)}
+										</div>
 									</div>
+									<div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
+										거리 {stage.distanceKm.toFixed(1)}km / 상승{" "}
+										{Math.round(stage.elevationGain)}m
+									</div>
+									{stage.memo && (
+										<p className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 px-2 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+											{stage.memo}
+										</p>
+									)}
 								</div>
-								<div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
-									거리 {stage.distanceKm.toFixed(1)}km / 상승{" "}
-									{Math.round(stage.elevationGain)}m
-								</div>
-								{stage.memo && (
-									<p className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 px-2 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-										{stage.memo}
-									</p>
-								)}
-							</div>
-						);
-					})}
-				</div>
-
-				<div className="mt-auto border-t border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-					미계획 구간 {unplannedDistanceKm.toFixed(1)}km
-				</div>
-			</aside>
+							);
+						})}
+					</div>
+					<div className="mt-auto border-t border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+						미계획 구간 {unplannedDistanceKm.toFixed(1)}km
+					</div>
+				</aside>
+			)}
 
 			<div className="flex min-h-0 flex-1 flex-col">
 				<section className="relative min-h-0 flex-1">
@@ -246,6 +276,10 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 						}
 						onPositionChange={setPositionIndex}
 						trackPoints={route?.track_points ?? []}
+						isPinned={isPinned}
+						onPin={handlePin}
+						onUnpin={handleUnpin}
+						autoCenterOnPin
 						reviewContext={{ routeId: "", planId: null, stageId: null }}
 					/>
 				</section>
@@ -259,6 +293,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 						onPositionChange={setPositionIndex}
 						selectedDayNumber={effectiveSelectedDay}
 						onSelectedDayChange={(day) => setSelectedDayNumber(day)}
+						isPinned={isPinned}
+						onPin={handlePin}
 					/>
 				</section>
 			</div>

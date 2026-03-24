@@ -688,6 +688,7 @@ interface KakaoMapProps {
   isPinned?: boolean;
   onPin?: (index: number) => void;
   onUnpin?: () => void;
+  autoCenterOnPin?: boolean;
   /** route/plan/stage context for saving place reviews */
   reviewContext?: ReviewContext;
 }
@@ -730,6 +731,7 @@ export default function KakaoMap({
   isPinned = false,
   onPin,
   onUnpin,
+  autoCenterOnPin = false,
   reviewContext = { routeId: "", planId: null, stageId: null },
 }: KakaoMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1543,6 +1545,11 @@ export default function KakaoMap({
     map.setCenter(new maps.LatLng(lat, lng));
     if (map.setLevel) map.setLevel(ZOOM_LEVEL_ON_MARKER);
   }, [highlightPosition]);
+
+  useEffect(() => {
+    if (!autoCenterOnPin || !isPinned) return;
+    void handleCenterOnMarker();
+  }, [autoCenterOnPin, isPinned, highlightPosition, handleCenterOnMarker]);
 
   const handleFitCourse = useCallback(() => {
     const map = mapInstanceRef.current as {
