@@ -7,6 +7,7 @@ import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { getStageColor, type Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
 import { MemoReviewPane } from "./MemoReviewPane";
+import { RouteSummaryBlock } from "./RouteSummaryBlock";
 
 type PublicPlanResponse = {
 	plan: {
@@ -126,6 +127,30 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 			: null;
 	}, [selectedDayNumber, stages]);
 
+	/** RouteViewer·PlanListPane과 동일하게 RWGPS 응답 우선, 없으면 DB 스냅샷 */
+	const publicRouteSummary = useMemo(() => {
+		if (!publicPlan) return null;
+		const distanceM =
+			route?.distance ?? publicPlan.route.total_distance ?? 0;
+		const gain = route
+			? Number(route.elevation_gain) || 0
+			: Number(publicPlan.route.elevation_gain) || 0;
+		const loss = route
+			? Number(route.elevation_loss) || 0
+			: Number(publicPlan.route.elevation_loss) || 0;
+		const name = publicPlan.route.name || route?.name || "경로";
+		const rwgpsUrl =
+			publicPlan.route.rwgps_url ||
+			(route != null ? `https://ridewithgps.com/routes/${route.id}` : "");
+		return {
+			name,
+			rwgpsUrl,
+			distanceMeters: distanceM,
+			elevationGain: gain,
+			elevationLoss: loss,
+		};
+	}, [publicPlan, route]);
+
 	const handlePin = (index: number) => {
 		setPositionIndex(index);
 		setIsPinned(true);
@@ -191,15 +216,20 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 			) : (
 				<aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
 					<div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+						{publicRouteSummary ? (
+							<RouteSummaryBlock
+								name={publicRouteSummary.name}
+								rwgpsUrl={publicRouteSummary.rwgpsUrl}
+								distanceMeters={publicRouteSummary.distanceMeters}
+								elevationGain={publicRouteSummary.elevationGain}
+								elevationLoss={publicRouteSummary.elevationLoss}
+							/>
+						) : null}
 						<h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
 							{publicPlan.plan.name}
 						</h3>
-						<p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-							{publicPlan.route.name}
-						</p>
-						<div className="mt-2 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+						<div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
 							<span>{stages.length}일 계획</span>
-							<span>{totalRouteDistanceKm.toFixed(1)}km</span>
 						</div>
 						<button
 							type="button"

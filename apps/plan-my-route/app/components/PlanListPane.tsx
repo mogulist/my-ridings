@@ -31,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@my-ridings/ui";
+import { RouteSummaryBlock } from "./RouteSummaryBlock";
 
 type PlanItem = {
   id: string;
@@ -69,21 +70,6 @@ type PlanListPaneProps = {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 };
-
-const DEFAULT_LOCALE = "ko-KR";
-
-function formatDistance(meters: number, locale = DEFAULT_LOCALE) {
-  const km = meters / 1000;
-  const formatted = km.toLocaleString(locale, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
-  return `${formatted} km`;
-}
-
-function formatInteger(value: number, locale = DEFAULT_LOCALE) {
-  return value.toLocaleString(locale, { maximumFractionDigits: 0 });
-}
 
 /** yyyy-mm-dd → YYYY. M. D. (ko locale order) */
 function formatDateForDisplay(isoDate: string): string {
@@ -388,8 +374,6 @@ export function PlanListPane({
     );
   }
 
-  const locale = typeof navigator !== "undefined" ? navigator.language : DEFAULT_LOCALE;
-
   return (
     <div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-zinc-200 px-2 dark:border-zinc-700">
@@ -408,32 +392,13 @@ export function PlanListPane({
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
         {routeSummary && (
-          <div className="mb-3 space-y-1 border-b border-zinc-200 pb-3 dark:border-zinc-700">
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              {routeSummary.name}
-            </h2>
-            <a
-              href={routeSummary.rwgpsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-xs text-orange-500 hover:underline"
-            >
-              RideWithGPS에서 보기 ↗
-            </a>
-            <div className="flex flex-nowrap justify-between text-xs">
-              <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
-                거리 {formatDistance(routeSummary.distanceKm * 1000, locale)}
-              </span>
-              <span className="flex shrink-0 gap-2">
-                <span className="text-green-600 dark:text-green-400">
-                  +{formatInteger(routeSummary.elevationGain, locale)} m
-                </span>
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  -{formatInteger(routeSummary.elevationLoss, locale)} m
-                </span>
-              </span>
-            </div>
-          </div>
+          <RouteSummaryBlock
+            name={routeSummary.name}
+            rwgpsUrl={routeSummary.rwgpsUrl}
+            distanceMeters={routeSummary.distanceKm * 1000}
+            elevationGain={routeSummary.elevationGain}
+            elevationLoss={routeSummary.elevationLoss}
+          />
         )}
         <div className="relative">
           {isReorderingPlans && (
