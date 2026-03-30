@@ -596,6 +596,77 @@ function buildAccommodationTooltipHtml(
 </div>`;
 }
 
+type PlaceReviewCloseSnap = {
+  el: HTMLElement;
+  pointerEvents: string;
+  opacity: string;
+};
+
+function findKakaoInfoWindowCloseButton(tooltipRoot: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = tooltipRoot.parentElement;
+  for (let i = 0; i < 16 && node; i++) {
+    const anchors = node.querySelectorAll("a");
+    for (const a of anchors) {
+      if (!(a instanceof HTMLElement)) continue;
+      if (tooltipRoot.contains(a)) continue;
+      const cls = a.className;
+      if (typeof cls === "string" && cls.split(/\s+/).includes("close")) return a;
+      if (a.title === "닫기") return a;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function lockPlaceReviewTooltip(root: HTMLElement): PlaceReviewCloseSnap | null {
+  root.dataset.saving = "true";
+  root.querySelectorAll(".place-review-state-btn").forEach((btn) => {
+    (btn as HTMLButtonElement).disabled = true;
+  });
+  const note = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
+  if (note) note.disabled = true;
+  const saveBtn = root.querySelector(".place-review-save") as HTMLButtonElement | null;
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML =
+      '<span class="place-review-save-spinner" aria-hidden="true"></span><span>저장 중…</span>';
+  }
+  const closeEl = findKakaoInfoWindowCloseButton(root);
+  if (!closeEl) return null;
+  const snap: PlaceReviewCloseSnap = {
+    el: closeEl,
+    pointerEvents: closeEl.style.pointerEvents,
+    opacity: closeEl.style.opacity,
+  };
+  closeEl.style.pointerEvents = "none";
+  closeEl.style.opacity = "0.35";
+  closeEl.setAttribute("aria-disabled", "true");
+  return snap;
+}
+
+function unlockPlaceReviewTooltip(
+  root: HTMLElement,
+  closeSnap: PlaceReviewCloseSnap | null,
+): void {
+  if (closeSnap?.el.isConnected) {
+    closeSnap.el.style.pointerEvents = closeSnap.pointerEvents;
+    closeSnap.el.style.opacity = closeSnap.opacity;
+    closeSnap.el.removeAttribute("aria-disabled");
+  }
+  if (!root.isConnected) return;
+  delete root.dataset.saving;
+  root.querySelectorAll(".place-review-state-btn").forEach((btn) => {
+    (btn as HTMLButtonElement).disabled = false;
+  });
+  const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
+  if (noteEl) noteEl.disabled = false;
+  const saveBtn = root.querySelector(".place-review-save") as HTMLButtonElement | null;
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "저장";
+  }
+}
+
 const ACCOMMODATION_MARKER_SIZE = 24;
 
 function getAccommodationMarkerImage(
@@ -770,6 +841,7 @@ export default function KakaoMap({
     infoWindow: KakaoInfoWindow;
     tooltipMeta: { placeKind: string; notePlaceholder: string };
   } | null>(null);
+  const placeReviewSavingRef = useRef(false);
   const afterRouteDrawRef = useRef<
     ((map: KakaoMapInstance, maps: KakaoMapsAPI) => void) | null
   >(null);
@@ -1324,9 +1396,10 @@ export default function KakaoMap({
       const stateBtn = (e.target as HTMLElement).closest(".place-review-state-btn");
       if (stateBtn) {
         e.preventDefault();
-        const state = (stateBtn as HTMLButtonElement).dataset.state as ReviewState;
         const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
         if (!root) return;
+        if ((root as HTMLElement).dataset.saving === "true") return;
+        const state = (stateBtn as HTMLButtonElement).dataset.state as ReviewState;
         (root as HTMLElement).dataset.currentState = state;
         const activeInfo = activePlaceInfoRef.current;
         if (activeInfo) {
@@ -1353,6 +1426,7 @@ export default function KakaoMap({
       const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
       if (!root) return;
       const el = root as HTMLElement;
+      if (el.dataset.saving === "true" || placeReviewSavingRef.current) return;
       const placeId = el.dataset.placeId;
       const placeName = el.dataset.placeName;
       const placeUrl = el.dataset.placeUrl;
@@ -1363,6 +1437,9 @@ export default function KakaoMap({
       const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
       const note = noteEl?.value?.trim() ?? "";
       if (!placeId || !placeName) return;
+
+      placeReviewSavingRef.current = true;
+      const closeSnap = lockPlaceReviewTooltip(el);
 
       const placeKind = el.dataset.placeKind || "accommodation";
       const ctx = reviewContextRef.current;
@@ -1383,19 +1460,28 @@ export default function KakaoMap({
           plan_id: ctx.planId ?? null,
           stage_id: ctx.stageId ?? null,
         }),
-      }).then((res) => {
-        if (res.status === 401) {
-          alert("로그인 후 저장할 수 있습니다.");
-          return;
-        }
-        if (!res.ok) {
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            alert("로그인 후 저장할 수 있습니다.");
+            return null;
+          }
+          if (!res.ok) {
+            alert("저장에 실패했습니다.");
+            return null;
+          }
+          return res.json() as Promise<PlaceReviewRow>;
+        })
+        .then((data) => {
+          if (data) onReviewChangeRef.current?.(placeId, data);
+        })
+        .catch(() => {
           alert("저장에 실패했습니다.");
-          return;
-        }
-        return res.json() as Promise<PlaceReviewRow>;
-      }).then((data) => {
-        if (data) onReviewChangeRef.current?.(placeId, data);
-      });
+        })
+        .finally(() => {
+          placeReviewSavingRef.current = false;
+          unlockPlaceReviewTooltip(el, closeSnap);
+        });
     };
     document.addEventListener("click", handler, true);
     return () => document.removeEventListener("click", handler, true);
