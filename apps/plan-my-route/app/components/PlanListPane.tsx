@@ -21,6 +21,7 @@ import {
   TrashIcon,
   CopyIcon,
   GripVertical,
+  Share2Icon,
 } from "lucide-react";
 import {
   Button,
@@ -30,12 +31,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@my-ridings/ui";
+import { RouteSummaryBlock } from "./RouteSummaryBlock";
 
 type PlanItem = {
   id: string;
   name: string;
   stages?: unknown[];
   start_date?: string | null;
+  public_share_token?: string | null;
+  shared_at?: string | null;
 };
 
 type RouteSummary = {
@@ -56,6 +60,8 @@ type PlanListPaneProps = {
   onUpdatePlanStartDate?: (planId: string, startDate: string | null) => void;
   onDuplicatePlan?: (plan: PlanItem) => void;
   onDeletePlan?: (planId: string) => void;
+  onTogglePlanShare?: (planId: string, enabled: boolean) => void;
+  onCopyPlanShareLink?: (token: string) => void;
   onReorderPlans?: (planIds: string[]) => void;
   newPlanName: string;
   setNewPlanName: (value: string) => void;
@@ -64,21 +70,6 @@ type PlanListPaneProps = {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 };
-
-const DEFAULT_LOCALE = "ko-KR";
-
-function formatDistance(meters: number, locale = DEFAULT_LOCALE) {
-  const km = meters / 1000;
-  const formatted = km.toLocaleString(locale, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
-  return `${formatted} km`;
-}
-
-function formatInteger(value: number, locale = DEFAULT_LOCALE) {
-  return value.toLocaleString(locale, { maximumFractionDigits: 0 });
-}
 
 /** yyyy-mm-dd → YYYY. M. D. (ko locale order) */
 function formatDateForDisplay(isoDate: string): string {
@@ -100,6 +91,8 @@ type SortablePlanRowProps = {
   onDuplicatePlan?: (plan: PlanItem) => void;
   onUpdatePlan?: (planId: string, newName: string) => void;
   onDeletePlan?: (planId: string) => void;
+  onTogglePlanShare?: (planId: string, enabled: boolean) => void;
+  onCopyPlanShareLink?: (token: string) => void;
 };
 
 function SortablePlanRow({
@@ -114,6 +107,8 @@ function SortablePlanRow({
   onDuplicatePlan,
   onUpdatePlan,
   onDeletePlan,
+  onTogglePlanShare,
+  onCopyPlanShareLink,
 }: SortablePlanRowProps) {
   const {
     attributes,
@@ -130,6 +125,7 @@ function SortablePlanRow({
   };
 
   const stageCount = plan.stages?.length ?? 0;
+  const hasShareLink = Boolean(plan.public_share_token);
 
   return (
     <div
@@ -170,6 +166,7 @@ function SortablePlanRow({
         <div className="font-medium">{plan.name}</div>
         <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
           {stageCount > 0 ? `${stageCount}일 계획` : "스테이지 없음"}
+          {hasShareLink ? " · 공유중" : ""}
         </div>
       </div>
       {showActions && (
@@ -213,7 +210,34 @@ function SortablePlanRow({
                 복제
               </DropdownMenuItem>
             )}
-            {(onUpdatePlan || onDuplicatePlan) && onDeletePlan && (
+            {onTogglePlanShare && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setOpenMenuPlanId(null);
+                  onTogglePlanShare(plan.id, !hasShareLink);
+                }}
+              >
+                <Share2Icon className="h-4 w-4" />
+                {hasShareLink ? "공개 해제" : "공개 링크 생성"}
+              </DropdownMenuItem>
+            )}
+            {plan.public_share_token && onCopyPlanShareLink && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setOpenMenuPlanId(null);
+                  const shareToken = plan.public_share_token;
+                  if (!shareToken) return;
+                  onCopyPlanShareLink(shareToken);
+                }}
+              >
+                <CopyIcon className="h-4 w-4" />
+                링크 복사
+              </DropdownMenuItem>
+            )}
+            {(onUpdatePlan || onDuplicatePlan || onTogglePlanShare || onCopyPlanShareLink) &&
+              onDeletePlan && (
               <DropdownMenuSeparator />
             )}
             {onDeletePlan && (
@@ -245,6 +269,8 @@ export function PlanListPane({
   onUpdatePlan,
   onDuplicatePlan,
   onDeletePlan,
+  onTogglePlanShare,
+  onCopyPlanShareLink,
   onUpdatePlanStartDate,
   onReorderPlans,
   newPlanName,
@@ -348,8 +374,6 @@ export function PlanListPane({
     );
   }
 
-  const locale = typeof navigator !== "undefined" ? navigator.language : DEFAULT_LOCALE;
-
   return (
     <div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-zinc-200 px-2 dark:border-zinc-700">
@@ -368,32 +392,13 @@ export function PlanListPane({
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
         {routeSummary && (
-          <div className="mb-3 space-y-1 border-b border-zinc-200 pb-3 dark:border-zinc-700">
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              {routeSummary.name}
-            </h2>
-            <a
-              href={routeSummary.rwgpsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-xs text-orange-500 hover:underline"
-            >
-              RideWithGPS에서 보기 ↗
-            </a>
-            <div className="flex flex-nowrap justify-between text-xs">
-              <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
-                거리 {formatDistance(routeSummary.distanceKm * 1000, locale)}
-              </span>
-              <span className="flex shrink-0 gap-2">
-                <span className="text-green-600 dark:text-green-400">
-                  +{formatInteger(routeSummary.elevationGain, locale)} m
-                </span>
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  -{formatInteger(routeSummary.elevationLoss, locale)} m
-                </span>
-              </span>
-            </div>
-          </div>
+          <RouteSummaryBlock
+            name={routeSummary.name}
+            rwgpsUrl={routeSummary.rwgpsUrl}
+            distanceMeters={routeSummary.distanceKm * 1000}
+            elevationGain={routeSummary.elevationGain}
+            elevationLoss={routeSummary.elevationLoss}
+          />
         )}
         <div className="relative">
           {isReorderingPlans && (
@@ -444,7 +449,11 @@ export function PlanListPane({
                     plan={plan}
                     isActive={activePlanId === plan.id}
                     showActions={Boolean(
-                      onUpdatePlan || onDuplicatePlan || onDeletePlan,
+                      onUpdatePlan ||
+                        onDuplicatePlan ||
+                        onDeletePlan ||
+                        onTogglePlanShare ||
+                        onCopyPlanShareLink,
                     )}
                     openMenuPlanId={openMenuPlanId}
                     setOpenMenuPlanId={setOpenMenuPlanId}
@@ -454,6 +463,8 @@ export function PlanListPane({
                     onDuplicatePlan={onDuplicatePlan}
                     onUpdatePlan={onUpdatePlan}
                     onDeletePlan={onDeletePlan}
+                    onTogglePlanShare={onTogglePlanShare}
+                    onCopyPlanShareLink={onCopyPlanShareLink}
                   />
                 ))}
               </SortableContext>

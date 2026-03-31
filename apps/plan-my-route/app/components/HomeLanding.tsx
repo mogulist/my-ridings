@@ -6,7 +6,6 @@ import {
 	BarChart3,
 	Bike,
 	Bookmark,
-	CheckCircle,
 	ClipboardList,
 	Coffee,
 	Home,
@@ -27,11 +26,11 @@ const SIGN_IN_HREF = `/signin?callbackUrl=${encodeURIComponent("/")}`;
 
 const COPY = {
 	hero: {
-		badge: "멀티데이 라이딩 전략 도구",
-		headline: "경로는 정했다.\n이제 전략을 짜야 할 시간.",
-		body: "경로를 보면서 카카오맵으로 숙소와 보급 지점을 찾고, 플랜을 만들어 비교하세요.\n분산된 탐색 과정을 하나의 흐름으로 통합했습니다.",
-		cta: "지금 시작하기",
-		ctaSub: "어떻게 작동하나요?",
+		kicker: "멀티데이 자전거 라이딩 경로 설계 도구",
+		headline:
+			"라이딩 경로를 카카오맵에서 보며\n보급 지점과 숙소를 탐색한 뒤\n하루 단위 라이딩 일정을 정리합니다.",
+		body: "한국 멀티데이 라이딩을 준비할 때 경로 앱과 지도 앱을 오가며 메모장에 따로 적던 과정을 한 곳으로 모았습니다. 복수 플랜을 만들어 비교하고, 카카오맵 기반으로 로컬 숙소·보급 지점을 바로 찾을 수 있습니다.",
+		cta: "시작하기",
 	},
 	problems: [
 		{
@@ -270,10 +269,6 @@ function MockStageSearch() {
 export default function HomeLanding() {
 	const [activeTab, setActiveTab] = useState(0);
 
-	const scrollToSection = (id: string) => {
-		document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-	};
-
 	const previewTabs = [
 		{ label: "경로 목록", component: <MockRouteList /> },
 		{ label: "플랜 & 지도", component: <MockPlanMap /> },
@@ -287,99 +282,26 @@ export default function HomeLanding() {
 			<section className="relative overflow-hidden bg-white dark:bg-zinc-950">
 				<HeroRouteBackground />
 
-				<div className="absolute right-10 top-20 opacity-50" aria-hidden>
-					<div
-						className="h-16 w-16 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-100 to-purple-100 dark:border-indigo-800 dark:from-indigo-950 dark:to-purple-950"
-						style={{ animation: "float 6s ease-in-out infinite" }}
-					/>
-				</div>
-				<div className="absolute bottom-32 left-10 opacity-40" aria-hidden>
-					<div
-						className="h-12 w-12 rounded-xl border border-pink-200 bg-gradient-to-br from-pink-100 to-rose-100 dark:border-pink-900 dark:from-pink-950 dark:to-rose-950"
-						style={{ animation: "float 8s ease-in-out infinite 1s" }}
-					/>
-				</div>
-
 				<div className="relative mx-auto max-w-4xl px-4 py-24 sm:px-6 sm:py-32">
-					<div className="relative mb-6 inline-flex items-center gap-2 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-						<div
-							className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-50 to-transparent dark:via-indigo-950/40"
-							style={{ animation: "slideRight 2s ease-in-out infinite" }}
-						/>
-						<Bike className="relative h-5 w-5 text-indigo-600 dark:text-indigo-400" aria-hidden />
-						<span className="relative text-xs font-bold text-indigo-600 dark:text-indigo-400">
-							{COPY.hero.badge}
-						</span>
-					</div>
+					<p className="mb-4 text-sm text-slate-500 dark:text-zinc-400">{COPY.hero.kicker}</p>
 
-					<div className="mb-4">
-						<h1 className="whitespace-pre-line text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-[3.25rem]">
-							<span className="text-gray-900 dark:text-zinc-50">경로는 정했다.</span>
-							<br />
-							<span className="bg-gradient-to-r from-indigo-600 to-pink-600 bg-clip-text text-transparent">
-								이제 전략을 짜야 할 시간.
-							</span>
-						</h1>
-					</div>
+					<h1 className="mb-6 whitespace-pre-line text-4xl font-bold leading-tight tracking-tight text-gray-900 dark:text-zinc-50 sm:text-5xl lg:text-[3.25rem]">
+						{COPY.hero.headline}
+					</h1>
 
-					<div className="mb-7 flex flex-wrap gap-2">
-						{[
-							{ label: "경로 연동", icon: LinkIcon },
-							{ label: "POI 탐색", icon: MapPin },
-							{ label: "플랜 비교", icon: ClipboardList },
-							{ label: "전략 확정", icon: CheckCircle },
-						].map((item, i) => {
-							const Icon = item.icon;
-							const isActive = i === 0;
-							return (
-								<Badge
-									key={item.label}
-									variant={isActive ? "default" : "outline"}
-									className={
-										isActive
-											? "cursor-pointer rounded-lg border-transparent bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-500"
-											: "cursor-pointer rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-gray-400 hover:bg-gray-50 dark:border-zinc-500 dark:bg-transparent dark:text-zinc-100 dark:hover:border-zinc-400 dark:hover:bg-zinc-900/50"
-									}
-									style={{ animation: `fadeInUp 0.6s ease-out ${i * 0.1}s both` }}
-								>
-									<Icon className="mr-1.5 h-4 w-4" aria-hidden />
-									{item.label}
-								</Badge>
-							);
-						})}
-					</div>
-
-					<p className="mb-8 max-w-2xl whitespace-pre-line text-[0.9375rem] leading-relaxed text-slate-600 dark:text-zinc-400">
+					<p className="mb-10 max-w-2xl whitespace-pre-line text-[0.9375rem] leading-relaxed text-slate-600 dark:text-zinc-400">
 						{COPY.hero.body}
 					</p>
 
-					<div className="mb-8 inline-flex items-center gap-2 rounded-full border-2 border-amber-300 bg-amber-50 px-4 py-2.5 dark:border-amber-700 dark:bg-amber-950/40">
-						<Map className="h-5 w-5 shrink-0 animate-bounce text-amber-900 dark:text-amber-200" aria-hidden />
-						<span className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-							카카오맵 기반 · 한국 로컬 숙소·보급 지점 정보 최적화
-						</span>
-					</div>
-
-					<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-						<Button
-							asChild
-							size="lg"
-							className="h-12 rounded-xl border-0 bg-indigo-600 px-8 text-base font-bold text-white shadow-none hover:bg-indigo-700 dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-500"
-						>
-							<Link href={SIGN_IN_HREF} className="inline-flex items-center justify-center">
-								{COPY.hero.cta}
-							</Link>
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="lg"
-							onClick={() => scrollToSection("how-it-works")}
-							className="h-12 rounded-xl border-2 border-slate-200 bg-slate-50 px-8 text-base font-semibold text-slate-700 hover:border-indigo-500 hover:text-indigo-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
-						>
-							{COPY.hero.ctaSub} ↓
-						</Button>
-					</div>
+					<Button
+						asChild
+						size="lg"
+						className="h-12 w-fit rounded-lg border-0 bg-[#5842F4] px-8 text-base font-semibold text-white shadow-none hover:bg-[#4a36d6] dark:bg-[#5842F4] dark:text-white dark:hover:bg-[#4a36d6]"
+					>
+						<Link href={SIGN_IN_HREF} className="inline-flex items-center justify-center">
+							{COPY.hero.cta}
+						</Link>
+					</Button>
 				</div>
 			</section>
 

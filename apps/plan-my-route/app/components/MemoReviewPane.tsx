@@ -15,7 +15,8 @@ type MemoReviewPaneProps = {
   stages: Stage[];
   planStartDate: string | null | undefined;
   onClose: () => void;
-  onSaveMemo: (stageId: string, memo: string) => void;
+  onSaveMemo?: (stageId: string, memo: string) => void;
+  readOnly?: boolean;
 };
 
 export function MemoReviewPane({
@@ -23,6 +24,7 @@ export function MemoReviewPane({
   planStartDate,
   onClose,
   onSaveMemo,
+  readOnly = false,
 }: MemoReviewPaneProps) {
   const memoCount = stages.filter((s) => (s.memo ?? "").trim().length > 0).length;
 
@@ -57,6 +59,7 @@ export function MemoReviewPane({
               stage={stage}
               dateLabel={stageDayLabel(stage.dayNumber, planStartDate)}
               onSaveMemo={onSaveMemo}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -68,13 +71,15 @@ export function MemoReviewPane({
 type MemoReviewStageCardProps = {
   stage: Stage;
   dateLabel: string;
-  onSaveMemo: (stageId: string, memo: string) => void;
+  onSaveMemo?: (stageId: string, memo: string) => void;
+  readOnly?: boolean;
 };
 
 function MemoReviewStageCard({
   stage,
   dateLabel,
   onSaveMemo,
+  readOnly = false,
 }: MemoReviewStageCardProps) {
   const [draft, setDraft] = useState(stage.memo ?? "");
   const [isSaving, setIsSaving] = useState(false);
@@ -91,6 +96,7 @@ function MemoReviewStageCard({
 
   const save = useCallback(async () => {
     const value = draft.trim();
+    if (readOnly || !onSaveMemo) return;
     if (value === (stage.memo ?? "") || isSaving) return;
     setIsSaving(true);
     try {
@@ -106,7 +112,7 @@ function MemoReviewStageCard({
     } finally {
       setIsSaving(false);
     }
-  }, [stage.id, stage.memo, draft, onSaveMemo, isSaving]);
+  }, [stage.id, stage.memo, draft, onSaveMemo, isSaving, readOnly]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -137,16 +143,22 @@ function MemoReviewStageCard({
           +{formatNumber(stage.elevationGain)}m
         </span>
       </div>
-      <textarea
-        ref={textareaRef}
-        className="min-h-[2.5rem] w-full resize-none overflow-y-auto rounded border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
-        placeholder="메모를 입력하세요..."
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={handleKeyDown}
-        rows={2}
-      />
+      {readOnly ? (
+        <div className="min-h-[2.5rem] whitespace-pre-wrap rounded border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+          {(stage.memo ?? "").trim() || "메모 없음"}
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          className="min-h-[2.5rem] w-full resize-none overflow-y-auto rounded border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
+          placeholder="메모를 입력하세요..."
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={handleKeyDown}
+          rows={2}
+        />
+      )}
     </div>
   );
 }

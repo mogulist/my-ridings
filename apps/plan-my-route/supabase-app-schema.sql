@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS public.plan (
     name text NOT NULL,
     sort_order integer,
     start_date date,
+    public_share_token uuid,
+    shared_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT plan_pkey PRIMARY KEY (id),
@@ -42,6 +44,7 @@ CREATE TABLE IF NOT EXISTS public.plan (
 
 -- Index for querying plans by route efficiently
 CREATE INDEX IF NOT EXISTS plan_route_id_idx ON public.plan (route_id);
+CREATE UNIQUE INDEX IF NOT EXISTS plan_public_share_token_idx ON public.plan (public_share_token);
 
 -- 3. Stages Table
 CREATE TABLE IF NOT EXISTS public.stage (
@@ -128,6 +131,23 @@ CREATE TABLE IF NOT EXISTS public.place_review (
 CREATE INDEX IF NOT EXISTS place_review_user_id_idx ON public.place_review (user_id);
 CREATE INDEX IF NOT EXISTS place_review_place_kind_idx ON public.place_review (user_id, place_kind);
 
+-- 6. User profile (공개 표시용 닉네임 등)
+CREATE TABLE IF NOT EXISTS public.user_profile (
+    user_id uuid NOT NULL,
+    nickname text,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT user_profile_pkey PRIMARY KEY (user_id),
+    CONSTRAINT user_profile_user_id_fkey FOREIGN KEY (user_id)
+        REFERENCES next_auth.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE,
+    CONSTRAINT user_profile_nickname_length CHECK (
+        nickname IS NULL OR (char_length(trim(nickname)) >= 1 AND char_length(nickname) <= 40)
+    )
+);
+
+ALTER TABLE public.user_profile ENABLE ROW LEVEL SECURITY;
+
 -- Grants
 GRANT ALL ON TABLE public.route TO postgres;
 GRANT ALL ON TABLE public.route TO service_role;
@@ -144,6 +164,9 @@ GRANT ALL ON TABLE public.bookmark TO service_role;
 
 GRANT ALL ON TABLE public.place_review TO postgres;
 GRANT ALL ON TABLE public.place_review TO service_role;
+
+GRANT ALL ON TABLE public.user_profile TO postgres;
+GRANT ALL ON TABLE public.user_profile TO service_role;
 
 -- If stage table already exists without elevation columns, run:
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS elevation_gain numeric;
