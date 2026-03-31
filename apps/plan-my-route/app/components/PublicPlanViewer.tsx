@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpenIcon } from "lucide-react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
+import { computeCPsOnRoute } from "./RouteViewer";
 import { getStageColor, type Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
 import { MemoReviewPane } from "./MemoReviewPane";
@@ -151,6 +152,14 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 			elevationLoss: loss,
 		};
 	}, [publicPlan, route]);
+
+	const cpMarkers = useMemo(
+		() =>
+			route
+				? computeCPsOnRoute(route.points_of_interest, route.track_points)
+				: [],
+		[route],
+	);
 
 	const handlePin = (index: number) => {
 		setPositionIndex(index);
@@ -319,7 +328,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 					/>
 				</section>
 
-				<section className="hidden h-40 shrink-0 border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:block">
+				<section className="hidden h-56 shrink-0 border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:block">
 					<ElevationProfile
 						trackPoints={route?.track_points ?? []}
 						stages={stages}
@@ -330,6 +339,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
 						onSelectedDayChange={(day) => setSelectedDayNumber(day)}
 						isPinned={isPinned}
 						onPin={handlePin}
+						onUnpin={handleUnpin}
+						cpMarkers={cpMarkers}
 					/>
 				</section>
 			</div>

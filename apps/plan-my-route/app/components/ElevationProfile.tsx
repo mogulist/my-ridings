@@ -27,6 +27,14 @@ export interface TrackPoint {
 	d?: number; // 누적 거리 (m)
 }
 
+export type CPOnRoute = {
+	id: number;
+	name: string;
+	distanceKm: number;
+	elevation: number;
+	trackPointIndex: number;
+};
+
 interface ChartDatum {
 	distanceKm: number;
 	ele: number;
@@ -65,8 +73,11 @@ interface ElevationProfileProps {
 	onDiscardPreview?: () => void;
 	isPinned?: boolean;
 	onPin?: (index: number) => void;
+	onUnpin?: () => void;
 	/** 스테이지 상승고도와 동일한 smoothing 적용 시 사용 (usePlanStages.calibratedThreshold) */
 	elevationCalibratedThreshold?: number;
+	/** 경로상 CP(Control Point) 리스트 — 거리순 정렬 */
+	cpMarkers?: CPOnRoute[];
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -342,43 +353,206 @@ function BoundaryTooltip({
 	);
 }
 
-/** 고도 환산 거리(km): 거리 + (상승고도(m)/100)*1.2 — 100m 상승을 평지 1.2km로 환산 */
-function calcEffectiveDistanceKm(distanceKm: number, elevationGain: number): number {
-	return Math.round((distanceKm + (elevationGain / 100) * 1.2) * 10) / 10;
+/** 스테이지(또는 전체) 기준: minDistanceKm 이전에 있는 CP는 직전 CP 후보에서 제외 */
+function findPrevCPInContext(
+	cpMarkers: CPOnRoute[],
+	distanceKm: number,
+	minDistanceKm: number,
+): CPOnRoute | null {
+	let prev: CPOnRoute | null = null;
+	for (const cp of cpMarkers) {
+		if (cp.distanceKm < minDistanceKm) continue;
+		if (cp.distanceKm <= distanceKm) prev = cp;
+		else break;
+	}
+	return prev;
+}
+
+function findNextCPInContext(
+	cpMarkers: CPOnRoute[],
+	distanceKm: number,
+	maxDistanceKm: number,
+): CPOnRoute | null {
+	for (const cp of cpMarkers) {
+		if (cp.distanceKm > distanceKm && cp.distanceKm <= maxDistanceKm) return cp;
+	}
+	return null;
+}
+
+function computeRawGainBetweenKm(
+	points: TrackPoint[],
+	fromKm: number,
+	toKm: number,
+): number {
+	const withEle = points.filter((p) => p.e != null && p.d != null);
+	if (withEle.length < 2 || toKm <= fromKm) return 0;
+	const findIdx = (km: number) => {
+		const idx = withEle.findIndex((p) => p.d! / 1000 >= km);
+		return idx === -1 ? withEle.length - 1 : idx;
+	};
+	const i0 = findIdx(fromKm);
+	const i1 = findIdx(toKm);
+	if (i1 <= i0) return 0;
+	let gain = 0;
+	for (let i = i0 + 1; i <= i1; i++) {
+		const prevE = withEle[i - 1].e!;
+		const currE = withEle[i].e!;
+		gain += Math.max(0, currE - prevE);
+	}
+	return Math.round(gain);
+}
+
+function computeSegmentGainBetweenKm(
+	points: TrackPoint[],
+	fromKm: number,
+	toKm: number,
+	elevationCalibratedThreshold?: number,
+): number {
+	if (toKm <= fromKm) return 0;
+	const useSmooth =
+		typeof elevationCalibratedThreshold === "number" &&
+		elevationCalibratedThreshold >= 0;
+	if (useSmooth) {
+		const curve = computeElevationGainCurve(
+			points,
+			fromKm,
+			toKm,
+			elevationCalibratedThreshold!,
+		);
+		return Math.round(lookupGainAtDistanceKm(curve, toKm));
+	}
+	return computeRawGainBetweenKm(points, fromKm, toKm);
+}
+
+// ── CP 마커 라벨 (Recharts ReferenceLine label) ──────────────────
+const CP_COLOR = "#10b981";
+
+function CPMarkerLabel({
+	viewBox,
+	showName,
+	name,
+}: {
+	viewBox?: { x?: number; y?: number };
+	showName: boolean;
+	name: string;
+}) {
+	if (viewBox?.x == null || viewBox?.y == null) return null;
+	const { x, y } = viewBox;
+	const triW = 4;
+	const triH = 6;
+	return (
+		<g>
+			<polygon
+				points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`}
+				fill={CP_COLOR}
+			/>
+			{showName && (
+				<text
+					x={x}
+					y={y - 4}
+					textAnchor="middle"
+					fill="#71717a"
+					fontSize={11}
+					fontWeight={500}
+				>
+					{name}
+				</text>
+			)}
+		</g>
+	);
 }
 
 // ── 커스텀 툴팁 ───────────────────────────────────────────────────
 function CustomTooltip({
 	active,
 	payload,
+	trackPoints,
+	cpMarkers,
+	elevationCalibratedThreshold,
+	cpAnchorMinKm,
+	cpAnchorMaxKm,
+	anchorFallbackDayNumber,
 }: {
 	active?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	payload?: Array<{ payload: any }>;
+	trackPoints: TrackPoint[];
+	cpMarkers: CPOnRoute[];
+	elevationCalibratedThreshold?: number;
+	/** 일차 선택 시 해당 스테이지 시작 거리(km). 이보다 앞의 CP는 직전 CP로 쓰지 않음 */
+	cpAnchorMinKm: number;
+	/** 스테이지 종료 km — 이보다 뒤의 CP는 다음 CP로 쓰지 않음 */
+	cpAnchorMaxKm: number;
+	anchorFallbackDayNumber: number | null;
 }) {
 	if (!active || !payload?.length) return null;
 	const d = payload[0].payload;
 	const hasStageStats =
 		typeof d.distanceFromStageStartKm === "number" &&
 		typeof d.elevationGainFromStageStart === "number";
-	const effectiveKm = hasStageStats
-		? calcEffectiveDistanceKm(d.distanceFromStageStartKm, d.elevationGainFromStageStart)
-		: null;
+	const km = Number(d.distanceKm);
+	const prevCp = findPrevCPInContext(cpMarkers, km, cpAnchorMinKm);
+	const segFromKm = prevCp?.distanceKm ?? cpAnchorMinKm;
+	const segDist = Math.round((km - segFromKm) * 10) / 10;
+	const segGain =
+		cpMarkers.length > 0 && trackPoints.length > 0
+			? computeSegmentGainBetweenKm(
+					trackPoints,
+					segFromKm,
+					km,
+					elevationCalibratedThreshold,
+				)
+			: 0;
+	const cpSegLabel = prevCp
+		? "이전 CP부터"
+		: anchorFallbackDayNumber != null
+			? `${anchorFallbackDayNumber}일 출발부터`
+			: "출발부터";
+
+	const nextCp = findNextCPInContext(cpMarkers, km, cpAnchorMaxKm);
+	const nextTargetKm = nextCp?.distanceKm ?? (hasStageStats ? cpAnchorMaxKm : null);
+	const nextTargetLabel = nextCp
+		? "다음 CP까지"
+		: hasStageStats && anchorFallbackDayNumber != null
+			? `${anchorFallbackDayNumber}일 종료까지`
+			: null;
+	const remainKm =
+		nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
+	const remainGain =
+		nextTargetKm != null && trackPoints.length > 0
+			? computeSegmentGainBetweenKm(
+					trackPoints,
+					km,
+					nextTargetKm,
+					elevationCalibratedThreshold,
+				)
+			: null;
 
 	return (
-		<div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-md text-xs dark:border-zinc-700 dark:bg-zinc-800">
-			<p className="font-semibold text-zinc-800 dark:text-zinc-100">
-				전체 {Number(d.distanceKm).toFixed(1)} km · {d.ele} m
-			</p>
+		<div className="min-w-[200px] rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-md text-xs dark:border-zinc-700 dark:bg-zinc-800">
+			<div className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
+				<span>전체</span>
+				<span>{km.toFixed(1)} km · △ {d.ele} m</span>
+			</div>
 			{hasStageStats && (
-				<p className="mt-1 text-zinc-500 dark:text-zinc-400">
-					스테이지 +{Number(d.distanceFromStageStartKm).toFixed(1)} km · 상승 +{d.elevationGainFromStageStart} m
-				</p>
+				<div className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
+					<span>스테이지</span>
+					<span>+{Number(d.distanceFromStageStartKm).toFixed(1)} km · ▲ {d.elevationGainFromStageStart} m</span>
+				</div>
 			)}
-			{effectiveKm != null && (
-				<p className="mt-1 border-t border-zinc-200 pt-1 text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-					고도 환산 거리 {effectiveKm} km
-				</p>
+			{cpMarkers.length > 0 && (
+				<div className="mt-1 space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
+					<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+						<span>{cpSegLabel}</span>
+						<span>+{segDist.toFixed(1)} km · ▲ {segGain} m</span>
+					</div>
+					{nextTargetLabel != null && remainKm != null && remainGain != null && (
+						<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+							<span>{nextTargetLabel}</span>
+							<span>{remainKm.toFixed(1)} km · ▲ {remainGain} m</span>
+						</div>
+					)}
+				</div>
 			)}
 		</div>
 	);
@@ -401,7 +575,9 @@ export function ElevationProfile({
 	onDiscardPreview,
 	isPinned = false,
 	onPin,
+	onUnpin,
 	elevationCalibratedThreshold,
+	cpMarkers = [],
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -493,9 +669,13 @@ export function ElevationProfile({
 	const lastHoverIndexRef = useRef<number | null>(null);
 
 	const handleChartClick = useCallback(() => {
+		if (isPinned && onUnpin) {
+			onUnpin();
+			return;
+		}
 		if (!onPin || lastHoverIndexRef.current == null) return;
 		onPin(lastHoverIndexRef.current);
-	}, [onPin]);
+	}, [isPinned, onPin, onUnpin]);
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
@@ -580,6 +760,14 @@ export function ElevationProfile({
 				!(pendingStageEdit && b.stageId === pendingStageEdit.stageId),
 		);
 
+	const visibleCPs = cpMarkers.filter(
+		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
+	);
+	const showCPNames = selectedDayNumber != null;
+	const tooltipCpAnchorKm = selectedStage?.startDistanceKm ?? 0;
+	const tooltipCpAnchorMaxKm = selectedStage?.endDistanceKm ?? totalKm;
+	const tooltipAnchorDayNumber = selectedStage?.dayNumber ?? null;
+
 	return (
 		<div className="flex h-full w-full flex-col gap-1 px-2 pt-2">
 			{/* 범례 헤더 */}
@@ -648,7 +836,7 @@ export function ElevationProfile({
 					<AreaChart
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						data={chartData as any}
-						margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+						margin={{ top: 20, right: 8, left: 0, bottom: 4 }}
 						onMouseMove={handleMouseMove}
 						onMouseLeave={handleMouseLeave}
 						onMouseDown={handleChartClick}
@@ -736,7 +924,12 @@ export function ElevationProfile({
 									? [visibleStart, visibleEnd]
 									: ["dataMin", "dataMax"]
 							}
-							tickFormatter={(v) => `${v} km`}
+							tickFormatter={(v: number) => {
+								const rounded = Math.round(v * 10) / 10;
+								return Number.isInteger(rounded)
+									? `${rounded} km`
+									: `${rounded.toFixed(1)} km`;
+							}}
 							fontSize={10}
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
@@ -746,7 +939,11 @@ export function ElevationProfile({
 						<YAxis
 							dataKey="ele"
 							type="number"
-							tickFormatter={(v) => `${v}`}
+							domain={[
+								(dataMin: number) => Math.max(0, Math.floor(dataMin / 100) * 100),
+								(dataMax: number) => Math.ceil(dataMax / 100) * 100 + 150,
+							]}
+							tickFormatter={(v: number) => `${v}`}
 							fontSize={10}
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
@@ -766,7 +963,16 @@ export function ElevationProfile({
 								strokeWidth: 1,
 								strokeDasharray: "4 2",
 							}}
-							content={<CustomTooltip />}
+							content={
+								<CustomTooltip
+									trackPoints={trackPoints}
+									cpMarkers={cpMarkers}
+									elevationCalibratedThreshold={elevationCalibratedThreshold}
+									cpAnchorMinKm={tooltipCpAnchorKm}
+									cpAnchorMaxKm={tooltipCpAnchorMaxKm}
+									anchorFallbackDayNumber={tooltipAnchorDayNumber}
+								/>
+							}
 						/>
 
 						{/* Stage가 없는 경우: 기본 Area */}
@@ -865,6 +1071,23 @@ export function ElevationProfile({
 							</>
 						)}
 
+						{/* CP 마커 */}
+						{visibleCPs.map((cp) => (
+							<ReferenceLine
+								key={`cp-${cp.id}`}
+								x={cp.distanceKm}
+								stroke={CP_COLOR}
+								strokeWidth={0.5}
+								strokeDasharray="2 3"
+								label={
+									<CPMarkerLabel
+										showName={showCPNames}
+										name={cp.name}
+									/>
+								}
+							/>
+						))}
+
 						{/* 외부 제어 마커 */}
 						{currentChartDatum != null && (
 							<>
@@ -886,6 +1109,103 @@ export function ElevationProfile({
 						)}
 					</AreaChart>
 				</ResponsiveContainer>
+				{/* 핀 고정 툴팁 */}
+				{isPinned && currentChartDatum != null && (() => {
+					const span = visibleEnd - visibleStart;
+					const leftPct = span > 0
+						? ((currentChartDatum.distanceKm - visibleStart) / span) * 100
+						: 50;
+					const km = currentChartDatum.distanceKm;
+					const ele = currentChartDatum.ele;
+					const hasStageStats =
+						typeof currentChartDatum.distanceFromStageStartKm === "number" &&
+						typeof currentChartDatum.elevationGainFromStageStart === "number";
+					const prevCp = findPrevCPInContext(cpMarkers, km, tooltipCpAnchorKm);
+					const segFromKm = prevCp?.distanceKm ?? tooltipCpAnchorKm;
+					const segDist = Math.round((km - segFromKm) * 10) / 10;
+					const segGain =
+						cpMarkers.length > 0 && trackPoints.length > 0
+							? computeSegmentGainBetweenKm(trackPoints, segFromKm, km, elevationCalibratedThreshold)
+							: 0;
+					const cpSegLabel = prevCp
+						? "이전 CP부터"
+						: tooltipAnchorDayNumber != null
+							? `${tooltipAnchorDayNumber}일 출발부터`
+							: "출발부터";
+					const nextCp = findNextCPInContext(cpMarkers, km, tooltipCpAnchorMaxKm);
+					const nextTargetKm = nextCp?.distanceKm ?? (hasStageStats ? tooltipCpAnchorMaxKm : null);
+					const nextTargetLabel = nextCp
+						? "다음 CP까지"
+						: hasStageStats && tooltipAnchorDayNumber != null
+							? `${tooltipAnchorDayNumber}일 종료까지`
+							: null;
+					const remainKm = nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
+					const remainGain = nextTargetKm != null && trackPoints.length > 0
+						? computeSegmentGainBetweenKm(trackPoints, km, nextTargetKm, elevationCalibratedThreshold)
+						: null;
+					return (
+						<div
+							className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs shadow-lg dark:border-orange-600 dark:bg-zinc-800"
+							style={{
+								left: `${Math.max(4, Math.min(96, leftPct))}%`,
+								top: 4,
+								transform: leftPct > 60 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+							}}
+							onClick={(e) => { e.stopPropagation(); onUnpin?.(); }}
+						>
+							<div className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
+								<span>📌 전체</span>
+								<span>{km.toFixed(1)} km · △ {ele} m</span>
+							</div>
+							{hasStageStats && (
+								<div className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
+									<span>스테이지</span>
+									<span>+{Number(currentChartDatum.distanceFromStageStartKm).toFixed(1)} km · ▲ {currentChartDatum.elevationGainFromStageStart} m</span>
+								</div>
+							)}
+							{cpMarkers.length > 0 && (
+								<div className="mt-1 space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
+									<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+										<span>{cpSegLabel}</span>
+										<span>+{segDist.toFixed(1)} km · ▲ {segGain} m</span>
+									</div>
+									{nextTargetLabel != null && remainKm != null && remainGain != null && (
+										<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+											<span>{nextTargetLabel}</span>
+											<span>{remainKm.toFixed(1)} km · ▲ {remainGain} m</span>
+										</div>
+									)}
+								</div>
+							)}
+							<p className="mt-1 text-zinc-400 dark:text-zinc-500 text-center">클릭하여 해제</p>
+						</div>
+					);
+				})()}
+				{/* CP 세로선 클릭 → trackPointIndex 핀 (차트 mousedown과 분리) */}
+				{onPin != null &&
+					visibleCPs.map((cp) => {
+						const span = visibleEnd - visibleStart;
+						const leftPct =
+							span > 0
+								? ((cp.distanceKm - visibleStart) / span) * 100
+								: 0;
+						return (
+							<button
+								key={`cp-hit-${cp.id}`}
+								type="button"
+								aria-label={`${cp.name} 위치로 고정`}
+								className="absolute inset-y-0 z-8 w-5 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0"
+								style={{
+									left: `${Math.max(0, Math.min(100, leftPct))}%`,
+								}}
+								onMouseDown={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									onPin(cp.trackPointIndex);
+								}}
+							/>
+						);
+					})}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
 				{canDragBoundary && selectedStage && (
 					<>

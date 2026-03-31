@@ -5,7 +5,6 @@ import {
   Coffee,
   Expand,
   Locate,
-  MapPinOff,
   ShoppingCart,
   Store,
   UtensilsCrossed,
@@ -117,6 +116,7 @@ interface KakaoMapsAPI {
     yAnchor?: number;
     xAnchor?: number;
     zIndex?: number;
+    clickable?: boolean;
   }) => KakaoCustomOverlay;
   event: {
     addListener: (
@@ -742,8 +742,9 @@ const HIGHLIGHT_MARKER_COLOR = "#f97316";
 const ZOOM_LIMIT_ACCOMMODATION = 7;
 const NEARBY_SEARCH_BUFFER_KM = 2;
 
-function highlightCircleMarkerHtml(size: number): string {
-  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`;
+function highlightCircleMarkerHtml(size: number, clickable: boolean): string {
+  const cursor = clickable ? "cursor:pointer;" : "";
+  return `<div class="highlight-marker-circle" style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);${cursor}"></div>`;
 }
 
 interface KakaoMapProps {
@@ -813,6 +814,7 @@ export default function KakaoMap({
   const onPositionChangeRef = useRef(onPositionChange);
   const isPinnedRef = useRef(isPinned);
   const onPinRef = useRef(onPin);
+  const onUnpinRef = useRef(onUnpin);
   const reviewContextRef = useRef(reviewContext);
   const [mapReady, setMapReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
@@ -853,6 +855,7 @@ export default function KakaoMap({
   onPositionChangeRef.current = onPositionChange;
   isPinnedRef.current = isPinned;
   onPinRef.current = onPin;
+  onUnpinRef.current = onUnpin;
 
   const invalidateAllNearbyCache = useCallback(() => {
     setNearbyCacheMeta((prev) => {
@@ -1728,15 +1731,30 @@ export default function KakaoMap({
       return;
     }
 
-    const content = highlightCircleMarkerHtml(HIGHLIGHT_MARKER_SIZE);
-    highlightOverlayRef.current = new maps.CustomOverlay({
+    const content = highlightCircleMarkerHtml(HIGHLIGHT_MARKER_SIZE, true);
+    const newOverlay = new maps.CustomOverlay({
       map: map as never,
       position: nextPosition,
       content,
       yAnchor: 0.5,
       xAnchor: 0.5,
       zIndex: 10,
-    });
+      clickable: true,
+    }) as KakaoCustomOverlay & { getContent?: () => unknown };
+    highlightOverlayRef.current = newOverlay;
+
+    const el = typeof newOverlay.getContent === "function"
+      ? newOverlay.getContent()
+      : null;
+    const node = el instanceof HTMLElement
+      ? el
+      : (newOverlay as unknown as { a?: HTMLElement }).a?.querySelector?.(".highlight-marker-circle") ?? null;
+    if (node instanceof HTMLElement) {
+      node.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onUnpinRef.current?.();
+      });
+    }
   }, [highlightPosition]);
 
   const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
@@ -1912,16 +1930,6 @@ export default function KakaoMap({
           >
             <Expand className="size-4" />
           </button>
-          {isPinned && onUnpin && (
-            <button
-              type="button"
-              onClick={onUnpin}
-              className={btnClass}
-              aria-label="마커 고정 해제"
-            >
-              <MapPinOff className="size-4" />
-            </button>
-          )}
         </div>
       )}
       {mapReady && zoomLevel != null && (

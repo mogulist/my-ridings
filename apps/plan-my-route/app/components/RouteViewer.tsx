@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ElevationProfile } from "./ElevationProfile";
-import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
+import { ElevationProfile, type CPOnRoute, type TrackPoint } from "./ElevationProfile";
+import KakaoMap, { type RideWithGPSRoute, type PointOfInterest } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
 import { PlanListPane } from "./PlanListPane";
 import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
@@ -80,6 +80,39 @@ function isSamePlanStages(a: DbStage[] | undefined, b: DbStage[]): boolean {
   });
 }
 
+export function computeCPsOnRoute(
+  pois: PointOfInterest[],
+  trackPoints: TrackPoint[],
+): CPOnRoute[] {
+  const controls = pois.filter(
+    (p) => p.poi_type_name?.toLowerCase() === "control",
+  );
+  if (controls.length === 0 || trackPoints.length === 0) return [];
+
+  return controls
+    .map((poi) => {
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < trackPoints.length; i++) {
+        const tp = trackPoints[i];
+        const d2 = (tp.y - poi.lat) ** 2 + (tp.x - poi.lng) ** 2;
+        if (d2 < bestDist) {
+          bestDist = d2;
+          bestIdx = i;
+        }
+      }
+      const tp = trackPoints[bestIdx];
+      return {
+        id: poi.id,
+        name: poi.name,
+        distanceKm: (tp.d ?? 0) / 1000,
+        elevation: tp.e ?? 0,
+        trackPointIndex: bestIdx,
+      };
+    })
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
 export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
   const [dbRoute, setDbRoute] = useState<any>(null);
@@ -115,6 +148,14 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   const handleUnpin = useCallback(() => {
     setIsPinned(false);
   }, []);
+
+  const cpMarkers = useMemo(
+    () =>
+      route
+        ? computeCPsOnRoute(route.points_of_interest, route.track_points)
+        : [],
+    [route],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -780,7 +821,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         </section>
 
         {/* 고도 프로필 */}
-        <section className="hidden h-40 shrink-0 border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:block">
+        <section className="hidden h-56 shrink-0 border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:block">
           <ElevationProfile
             trackPoints={route?.track_points ?? []}
             stages={stages}
@@ -797,7 +838,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             onDiscardPreview={discardPreview}
             isPinned={isPinned}
             onPin={handlePin}
+            onUnpin={handleUnpin}
             elevationCalibratedThreshold={calibratedThreshold}
+            cpMarkers={cpMarkers}
           />
         </section>
       </div>
