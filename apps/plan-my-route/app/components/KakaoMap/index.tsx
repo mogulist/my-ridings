@@ -102,6 +102,7 @@ interface KakaoMapsAPI {
   InfoWindow: new (options: {
     content: string;
     removable?: boolean;
+    zIndex?: number;
   }) => KakaoInfoWindow;
   CustomOverlay: new (options: {
     map: KakaoMapInstance;
@@ -145,12 +146,14 @@ interface KakaoLatLngBounds {
 interface KakaoMarker {
   getPosition: () => unknown;
   setMap?: (map: unknown) => void;
+  setZIndex?: (zIndex: number) => void;
 }
 
 interface KakaoInfoWindow {
   open: (map: KakaoMapInstance, marker: KakaoMarker) => void;
   close: () => void;
   setContent?: (content: string) => void;
+  setZIndex?: (zIndex: number) => void;
 }
 
 interface KakaoCustomOverlay {
@@ -646,6 +649,10 @@ function unlockPlaceReviewTooltip(
 // ── Props ─────────────────────────────────────────────────────────
 const HIGHLIGHT_MARKER_SIZE = 16;
 const HIGHLIGHT_MARKER_COLOR = "#f97316";
+/** 하이라이트 CustomOverlay(zIndex 10) 위에 두어 클릭이 장소 마커로 가도록 함 */
+const PLACE_MARKER_Z_INDEX = 50;
+/** 마커·하이라이트보다 위에 인포윈도우(툴팁)가 오도록 함 */
+const INFO_WINDOW_Z_INDEX = 100;
 const ZOOM_LIMIT_ACCOMMODATION = 7;
 const NEARBY_SEARCH_BUFFER_KM = 2;
 
@@ -901,6 +908,7 @@ export default function KakaoMap({
           position: pos,
           title: poi.name,
         });
+        marker.setZIndex?.(PLACE_MARKER_Z_INDEX);
 
         const infoContent = `
 					<div style="
@@ -911,11 +919,13 @@ export default function KakaoMap({
         const infoWindow = new kakaoMaps.InfoWindow({
           content: infoContent,
           removable: true,
+          zIndex: INFO_WINDOW_Z_INDEX,
         });
 
         kakaoMaps.event.addListener(marker, "click", () => {
           if (openInfoWindowRef.current) openInfoWindowRef.current.close();
           infoWindow.open(map, marker);
+          infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
           openInfoWindowRef.current = infoWindow;
         });
       }
@@ -924,8 +934,18 @@ export default function KakaoMap({
       const firstPos = new kakaoMaps.LatLng(firstPoint.y, firstPoint.x);
       const lastPoint = points[points.length - 1];
       const lastPos = new kakaoMaps.LatLng(lastPoint.y, lastPoint.x);
-      new kakaoMaps.Marker({ map, position: firstPos, title: "START" });
-      new kakaoMaps.Marker({ map, position: lastPos, title: "FINISH" });
+      const startMarker = new kakaoMaps.Marker({
+        map,
+        position: firstPos,
+        title: "START",
+      });
+      startMarker.setZIndex?.(PLACE_MARKER_Z_INDEX);
+      const finishMarker = new kakaoMaps.Marker({
+        map,
+        position: lastPos,
+        title: "FINISH",
+      });
+      finishMarker.setZIndex?.(PLACE_MARKER_Z_INDEX);
 
       mapInstanceRef.current = map;
       lastRouteIdRef.current = routeData.id;
@@ -1056,11 +1076,13 @@ export default function KakaoMap({
             categoryId,
           ),
         });
+        marker.setZIndex?.(PLACE_MARKER_Z_INDEX);
         nextMarkers.push(marker);
 
         const infoWindow = new maps.InfoWindow({
           content: buildAccommodationTooltipHtml(doc, review, tooltipMeta),
           removable: true,
+          zIndex: INFO_WINDOW_Z_INDEX,
         });
 
         maps.event.addListener(marker, "click", () => {
@@ -1069,6 +1091,7 @@ export default function KakaoMap({
             buildAccommodationTooltipHtml(doc, review, tooltipMeta),
           );
           infoWindow.open(map, marker);
+          infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
           openInfoWindowRef.current = infoWindow;
           activePlaceInfoRef.current = { doc, infoWindow, tooltipMeta };
         });
@@ -1108,6 +1131,7 @@ export default function KakaoMap({
             categoryId,
           ),
         });
+        marker.setZIndex?.(PLACE_MARKER_Z_INDEX);
         nextMarkers.push(marker);
 
         const infoWindow = new maps.InfoWindow({
@@ -1117,6 +1141,7 @@ export default function KakaoMap({
             tooltipMeta,
           ),
           removable: true,
+          zIndex: INFO_WINDOW_Z_INDEX,
         });
 
         maps.event.addListener(marker, "click", () => {
@@ -1129,6 +1154,7 @@ export default function KakaoMap({
             ),
           );
           infoWindow.open(map, marker);
+          infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
           openInfoWindowRef.current = infoWindow;
           activePlaceInfoRef.current = { doc, infoWindow, tooltipMeta };
         });
