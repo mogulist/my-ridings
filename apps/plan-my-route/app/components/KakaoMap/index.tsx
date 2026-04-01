@@ -205,7 +205,10 @@ function slicePointsByDistance(
   );
 
   const startBoundary = interpolateBoundaryPoint(pointsWithDistance, startM);
-  if (startBoundary && (stagePoints[0]?.d ?? Number.POSITIVE_INFINITY) > startM) {
+  if (
+    startBoundary &&
+    (stagePoints[0]?.d ?? Number.POSITIVE_INFINITY) > startM
+  ) {
     stagePoints.unshift(startBoundary);
   }
 
@@ -236,7 +239,8 @@ function interpolateBoundaryPoint(
     const nextPoint = points[index + 1];
     if (currentPoint.d === targetDistanceM) return currentPoint;
     if (nextPoint.d === targetDistanceM) return nextPoint;
-    if (currentPoint.d > targetDistanceM || nextPoint.d < targetDistanceM) continue;
+    if (currentPoint.d > targetDistanceM || nextPoint.d < targetDistanceM)
+      continue;
 
     const segmentDistance = nextPoint.d - currentPoint.d;
     if (segmentDistance <= 0) return currentPoint;
@@ -335,7 +339,8 @@ type AccommodationCategoryOption = {
   label: string;
 };
 
-const ACCOMMODATION_FILTER_STORAGE_KEY = "plan-my-route:accommodation-filter:v1";
+const ACCOMMODATION_FILTER_STORAGE_KEY =
+  "plan-my-route:accommodation-filter:v1";
 
 const ACCOMMODATION_CATEGORY_OPTIONS: AccommodationCategoryOption[] = [
   { category: "motel", label: "모텔" },
@@ -528,7 +533,9 @@ function buildNaverMapUrls(
   const encoded = encodeURIComponent(query);
   const webUrl = `https://map.naver.com/p/search/${encoded}`;
   const appname =
-    typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
+    typeof window !== "undefined"
+      ? encodeURIComponent(window.location.origin)
+      : "";
   const appSchemeUrl = `nmap://place?lat=${lat}&lng=${lng}&name=${encoded}&appname=${appname}`;
   return { webUrl, appSchemeUrl };
 }
@@ -600,7 +607,9 @@ type PlaceReviewCloseSnap = {
   opacity: string;
 };
 
-function findKakaoInfoWindowCloseButton(tooltipRoot: HTMLElement): HTMLElement | null {
+function findKakaoInfoWindowCloseButton(
+  tooltipRoot: HTMLElement,
+): HTMLElement | null {
   let node: HTMLElement | null = tooltipRoot.parentElement;
   for (let i = 0; i < 16 && node; i++) {
     const anchors = node.querySelectorAll("a");
@@ -608,7 +617,8 @@ function findKakaoInfoWindowCloseButton(tooltipRoot: HTMLElement): HTMLElement |
       if (!(a instanceof HTMLElement)) continue;
       if (tooltipRoot.contains(a)) continue;
       const cls = a.className;
-      if (typeof cls === "string" && cls.split(/\s+/).includes("close")) return a;
+      if (typeof cls === "string" && cls.split(/\s+/).includes("close"))
+        return a;
       if (a.title === "닫기") return a;
     }
     node = node.parentElement;
@@ -616,14 +626,20 @@ function findKakaoInfoWindowCloseButton(tooltipRoot: HTMLElement): HTMLElement |
   return null;
 }
 
-function lockPlaceReviewTooltip(root: HTMLElement): PlaceReviewCloseSnap | null {
+function lockPlaceReviewTooltip(
+  root: HTMLElement,
+): PlaceReviewCloseSnap | null {
   root.dataset.saving = "true";
   root.querySelectorAll(".place-review-state-btn").forEach((btn) => {
     (btn as HTMLButtonElement).disabled = true;
   });
-  const note = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
+  const note = root.querySelector(
+    ".place-review-note",
+  ) as HTMLTextAreaElement | null;
   if (note) note.disabled = true;
-  const saveBtn = root.querySelector(".place-review-save") as HTMLButtonElement | null;
+  const saveBtn = root.querySelector(
+    ".place-review-save",
+  ) as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
     saveBtn.innerHTML =
@@ -656,9 +672,13 @@ function unlockPlaceReviewTooltip(
   root.querySelectorAll(".place-review-state-btn").forEach((btn) => {
     (btn as HTMLButtonElement).disabled = false;
   });
-  const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
+  const noteEl = root.querySelector(
+    ".place-review-note",
+  ) as HTMLTextAreaElement | null;
   if (noteEl) noteEl.disabled = false;
-  const saveBtn = root.querySelector(".place-review-save") as HTMLButtonElement | null;
+  const saveBtn = root.querySelector(
+    ".place-review-save",
+  ) as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = false;
     saveBtn.textContent = "저장";
@@ -767,9 +787,8 @@ export default function KakaoMap({
   const [mapReady, setMapReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
   const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
-  const [loadingCategory, setLoadingCategory] = useState<NearbyCategoryId | null>(
-    null,
-  );
+  const [loadingCategory, setLoadingCategory] =
+    useState<NearbyCategoryId | null>(null);
   const [activeCategory, setActiveCategory] =
     useState<NearbyCategoryId>("accommodation");
   const activeCategoryRef = useRef<NearbyCategoryId>(activeCategory);
@@ -777,7 +796,8 @@ export default function KakaoMap({
   const [showSearchPopover, setShowSearchPopover] = useState(false);
   const [accommodationFilters, setAccommodationFilters] =
     useState<AccommodationFilterState>(DEFAULT_ACCOMMODATION_FILTERS);
-  const [nearbyDocs, setNearbyDocs] = useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
+  const [nearbyDocs, setNearbyDocs] =
+    useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
   const [nearbyCacheMeta, setNearbyCacheMeta] = useState<NearbyCacheMetaState>(
     EMPTY_NEARBY_CACHE_META,
   );
@@ -856,7 +876,10 @@ export default function KakaoMap({
       const map = new kakaoMaps.Map(containerRef.current, {
         center:
           shouldPreserveViewport && previousCenter
-            ? new kakaoMaps.LatLng(previousCenter.getLat(), previousCenter.getLng())
+            ? new kakaoMaps.LatLng(
+                previousCenter.getLat(),
+                previousCenter.getLng(),
+              )
             : new kakaoMaps.LatLng(firstPoint.y, firstPoint.x),
         level: shouldPreserveViewport && previousLevel ? previousLevel : 12,
       });
@@ -1091,7 +1114,8 @@ export default function KakaoMap({
       clearMergedPoiMarkers();
       if (!visible || !routeData) return;
       const nextMarkers: KakaoMarker[] = [];
-      const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
+      const esc = (s: string) =>
+        s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
       for (const poi of routeData.points_of_interest) {
         const pos = new maps.LatLng(poi.lat, poi.lng);
         const marker = new maps.Marker({
@@ -1165,7 +1189,10 @@ export default function KakaoMap({
         const state = review.review_state as ReviewState;
         const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
         const tooltipMeta = cfg
-          ? { placeKind: cfg.bookmarkPlaceKind, notePlaceholder: cfg.notePlaceholder }
+          ? {
+              placeKind: cfg.bookmarkPlaceKind,
+              notePlaceholder: cfg.notePlaceholder,
+            }
           : { placeKind: "accommodation", notePlaceholder: "숙박비, 소감 등" };
         const marker = new maps.Marker({
           map: map as never,
@@ -1222,7 +1249,10 @@ export default function KakaoMap({
     ) => {
       const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
       const tooltipMeta = cfg
-        ? { placeKind: cfg.bookmarkPlaceKind, notePlaceholder: cfg.notePlaceholder }
+        ? {
+            placeKind: cfg.bookmarkPlaceKind,
+            notePlaceholder: cfg.notePlaceholder,
+          }
         : { placeKind: "accommodation", notePlaceholder: "숙박비, 소감 등" };
       if (openInfoWindowRef.current) {
         openInfoWindowRef.current.close();
@@ -1231,7 +1261,8 @@ export default function KakaoMap({
       clearAccommodationMarkers();
       const nextMarkers: KakaoMarker[] = [];
       for (const doc of docs) {
-        const state = (reviewsMap[doc.id]?.review_state ?? "neutral") as ReviewState;
+        const state = (reviewsMap[doc.id]?.review_state ??
+          "neutral") as ReviewState;
         const marker = new maps.Marker({
           map: map as never,
           position: new maps.LatLng(Number(doc.y), Number(doc.x)),
@@ -1330,12 +1361,13 @@ export default function KakaoMap({
         neLng: ne.getLng(),
         neLat: ne.getLat(),
       };
-      const visibleRoutePoints = (route?.track_points ?? []).filter((point) => (
-        point.x >= viewportRectBounds.swLng &&
-        point.x <= viewportRectBounds.neLng &&
-        point.y >= viewportRectBounds.swLat &&
-        point.y <= viewportRectBounds.neLat
-      ));
+      const visibleRoutePoints = (route?.track_points ?? []).filter(
+        (point) =>
+          point.x >= viewportRectBounds.swLng &&
+          point.x <= viewportRectBounds.neLng &&
+          point.y >= viewportRectBounds.swLat &&
+          point.y <= viewportRectBounds.neLat,
+      );
       const routeRect = buildBufferedRouteRect(
         visibleRoutePoints,
         NEARBY_SEARCH_BUFFER_KM,
@@ -1376,7 +1408,9 @@ export default function KakaoMap({
             `/api/kakao/local/category?rect=${encodeURIComponent(rect)}&category_group_code=${encodeURIComponent(code)}`,
           );
           if (!res.ok) throw new Error("Failed to fetch");
-          const { documents } = (await res.json()) as { documents: KakaoPlaceDoc[] };
+          const { documents } = (await res.json()) as {
+            documents: KakaoPlaceDoc[];
+          };
           if (categoryId === "accommodation") {
             setNearbyDocs((prev) => ({
               ...prev,
@@ -1438,7 +1472,9 @@ export default function KakaoMap({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      const naverMapLink = (e.target as HTMLElement).closest("a.open-naver-map");
+      const naverMapLink = (e.target as HTMLElement).closest(
+        "a.open-naver-map",
+      );
       if (naverMapLink) {
         e.preventDefault();
         const webUrl = (naverMapLink as HTMLAnchorElement).dataset.naverWebUrl;
@@ -1446,7 +1482,8 @@ export default function KakaoMap({
         if (appUrl) {
           window.location.href = appUrl;
           setTimeout(() => {
-            if (!document.hidden) window.open(webUrl ?? "", "_blank", "noopener,noreferrer");
+            if (!document.hidden)
+              window.open(webUrl ?? "", "_blank", "noopener,noreferrer");
           }, 1500);
         } else if (webUrl) {
           window.open(webUrl, "_blank", "noopener,noreferrer");
@@ -1472,23 +1509,31 @@ export default function KakaoMap({
         return;
       }
 
-      const stateBtn = (e.target as HTMLElement).closest(".place-review-state-btn");
+      const stateBtn = (e.target as HTMLElement).closest(
+        ".place-review-state-btn",
+      );
       if (stateBtn) {
         e.preventDefault();
         if (readOnlyRef.current) return;
-        const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
+        const root = (e.target as HTMLElement).closest(
+          ".accommodation-tooltip",
+        );
         if (!root) return;
         if ((root as HTMLElement).dataset.saving === "true") return;
-        const state = (stateBtn as HTMLButtonElement).dataset.state as ReviewState;
+        const state = (stateBtn as HTMLButtonElement).dataset
+          .state as ReviewState;
         (root as HTMLElement).dataset.currentState = state;
         const activeInfo = activePlaceInfoRef.current;
         if (activeInfo) {
-          const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
+          const noteEl = root.querySelector(
+            ".place-review-note",
+          ) as HTMLTextAreaElement | null;
           const note = noteEl?.value?.trim() ?? "";
-          const syntheticReview: Pick<PlaceReviewRow, "review_state" | "note"> = {
-            review_state: state,
-            note: note || null,
-          };
+          const syntheticReview: Pick<PlaceReviewRow, "review_state" | "note"> =
+            {
+              review_state: state,
+              note: note || null,
+            };
           activeInfo.infoWindow.setContent?.(
             buildAccommodationTooltipHtml(
               activeInfo.doc,
@@ -1519,7 +1564,9 @@ export default function KakaoMap({
       const lat = el.dataset.lat;
       const lng = el.dataset.lng;
       const state = (el.dataset.currentState ?? "neutral") as ReviewState;
-      const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
+      const noteEl = root.querySelector(
+        ".place-review-note",
+      ) as HTMLTextAreaElement | null;
       const note = noteEl?.value?.trim() ?? "";
       if (!placeId || !placeName) return;
 
@@ -1592,7 +1639,8 @@ export default function KakaoMap({
     if (!showSearchPopover) return;
     const handleOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (!searchPopoverRef.current?.contains(target)) setShowSearchPopover(false);
+      if (!searchPopoverRef.current?.contains(target))
+        setShowSearchPopover(false);
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
@@ -1632,13 +1680,7 @@ export default function KakaoMap({
     const maps = window.kakao?.maps;
     if (!map || !maps || !mapReady || !route) return;
     renderMergedPoiMarkers(map, maps, route, planPois, showPoiOnMap);
-  }, [
-    mapReady,
-    route,
-    planPois,
-    showPoiOnMap,
-    renderMergedPoiMarkers,
-  ]);
+  }, [mapReady, route, planPois, showPoiOnMap, renderMergedPoiMarkers]);
 
   useEffect(() => {
     const map = mapInstanceRef.current as KakaoMapInstance | null;
@@ -1766,7 +1808,8 @@ export default function KakaoMap({
     map.setBounds(bounds);
   }, [computeBounds]);
 
-  const isZoomRestricted = zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION;
+  const isZoomRestricted =
+    zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION;
   const isNearbySearchDisabled = isZoomRestricted || loadingCategory != null;
 
   const wasZoomRestrictedRef = useRef<boolean>(true);
@@ -1862,12 +1905,16 @@ export default function KakaoMap({
     }) as KakaoCustomOverlay & { getContent?: () => unknown };
     highlightOverlayRef.current = newOverlay;
 
-    const el = typeof newOverlay.getContent === "function"
-      ? newOverlay.getContent()
-      : null;
-    const node = el instanceof HTMLElement
-      ? el
-      : (newOverlay as unknown as { a?: HTMLElement }).a?.querySelector?.(".highlight-marker-circle") ?? null;
+    const el =
+      typeof newOverlay.getContent === "function"
+        ? newOverlay.getContent()
+        : null;
+    const node =
+      el instanceof HTMLElement
+        ? el
+        : ((newOverlay as unknown as { a?: HTMLElement }).a?.querySelector?.(
+            ".highlight-marker-circle",
+          ) ?? null);
     if (node instanceof HTMLElement) {
       node.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1904,11 +1951,8 @@ export default function KakaoMap({
       />
       <div ref={containerCallbackRef} className="h-full w-full" />
       {mapReady && (
-        <div
-          ref={searchPopoverRef}
-          className="absolute top-4 right-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
-        >
-          <div className="flex max-w-[calc(100vw-2rem)] flex-nowrap items-center justify-end gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <div className="pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-2rem)] flex-nowrap items-center gap-1">
             <button
               type="button"
               onClick={() => setShowPoiOnMap((v) => !v)}
@@ -1924,114 +1968,127 @@ export default function KakaoMap({
                 className={showPreferredPlaces ? toggleBtnOn : toggleBtnOff}
                 aria-pressed={showPreferredPlaces}
               >
-                선호 장소
+                선호 장소 보기
               </button>
             )}
-            <span className="mx-0.5 h-5 w-px bg-gray-300" aria-hidden="true" />
-            {!readOnly && NEARBY_CATEGORIES.map((cat) => {
-              const isActive = activeCategory === cat.id;
-              const isLoading = loadingCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => handleNearbyCategoryClick(cat.id)}
-                  disabled={isNearbySearchDisabled}
-                  className={
-                    isActive
-                      ? "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-blue-500 bg-blue-500 px-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      : "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-gray-200 bg-white px-2 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  }
-                  aria-label={`${cat.label} 주변 탐색`}
-                  aria-pressed={isActive}
-                  title={
-                    zoomLevel != null && zoomLevel > ZOOM_LIMIT_ACCOMMODATION
-                      ? "줌 레벨 7 이하에서만 사용 가능"
-                      : `${cat.label} 주변 탐색`
-                  }
-                >
-                  {isLoading ? (
-                    <span
+          </div>
+          {!readOnly && (
+            <div
+              ref={searchPopoverRef}
+              className="pointer-events-auto absolute right-4 top-4 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
+            >
+              <div className="flex max-w-[calc(100vw-2rem)] flex-nowrap items-center justify-end gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {NEARBY_CATEGORIES.map((cat) => {
+                  const isActive = activeCategory === cat.id;
+                  const isLoading = loadingCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => handleNearbyCategoryClick(cat.id)}
+                      disabled={isNearbySearchDisabled}
                       className={
                         isActive
-                          ? "size-4 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent"
-                          : "size-4 shrink-0 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
+                          ? "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-blue-500 bg-blue-500 px-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          : "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-gray-200 bg-white px-2 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                       }
-                    />
-                  ) : (
-                    <span className={isActive ? "text-white" : "text-gray-600"}>
-                      {nearbyCategoryIcon(cat.id)}
-                    </span>
-                  )}
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          {showSearchPopover && !readOnly && (
-            <div className="w-64 shrink-0 rounded border border-gray-200 bg-white p-3 shadow-lg">
-              <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  {
-                    NEARBY_CATEGORIES.find((c) => c.id === activeCategory)
-                      ?.label
-                  }
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleNearbyVisibilityToggle()}
-                    className="text-xs font-medium text-blue-600 hover:underline"
-                  >
-                    {showNearbyPlaces ? "숨기기" : "표시"}
-                  </button>
-                </div>
-              </div>
-              <p className="mb-2 text-xs text-gray-500">현재 지도 범위 내 결과</p>
-              {activeCategory === "accommodation" ? (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    {ACCOMMODATION_CATEGORY_OPTIONS.map((option) => (
-                      <label
-                        key={option.category}
-                        className="flex cursor-pointer items-center justify-between rounded border border-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                      >
-                        <span>{option.label}</span>
-                        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
-                          {accommodationCategoryCounts[option.category]}
-                        </span>
-                        <input
-                          type="checkbox"
-                          className="ml-2"
-                          checked={accommodationFilters[option.category]}
-                          onChange={() =>
-                            handleAccommodationFilterChange(option.category)
+                      aria-label={`${cat.label} 주변 탐색`}
+                      aria-pressed={isActive}
+                      title={
+                        zoomLevel != null &&
+                        zoomLevel > ZOOM_LIMIT_ACCOMMODATION
+                          ? "줌 레벨 7 이하에서만 사용 가능"
+                          : `${cat.label} 주변 탐색`
+                      }
+                    >
+                      {isLoading ? (
+                        <span
+                          className={
+                            isActive
+                              ? "size-4 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent"
+                              : "size-4 shrink-0 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
                           }
                         />
-                      </label>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex items-center justify-end gap-2 border-t border-gray-100 pt-2">
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-gray-600 hover:underline"
-                      onClick={handleSelectAllAccommodationFilters}
-                    >
-                      전체
+                      ) : (
+                        <span
+                          className={isActive ? "text-white" : "text-gray-600"}
+                        >
+                          {nearbyCategoryIcon(cat.id)}
+                        </span>
+                      )}
+                      <span>{cat.label}</span>
                     </button>
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-gray-600 hover:underline"
-                      onClick={handleResetAccommodationFilters}
-                    >
-                      초기화
-                    </button>
+                  );
+                })}
+              </div>
+              {showSearchPopover && !readOnly && (
+                <div className="w-64 shrink-0 rounded border border-gray-200 bg-white p-3 shadow-lg">
+                  <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span className="text-sm font-semibold text-gray-800">
+                      {
+                        NEARBY_CATEGORIES.find((c) => c.id === activeCategory)
+                          ?.label
+                      }
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleNearbyVisibilityToggle()}
+                        className="text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        {showNearbyPlaces ? "숨기기" : "표시"}
+                      </button>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <p className="text-xs text-gray-700">
-                  {nearbyDocs[activeCategory].length}개 장소
-                </p>
+                  <p className="mb-2 text-xs text-gray-500">
+                    현재 지도 범위 내 결과
+                  </p>
+                  {activeCategory === "accommodation" ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ACCOMMODATION_CATEGORY_OPTIONS.map((option) => (
+                          <label
+                            key={option.category}
+                            className="flex cursor-pointer items-center justify-between rounded border border-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                          >
+                            <span>{option.label}</span>
+                            <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
+                              {accommodationCategoryCounts[option.category]}
+                            </span>
+                            <input
+                              type="checkbox"
+                              className="ml-2"
+                              checked={accommodationFilters[option.category]}
+                              onChange={() =>
+                                handleAccommodationFilterChange(option.category)
+                              }
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex items-center justify-end gap-2 border-t border-gray-100 pt-2">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-gray-600 hover:underline"
+                          onClick={handleSelectAllAccommodationFilters}
+                        >
+                          전체
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-gray-600 hover:underline"
+                          onClick={handleResetAccommodationFilters}
+                        >
+                          초기화
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-700">
+                      {nearbyDocs[activeCategory].length}개 장소
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -2087,9 +2144,7 @@ export default function KakaoMap({
         !readOnly && (
           <AddPlanPoiDialog
             open={addPoiDialog.open}
-            onOpenChange={(open) =>
-              setAddPoiDialog((s) => ({ ...s, open }))
-            }
+            onOpenChange={(open) => setAddPoiDialog((s) => ({ ...s, open }))}
             initialPlaceName={addPoiDialog.doc.place_name}
             defaultCategoryId={addPoiDialog.categoryId}
             kakaoPlaceId={addPoiDialog.doc.id}
