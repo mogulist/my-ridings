@@ -1,8 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ElevationProfile, type CPOnRoute, type TrackPoint } from "./ElevationProfile";
-import KakaoMap, { type RideWithGPSRoute, type PointOfInterest } from "./KakaoMap";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import {
+  ElevationProfile,
+  type CPOnRoute,
+  type TrackPoint,
+} from "./ElevationProfile";
+import KakaoMap, {
+  type RideWithGPSRoute,
+  type PointOfInterest,
+} from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
 import { PlanListPane } from "./PlanListPane";
 import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
@@ -13,6 +27,7 @@ import {
   DeleteConfirmationDialog,
 } from "./DeleteStageDialog";
 import type { Stage } from "../types/plan";
+import type { PlanPoiRow } from "../types/planPoi";
 
 interface RouteViewerProps {
   routeId: string;
@@ -139,6 +154,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     null | "create" | "update" | "duplicate" | "delete" | "share"
   >(null);
   const [isStagesPending, startStagesTransition] = useTransition();
+  const [planPois, setPlanPois] = useState<PlanPoiRow[]>([]);
 
   const handlePin = useCallback((index: number) => {
     setPositionIndex(index);
@@ -278,7 +294,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     const nextStages = serializeStagesForPlanCache(stages);
     setDbRoute((prev: DbRouteSnapshot | null) => {
       if (!prev?.plans) return prev;
-      const planIndex = prev.plans.findIndex((plan) => plan.id === activePlanId);
+      const planIndex = prev.plans.findIndex(
+        (plan) => plan.id === activePlanId,
+      );
       if (planIndex === -1) return prev;
       const targetPlan = prev.plans[planIndex];
       if (isSamePlanStages(targetPlan.stages, nextStages)) return prev;
@@ -305,11 +323,64 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       planId: activePlanId,
       stageId:
         effectiveSelectedDay != null
-          ? stages.find((s) => s.dayNumber === effectiveSelectedDay)?.id ??
-            null
+          ? (stages.find((s) => s.dayNumber === effectiveSelectedDay)?.id ??
+            null)
           : null,
     }),
     [routeId, activePlanId, effectiveSelectedDay, stages],
+  );
+
+  useEffect(() => {
+    if (!activePlanId) {
+      setPlanPois([]);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/plans/${activePlanId}/pois`)
+      .then((res) => {
+        if (res.status === 401 || res.status === 403) return [];
+        if (!res.ok) return [];
+        return res.json() as Promise<PlanPoiRow[]>;
+      })
+      .then((rows) => {
+        if (!cancelled) setPlanPois(rows ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePlanId]);
+
+  const handleCreatePlanPoi = useCallback(
+    async (payload: {
+      kakao_place_id: string | null;
+      name: string;
+      poi_type: string;
+      memo: string | null;
+      lat: number;
+      lng: number;
+    }) => {
+      if (!activePlanId) return null;
+      const res = await fetch(`/api/plans/${activePlanId}/pois`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 401) {
+        alert("로그인 후 저장할 수 있습니다.");
+        return null;
+      }
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        alert(err.error ?? "POI 저장에 실패했습니다.");
+        return null;
+      }
+      const row = (await res.json()) as PlanPoiRow;
+      setPlanPois((prev) => [...prev, row]);
+      return row;
+    },
+    [activePlanId],
   );
 
   const routeSummary = useMemo(() => {
@@ -317,8 +388,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     return {
       name: dbRoute.name || route.name,
       rwgpsUrl:
-        dbRoute.rwgps_url ||
-        `https://ridewithgps.com/routes/${route.id}`,
+        dbRoute.rwgps_url || `https://ridewithgps.com/routes/${route.id}`,
       distanceKm: route.distance / 1000,
       elevationGain: route.elevation_gain,
       elevationLoss: route.elevation_loss,
@@ -326,8 +396,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   }, [route, dbRoute]);
 
   const activePlanName =
-    dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)
-      ?.name ?? null;
+    dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)?.name ??
+    null;
 
   const routeStartDate = dbRoute?.start_date ?? null;
 
@@ -625,7 +695,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             ? "플랜 추가 중…"
             : planActionInProgress === "share"
               ? "공유 설정 반영 중…"
-            : "";
+              : "";
 
   return (
     <>
@@ -745,18 +815,24 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
                   onSaveMemo={handleSaveMemo}
                   onMemoReviewClick={() => setIsMemoReviewOpen(true)}
                 />
-                {memoPaneStageId && (() => {
-                  const memoStage = stages.find((s) => s.id === memoPaneStageId);
-                  return memoStage ? (
-                    <MemoPane
-                      key={memoPaneStageId}
-                      stage={memoStage}
-                      dateLabel={stageDayLabel(memoStage.dayNumber, effectivePlanStartDate)}
-                      onClose={handleCloseMemo}
-                      onSave={handleSaveMemo}
-                    />
-                  ) : null;
-                })()}
+                {memoPaneStageId &&
+                  (() => {
+                    const memoStage = stages.find(
+                      (s) => s.id === memoPaneStageId,
+                    );
+                    return memoStage ? (
+                      <MemoPane
+                        key={memoPaneStageId}
+                        stage={memoStage}
+                        dateLabel={stageDayLabel(
+                          memoStage.dayNumber,
+                          effectivePlanStartDate,
+                        )}
+                        onClose={handleCloseMemo}
+                        onSave={handleSaveMemo}
+                      />
+                    ) : null;
+                  })()}
               </>
             )}
           </>
@@ -816,6 +892,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               onPin={handlePin}
               onUnpin={handleUnpin}
               reviewContext={reviewContext}
+              activePlanId={activePlanId}
+              planPois={planPois}
+              onCreatePlanPoi={handleCreatePlanPoi}
             />
           )}
         </section>
@@ -833,7 +912,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             pendingStageEdit={pendingStageEdit}
             previewStageStats={previewStageStats}
             onStartBoundaryDrag={startBoundaryPreview}
-            onPreviewMove={(_, previewEndKm) => updatePreviewEndKm(previewEndKm)}
+            onPreviewMove={(_, previewEndKm) =>
+              updatePreviewEndKm(previewEndKm)
+            }
             onCommitPreview={commitPreview}
             onDiscardPreview={discardPreview}
             isPinned={isPinned}

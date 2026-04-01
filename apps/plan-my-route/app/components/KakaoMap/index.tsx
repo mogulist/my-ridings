@@ -5,7 +5,9 @@ import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
+import type { PlanPoiRow } from "@/app/types/planPoi";
 import type { NearbyCategoryId } from "./nearbyCategoryId";
+import { AddPlanPoiDialog } from "./AddPlanPoiDialog";
 import { getNearbyCategoryMarkerImage } from "./nearbyCategoryMarkerImages";
 import { nearbyCategoryIcon } from "./nearbyCategoryToolbarIcons";
 
@@ -531,10 +533,22 @@ function buildNaverMapUrls(
   return { webUrl, appSchemeUrl };
 }
 
+function planPoiTypeLabelKo(poiType: string): string {
+  const m: Record<string, string> = {
+    convenience: "편의점",
+    mart: "마트",
+    accommodation: "숙소",
+    cafe: "카페",
+    restaurant: "음식점",
+  };
+  return m[poiType] ?? poiType;
+}
+
 function buildAccommodationTooltipHtml(
   doc: KakaoPlaceDoc,
   review: PlaceReviewRow | null,
   tooltipMeta?: { placeKind: string; notePlaceholder: string },
+  options?: { showAddPoiButton?: boolean },
 ): string {
   const placeKind = tooltipMeta?.placeKind ?? "accommodation";
   const notePlaceholder = tooltipMeta?.notePlaceholder ?? "숙박비, 소감 등";
@@ -559,9 +573,14 @@ function buildAccommodationTooltipHtml(
     link || naverLink
       ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;">${link ?? ""}${naverLink ?? ""}</div>`
       : "";
+  const addPoiBlock =
+    options?.showAddPoiButton === true
+      ? `<div style="margin-bottom:8px;"><button type="button" class="plan-poi-open-dialog-btn" style="width:100%;padding:8px 10px;background:#ea580c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">POI로 추가</button></div>`
+      : "";
   return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
   ${linksBlock}
+  ${addPoiBlock}
   <div style="margin-bottom:6px;font-size:11px;color:#6b7280;">평가</div>
   <div style="display:flex;gap:4px;margin-bottom:8px;">
     <button type="button" class="place-review-state-btn" data-state="up2" aria-label="확정" title="확정" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "up2" ? REVIEW_STATE_COLORS.up2 : "#fff"};color:${state === "up2" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👍👍</button>
@@ -677,6 +696,19 @@ interface KakaoMapProps {
   autoCenterOnPin?: boolean;
   /** route/plan/stage context for saving place reviews */
   reviewContext?: ReviewContext;
+  /** 활성 플랜 (POI 저장·표시) */
+  activePlanId?: string | null;
+  planPois?: PlanPoiRow[];
+  onCreatePlanPoi?: (payload: {
+    kakao_place_id: string | null;
+    name: string;
+    poi_type: string;
+    memo: string | null;
+    lat: number;
+    lng: number;
+  }) => Promise<PlanPoiRow | null>;
+  /** 공유 뷰 등: 주변 검색·북마크·POI 추가 비활성 */
+  readOnly?: boolean;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -717,6 +749,10 @@ export default function KakaoMap({
   onUnpin,
   autoCenterOnPin = false,
   reviewContext = { routeId: "", planId: null, stageId: null },
+  activePlanId = null,
+  planPois = [],
+  onCreatePlanPoi,
+  readOnly = false,
 }: KakaoMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
@@ -736,6 +772,8 @@ export default function KakaoMap({
   );
   const [activeCategory, setActiveCategory] =
     useState<NearbyCategoryId>("accommodation");
+  const activeCategoryRef = useRef<NearbyCategoryId>(activeCategory);
+  activeCategoryRef.current = activeCategory;
   const [showSearchPopover, setShowSearchPopover] = useState(false);
   const [accommodationFilters, setAccommodationFilters] =
     useState<AccommodationFilterState>(DEFAULT_ACCOMMODATION_FILTERS);
@@ -749,6 +787,14 @@ export default function KakaoMap({
   const searchPopoverRef = useRef<HTMLDivElement | null>(null);
   const accommodationOverlaysRef = useRef<KakaoMarker[]>([]);
   const starredMarkersRef = useRef<KakaoMarker[]>([]);
+  const mergedPoiMarkersRef = useRef<KakaoMarker[]>([]);
+  const [showPoiOnMap, setShowPoiOnMap] = useState(true);
+  const [showPreferredPlaces, setShowPreferredPlaces] = useState(false);
+  const [addPoiDialog, setAddPoiDialog] = useState<{
+    open: boolean;
+    doc: KakaoPlaceDoc | null;
+    categoryId: NearbyCategoryId;
+  }>({ open: false, doc: null, categoryId: "accommodation" });
   const onReviewChangeRef = useRef<
     ((placeId: string, review: PlaceReviewRow) => void) | null
   >(null);
@@ -763,6 +809,15 @@ export default function KakaoMap({
   >(null);
 
   reviewContextRef.current = reviewContext;
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
+  const activePlanIdRef = useRef(activePlanId);
+  activePlanIdRef.current = activePlanId;
+
+  const tooltipAddPoiOptions = useMemo(
+    () => ({ showAddPoiButton: !readOnly && Boolean(activePlanId) }),
+    [readOnly, activePlanId],
+  );
 
   onPositionChangeRef.current = onPositionChange;
   isPinnedRef.current = isPinned;
@@ -900,35 +955,7 @@ export default function KakaoMap({
         }
       }
 
-      // CP 마커
-      for (const poi of routeData.points_of_interest) {
-        const pos = new kakaoMaps.LatLng(poi.lat, poi.lng);
-        const marker = new kakaoMaps.Marker({
-          map,
-          position: pos,
-          title: poi.name,
-        });
-        marker.setZIndex?.(PLACE_MARKER_Z_INDEX);
-
-        const infoContent = `
-					<div style="
-						padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;
-						background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);
-						max-width:180px;line-height:1.4;
-					">📍 ${poi.name}</div>`;
-        const infoWindow = new kakaoMaps.InfoWindow({
-          content: infoContent,
-          removable: true,
-          zIndex: INFO_WINDOW_Z_INDEX,
-        });
-
-        kakaoMaps.event.addListener(marker, "click", () => {
-          if (openInfoWindowRef.current) openInfoWindowRef.current.close();
-          infoWindow.open(map, marker);
-          infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
-          openInfoWindowRef.current = infoWindow;
-        });
-      }
+      // RWGPS·플랜 POI 마커는 merged POI 레이어(useEffect)에서 표시
 
       // START / FINISH 마커
       const firstPos = new kakaoMaps.LatLng(firstPoint.y, firstPoint.x);
@@ -1034,9 +1061,9 @@ export default function KakaoMap({
   }, []);
 
   useEffect(() => {
-    if (!mapReady) return;
+    if (!mapReady || readOnly) return;
     void fetchPlaceReviews();
-  }, [mapReady, fetchPlaceReviews]);
+  }, [mapReady, fetchPlaceReviews, readOnly]);
 
   const clearAccommodationMarkers = useCallback(() => {
     accommodationOverlaysRef.current.forEach((marker) => marker.setMap?.(null));
@@ -1047,6 +1074,80 @@ export default function KakaoMap({
     starredMarkersRef.current.forEach((marker) => marker.setMap?.(null));
     starredMarkersRef.current = [];
   }, []);
+
+  const clearMergedPoiMarkers = useCallback(() => {
+    mergedPoiMarkersRef.current.forEach((marker) => marker.setMap?.(null));
+    mergedPoiMarkersRef.current = [];
+  }, []);
+
+  const renderMergedPoiMarkers = useCallback(
+    (
+      map: KakaoMapInstance,
+      maps: KakaoMapsAPI,
+      routeData: RideWithGPSRoute | null | undefined,
+      rows: PlanPoiRow[],
+      visible: boolean,
+    ) => {
+      clearMergedPoiMarkers();
+      if (!visible || !routeData) return;
+      const nextMarkers: KakaoMarker[] = [];
+      const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
+      for (const poi of routeData.points_of_interest) {
+        const pos = new maps.LatLng(poi.lat, poi.lng);
+        const marker = new maps.Marker({
+          map: map as never,
+          position: pos,
+          title: poi.name,
+        });
+        marker.setZIndex?.(PLACE_MARKER_Z_INDEX);
+        const typeLine = poi.poi_type_name
+          ? `<div style="margin-top:4px;font-size:11px;font-weight:500;color:#6b7280;">${esc(
+              poi.poi_type_name,
+            )}</div>`
+          : "";
+        const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);max-width:200px;line-height:1.4;">📍 ${esc(poi.name)}${typeLine}</div>`;
+        const infoWindow = new maps.InfoWindow({
+          content: infoContent,
+          removable: true,
+          zIndex: INFO_WINDOW_Z_INDEX,
+        });
+        maps.event.addListener(marker, "click", () => {
+          if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+          infoWindow.open(map, marker);
+          infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
+          openInfoWindowRef.current = infoWindow;
+        });
+        nextMarkers.push(marker);
+      }
+      for (const row of rows) {
+        const pos = new maps.LatLng(row.lat, row.lng);
+        const marker = new maps.Marker({
+          map: map as never,
+          position: pos,
+          title: row.name,
+        });
+        marker.setZIndex?.(PLACE_MARKER_Z_INDEX);
+        const memoHtml = row.memo
+          ? `<div style="margin-top:6px;font-size:12px;font-weight:400;color:#374151;white-space:pre-wrap;">${esc(row.memo)}</div>`
+          : "";
+        const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);max-width:220px;line-height:1.4;"><div>${esc(row.name)}</div><div style="margin-top:4px;font-size:11px;font-weight:600;color:#ea580c;">${esc(planPoiTypeLabelKo(row.poi_type))}</div>${memoHtml}</div>`;
+        const infoWindow = new maps.InfoWindow({
+          content: infoContent,
+          removable: true,
+          zIndex: INFO_WINDOW_Z_INDEX,
+        });
+        maps.event.addListener(marker, "click", () => {
+          if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+          infoWindow.open(map, marker);
+          infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
+          openInfoWindowRef.current = infoWindow;
+        });
+        nextMarkers.push(marker);
+      }
+      mergedPoiMarkersRef.current = nextMarkers;
+    },
+    [clearMergedPoiMarkers],
+  );
 
   const renderStarredMarkers = useCallback(
     (
@@ -1080,7 +1181,12 @@ export default function KakaoMap({
         nextMarkers.push(marker);
 
         const infoWindow = new maps.InfoWindow({
-          content: buildAccommodationTooltipHtml(doc, review, tooltipMeta),
+          content: buildAccommodationTooltipHtml(
+            doc,
+            review,
+            tooltipMeta,
+            tooltipAddPoiOptions,
+          ),
           removable: true,
           zIndex: INFO_WINDOW_Z_INDEX,
         });
@@ -1088,7 +1194,12 @@ export default function KakaoMap({
         maps.event.addListener(marker, "click", () => {
           if (openInfoWindowRef.current) openInfoWindowRef.current.close();
           infoWindow.setContent?.(
-            buildAccommodationTooltipHtml(doc, review, tooltipMeta),
+            buildAccommodationTooltipHtml(
+              doc,
+              review,
+              tooltipMeta,
+              tooltipAddPoiOptions,
+            ),
           );
           infoWindow.open(map, marker);
           infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
@@ -1098,7 +1209,7 @@ export default function KakaoMap({
       }
       starredMarkersRef.current = nextMarkers;
     },
-    [clearStarredMarkers],
+    [clearStarredMarkers, tooltipAddPoiOptions],
   );
 
   const renderNearbyMarkers = useCallback(
@@ -1139,6 +1250,7 @@ export default function KakaoMap({
             doc,
             reviewsMap[doc.id] ?? null,
             tooltipMeta,
+            tooltipAddPoiOptions,
           ),
           removable: true,
           zIndex: INFO_WINDOW_Z_INDEX,
@@ -1151,6 +1263,7 @@ export default function KakaoMap({
               doc,
               reviewsMap[doc.id] ?? null,
               tooltipMeta,
+              tooltipAddPoiOptions,
             ),
           );
           infoWindow.open(map, marker);
@@ -1161,7 +1274,7 @@ export default function KakaoMap({
       }
       accommodationOverlaysRef.current = nextMarkers;
     },
-    [clearAccommodationMarkers],
+    [clearAccommodationMarkers, tooltipAddPoiOptions],
   );
 
   const accommodationCategoryCounts = useMemo(
@@ -1277,7 +1390,7 @@ export default function KakaoMap({
           ...prev,
           [categoryId]: { fetchedAt: Date.now(), isInvalidated: false },
         }));
-        await fetchPlaceReviews();
+        if (!readOnly) await fetchPlaceReviews();
         setShowNearbyPlaces(true);
       } catch {
         if (categoryId === "accommodation") {
@@ -1293,7 +1406,7 @@ export default function KakaoMap({
         setLoadingCategory(null);
       }
     },
-    [fetchPlaceReviews, route?.track_points],
+    [fetchPlaceReviews, route?.track_points, readOnly],
   );
 
   const handleNearbyVisibilityToggle = useCallback(() => {
@@ -1314,6 +1427,10 @@ export default function KakaoMap({
           activeInfo.doc,
           review,
           activeInfo.tooltipMeta,
+          {
+            showAddPoiButton:
+              !readOnlyRef.current && Boolean(activePlanIdRef.current),
+          },
         ),
       );
     }
@@ -1337,9 +1454,28 @@ export default function KakaoMap({
         return;
       }
 
+      const planPoiOpenBtn = (e.target as HTMLElement).closest(
+        ".plan-poi-open-dialog-btn",
+      );
+      if (planPoiOpenBtn) {
+        e.preventDefault();
+        if (readOnlyRef.current) return;
+        const activeInfo = activePlaceInfoRef.current;
+        if (!activeInfo) return;
+        openInfoWindowRef.current?.close();
+        openInfoWindowRef.current = null;
+        setAddPoiDialog({
+          open: true,
+          doc: activeInfo.doc,
+          categoryId: activeCategoryRef.current,
+        });
+        return;
+      }
+
       const stateBtn = (e.target as HTMLElement).closest(".place-review-state-btn");
       if (stateBtn) {
         e.preventDefault();
+        if (readOnlyRef.current) return;
         const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
         if (!root) return;
         if ((root as HTMLElement).dataset.saving === "true") return;
@@ -1358,6 +1494,10 @@ export default function KakaoMap({
               activeInfo.doc,
               syntheticReview as PlaceReviewRow,
               activeInfo.tooltipMeta,
+              {
+                showAddPoiButton:
+                  !readOnlyRef.current && Boolean(activePlanIdRef.current),
+              },
             ),
           );
         }
@@ -1367,6 +1507,7 @@ export default function KakaoMap({
       const saveBtn = (e.target as HTMLElement).closest(".place-review-save");
       if (!saveBtn) return;
       e.preventDefault();
+      if (readOnlyRef.current) return;
       const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
       if (!root) return;
       const el = root as HTMLElement;
@@ -1475,9 +1616,29 @@ export default function KakaoMap({
   useEffect(() => {
     const map = mapInstanceRef.current as KakaoMapInstance | null;
     const maps = window.kakao?.maps;
-    if (!map || !maps) return;
-    renderStarredMarkers(map, maps, starredDocs);
-  }, [starredDocs, renderStarredMarkers]);
+    if (!map || !maps || !mapReady) return;
+    if (showPreferredPlaces) renderStarredMarkers(map, maps, starredDocs);
+    else clearStarredMarkers();
+  }, [
+    mapReady,
+    starredDocs,
+    showPreferredPlaces,
+    renderStarredMarkers,
+    clearStarredMarkers,
+  ]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current as KakaoMapInstance | null;
+    const maps = window.kakao?.maps;
+    if (!map || !maps || !mapReady || !route) return;
+    renderMergedPoiMarkers(map, maps, route, planPois, showPoiOnMap);
+  }, [
+    mapReady,
+    route,
+    planPois,
+    showPoiOnMap,
+    renderMergedPoiMarkers,
+  ]);
 
   useEffect(() => {
     const map = mapInstanceRef.current as KakaoMapInstance | null;
@@ -1506,7 +1667,18 @@ export default function KakaoMap({
       } else {
         clearAccommodationMarkers();
       }
-      renderStarredMarkers(drawMap, drawMaps, starredDocs);
+      if (showPreferredPlaces) {
+        renderStarredMarkers(drawMap, drawMaps, starredDocs);
+      } else {
+        clearStarredMarkers();
+      }
+      renderMergedPoiMarkers(
+        drawMap,
+        drawMaps,
+        route ?? undefined,
+        planPois,
+        showPoiOnMap,
+      );
     };
   }, [
     showNearbyPlaces,
@@ -1516,7 +1688,13 @@ export default function KakaoMap({
     renderNearbyMarkers,
     clearAccommodationMarkers,
     starredDocs,
+    showPreferredPlaces,
     renderStarredMarkers,
+    clearStarredMarkers,
+    renderMergedPoiMarkers,
+    route,
+    planPois,
+    showPoiOnMap,
   ]);
 
   const computeBounds = useCallback(() => {
@@ -1601,6 +1779,7 @@ export default function KakaoMap({
 
   const handleNearbyCategoryClick = useCallback(
     (categoryId: NearbyCategoryId) => {
+      if (readOnly) return;
       if (isNearbySearchDisabled) return;
       const shouldReload = !isNearbyCacheUsable(categoryId);
       if (categoryId === activeCategory) {
@@ -1615,6 +1794,7 @@ export default function KakaoMap({
       if (shouldReload) void handleReloadNearby(categoryId);
     },
     [
+      readOnly,
       isNearbySearchDisabled,
       isNearbyCacheUsable,
       activeCategory,
@@ -1710,8 +1890,13 @@ export default function KakaoMap({
   const btnClass =
     "w-9 h-9 flex items-center justify-center bg-white border border-gray-300 rounded shadow hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white";
 
+  const toggleBtnBase =
+    "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border px-2 text-xs font-medium shadow-sm";
+  const toggleBtnOn = `${toggleBtnBase} border-blue-500 bg-blue-500 text-white font-semibold hover:bg-blue-600`;
+  const toggleBtnOff = `${toggleBtnBase} border-gray-200 bg-white text-gray-600 hover:bg-gray-50`;
+
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden">
       <Script
         src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`}
         onLoad={handleScriptLoad}
@@ -1724,7 +1909,26 @@ export default function KakaoMap({
           className="absolute top-4 right-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
         >
           <div className="flex max-w-[calc(100vw-2rem)] flex-nowrap items-center justify-end gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {NEARBY_CATEGORIES.map((cat) => {
+            <button
+              type="button"
+              onClick={() => setShowPoiOnMap((v) => !v)}
+              className={showPoiOnMap ? toggleBtnOn : toggleBtnOff}
+              aria-pressed={showPoiOnMap}
+            >
+              POI 보기
+            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => setShowPreferredPlaces((v) => !v)}
+                className={showPreferredPlaces ? toggleBtnOn : toggleBtnOff}
+                aria-pressed={showPreferredPlaces}
+              >
+                선호 장소
+              </button>
+            )}
+            <span className="mx-0.5 h-5 w-px bg-gray-300" aria-hidden="true" />
+            {!readOnly && NEARBY_CATEGORIES.map((cat) => {
               const isActive = activeCategory === cat.id;
               const isLoading = loadingCategory === cat.id;
               return (
@@ -1764,7 +1968,7 @@ export default function KakaoMap({
               );
             })}
           </div>
-          {showSearchPopover && (
+          {showSearchPopover && !readOnly && (
             <div className="w-64 shrink-0 rounded border border-gray-200 bg-white p-3 shadow-lg">
               <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2">
                 <span className="text-sm font-semibold text-gray-800">
@@ -1876,6 +2080,25 @@ export default function KakaoMap({
           줌 레벨 {zoomLevel}
         </div>
       )}
+      {mapReady &&
+        addPoiDialog.open &&
+        addPoiDialog.doc &&
+        onCreatePlanPoi &&
+        !readOnly && (
+          <AddPlanPoiDialog
+            open={addPoiDialog.open}
+            onOpenChange={(open) =>
+              setAddPoiDialog((s) => ({ ...s, open }))
+            }
+            initialPlaceName={addPoiDialog.doc.place_name}
+            defaultCategoryId={addPoiDialog.categoryId}
+            kakaoPlaceId={addPoiDialog.doc.id}
+            lat={Number(addPoiDialog.doc.y)}
+            lng={Number(addPoiDialog.doc.x)}
+            hasActivePlan={Boolean(activePlanId)}
+            onCreate={onCreatePlanPoi}
+          />
+        )}
     </div>
   );
 }
