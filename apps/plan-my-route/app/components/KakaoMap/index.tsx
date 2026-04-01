@@ -1,19 +1,13 @@
 "use client";
 
-import {
-  Bed,
-  Coffee,
-  Expand,
-  Locate,
-  ShoppingCart,
-  Store,
-  UtensilsCrossed,
-  Warehouse,
-} from "lucide-react";
+import { Expand, Locate } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Stage } from "../types/plan";
-import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
+import type { Stage } from "../../types/plan";
+import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
+import type { NearbyCategoryId } from "./nearbyCategoryId";
+import { getNearbyCategoryMarkerImage } from "./nearbyCategoryMarkerImages";
+import { nearbyCategoryIcon } from "./nearbyCategoryToolbarIcons";
 
 export type ReviewState = "up2" | "up1" | "neutral" | "down";
 
@@ -438,14 +432,6 @@ function parseAccommodationFiltersFromStorage(
   }
 }
 
-type NearbyCategoryId =
-  | "restaurant"
-  | "cafe"
-  | "convenience"
-  | "mart"
-  | "bigMart"
-  | "accommodation";
-
 type NearbyCategoryConfig = {
   id: NearbyCategoryId;
   label: string;
@@ -460,8 +446,7 @@ function placeKindToCategory(kind: string): NearbyCategoryId {
   if (kind === "restaurant") return "restaurant";
   if (kind === "cafe") return "cafe";
   if (kind === "convenience") return "convenience";
-  if (kind === "mart") return "mart";
-  if (kind === "big_mart") return "bigMart";
+  if (kind === "mart" || kind === "big_mart") return "mart";
   return "accommodation";
 }
 
@@ -496,13 +481,6 @@ const NEARBY_CATEGORIES: NearbyCategoryConfig[] = [
     notePlaceholder: "메모",
   },
   {
-    id: "bigMart",
-    label: "대형마트",
-    categoryGroupCode: "MT1",
-    bookmarkPlaceKind: "big_mart",
-    notePlaceholder: "메모",
-  },
-  {
     id: "accommodation",
     label: "숙소",
     categoryGroupCode: "AD5",
@@ -516,7 +494,6 @@ type NearbyDocsState = {
   cafe: KakaoPlaceDoc[];
   convenience: KakaoPlaceDoc[];
   mart: KakaoPlaceDoc[];
-  bigMart: KakaoPlaceDoc[];
   accommodation: ClassifiedAccommodationDoc[];
 };
 
@@ -525,7 +502,6 @@ const EMPTY_NEARBY_DOCS = (): NearbyDocsState => ({
   cafe: [],
   convenience: [],
   mart: [],
-  bigMart: [],
   accommodation: [],
 });
 
@@ -667,75 +643,6 @@ function unlockPlaceReviewTooltip(
   }
 }
 
-const ACCOMMODATION_MARKER_SIZE = 24;
-
-function getAccommodationMarkerImage(
-  maps: KakaoMapsAPI,
-  reviewState: ReviewState,
-): unknown {
-  const size = ACCOMMODATION_MARKER_SIZE;
-  const r = size / 2;
-  const fill = REVIEW_STATE_COLORS[reviewState];
-  const bed =
-    '<rect x="9" y="8" width="6" height="2.5" rx="0.5" fill="#fff"/>' +
-    '<rect x="7" y="10.5" width="10" height="5" rx="0.5" fill="#fff"/>' +
-    '<rect x="8" y="11" width="3" height="2" rx="0.3" fill="#fff"/>' +
-    '<rect x="13" y="11" width="3" height="2" rx="0.3" fill="#fff"/>';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${r}" cy="${r}" r="${r - 1}" fill="${fill}" stroke="#fff" stroke-width="1.5"/>${bed}</svg>`;
-  const src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  return new maps.MarkerImage(src, new maps.Size(size, size), {
-    offset: new maps.Point(r, r),
-  });
-}
-
-function getNearbyCategoryMarkerImage(
-  maps: KakaoMapsAPI,
-  reviewState: ReviewState,
-  categoryId: NearbyCategoryId,
-): unknown {
-  if (categoryId === "accommodation") {
-    return getAccommodationMarkerImage(maps, reviewState);
-  }
-  const size = ACCOMMODATION_MARKER_SIZE;
-  const r = size / 2;
-  const fill = REVIEW_STATE_COLORS[reviewState];
-  const icon =
-    categoryId === "restaurant"
-      ? '<path fill="#fff" d="M8 4.5h1.2v7H8v-7zm3.8 0H13v7h-1.2v-7zM7.5 13h6v1.2h-6V13z"/>'
-      : categoryId === "cafe"
-        ? '<path fill="none" stroke="#fff" stroke-width="1.2" d="M9 6.5h4.5v3.5a2.25 2.25 0 01-4.5 0V6.5zm.8 7.5h3"/>'
-        : categoryId === "convenience"
-          ? '<text x="12" y="15.5" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">24</text>'
-          : categoryId === "mart"
-            ? '<path fill="#fff" d="M6 6h1.2l.3 1.5h8.2l.9-1.5H17l-1.2 2H7.8L6 6zm1.5 3.5h9l-.8 6.5H8.5l-1-6.5z"/>'
-            : categoryId === "bigMart"
-              ? '<path fill="#fff" d="M5 8h14v9H5V8zm1.5 1.5v6h4.5v-6H6.5zm6 0v6h4.5v-6h-4.5zM8 5.5h8v1.5H8V5.5z"/>'
-              : '<text x="12" y="15.5" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">24</text>';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${fill}" stroke="#fff" stroke-width="1.5"/>${icon}</svg>`;
-  const src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  return new maps.MarkerImage(src, new maps.Size(size, size), {
-    offset: new maps.Point(r, r),
-  });
-}
-
-function nearbyCategoryIcon(categoryId: NearbyCategoryId) {
-  const className = "size-4 shrink-0";
-  switch (categoryId) {
-    case "restaurant":
-      return <UtensilsCrossed className={className} aria-hidden />;
-    case "cafe":
-      return <Coffee className={className} aria-hidden />;
-    case "convenience":
-      return <Store className={className} aria-hidden />;
-    case "mart":
-      return <ShoppingCart className={className} aria-hidden />;
-    case "bigMart":
-      return <Warehouse className={className} aria-hidden />;
-    default:
-      return <Bed className={className} aria-hidden />;
-  }
-}
-
 // ── Props ─────────────────────────────────────────────────────────
 const HIGHLIGHT_MARKER_SIZE = 16;
 const HIGHLIGHT_MARKER_COLOR = "#f97316";
@@ -773,7 +680,6 @@ const NEARBY_CATEGORY_IDS: NearbyCategoryId[] = [
   "cafe",
   "convenience",
   "mart",
-  "bigMart",
   "accommodation",
 ];
 
@@ -789,7 +695,6 @@ const EMPTY_NEARBY_CACHE_META = (): NearbyCacheMetaState => ({
   cafe: { fetchedAt: null, isInvalidated: true },
   convenience: { fetchedAt: null, isInvalidated: true },
   mart: { fetchedAt: null, isInvalidated: true },
-  bigMart: { fetchedAt: null, isInvalidated: true },
   accommodation: { fetchedAt: null, isInvalidated: true },
 });
 
@@ -1145,7 +1050,11 @@ export default function KakaoMap({
           map: map as never,
           position: new maps.LatLng(Number(doc.y), Number(doc.x)),
           title: doc.place_name,
-          image: getNearbyCategoryMarkerImage(maps, state, categoryId),
+          image: getNearbyCategoryMarkerImage(
+            maps,
+            REVIEW_STATE_COLORS[state],
+            categoryId,
+          ),
         });
         nextMarkers.push(marker);
 
@@ -1193,7 +1102,11 @@ export default function KakaoMap({
           map: map as never,
           position: new maps.LatLng(Number(doc.y), Number(doc.x)),
           title: doc.place_name,
-          image: getNearbyCategoryMarkerImage(maps, state, categoryId),
+          image: getNearbyCategoryMarkerImage(
+            maps,
+            REVIEW_STATE_COLORS[state],
+            categoryId,
+          ),
         });
         nextMarkers.push(marker);
 
