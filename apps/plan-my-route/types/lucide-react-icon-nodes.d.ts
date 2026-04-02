@@ -42,3 +42,13 @@ declare module "lucide-react/dist/esm/icons/square-check-big.js" {
   import type { IconNode } from "lucide-react";
   export const __iconNode: IconNode;
 }
+
+declare module "lucide-react/dist/esm/icons/play.js" {
+  import type { IconNode } from "lucide-react";
+  export const __iconNode: IconNode;
+}
+
+declare module "lucide-react/dist/esm/icons/square.js" {
+  import type { IconNode } from "lucide-react";
+  export const __iconNode: IconNode;
+}

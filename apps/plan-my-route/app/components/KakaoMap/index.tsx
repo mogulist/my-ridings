@@ -10,8 +10,13 @@ import { AddPlanPoiDialog } from "./AddPlanPoiDialog";
 import type { NearbyCategoryId } from "./nearbyCategoryId";
 import { getNearbyCategoryMarkerImage } from "./nearbyCategoryMarkerImages";
 import { nearbyCategoryIcon } from "./nearbyCategoryToolbarIcons";
-import { lucideIconNodeForPlanPoiType, lucideIconNodeForRwgpsPoi } from "./poiMarkerLucideNodes";
-import { getPoiRoundedRectMarkerImage } from "./poiRoundedMarkerImage";
+import {
+	lucideIconNodeForPlanPoiType,
+	lucideIconNodeForRwgpsPoi,
+	ROUTE_FINISH_MARKER_LUCIDE_ICON_NODE,
+	ROUTE_START_MARKER_LUCIDE_ICON_NODE,
+} from "./poiMarkerLucideNodes";
+import { getPoiRoundedRectMarkerImage, POI_ROUNDED_MARKER_FILL } from "./poiRoundedMarkerImage";
 
 export type ReviewState = "up2" | "up1" | "neutral" | "down";
 
@@ -624,6 +629,8 @@ const HIGHLIGHT_MARKER_COLOR = "#f97316";
 const PLACE_MARKER_Z_INDEX = 50;
 /** RWGPS·플랜 POI — 주변/선호(북마크) 원형 마커보다 위 */
 const POI_MERGED_MARKER_Z_INDEX = 60;
+/** START/FINISH — 종료 지점에 겹치는 CP(merged POI)보다 위에 두어 종료 마커가 가려지지 않게 함 */
+const ROUTE_ENDPOINT_MARKER_Z_INDEX = 70;
 /** 마커·하이라이트보다 위에 인포윈도우(툴팁)가 오도록 함 */
 const INFO_WINDOW_Z_INDEX = 100;
 const ZOOM_LIMIT_ACCOMMODATION = 7;
@@ -910,14 +917,26 @@ export default function KakaoMap({
 				map,
 				position: firstPos,
 				title: "START",
+				image: getPoiRoundedRectMarkerImage(
+					kakaoMaps,
+					ROUTE_START_MARKER_LUCIDE_ICON_NODE,
+					POI_ROUNDED_MARKER_FILL,
+					"fill",
+				),
 			});
-			startMarker.setZIndex?.(PLACE_MARKER_Z_INDEX);
+			startMarker.setZIndex?.(ROUTE_ENDPOINT_MARKER_Z_INDEX);
 			const finishMarker = new kakaoMaps.Marker({
 				map,
 				position: lastPos,
 				title: "FINISH",
+				image: getPoiRoundedRectMarkerImage(
+					kakaoMaps,
+					ROUTE_FINISH_MARKER_LUCIDE_ICON_NODE,
+					POI_ROUNDED_MARKER_FILL,
+					"fill",
+				),
 			});
-			finishMarker.setZIndex?.(PLACE_MARKER_Z_INDEX);
+			finishMarker.setZIndex?.(ROUTE_ENDPOINT_MARKER_Z_INDEX);
 
 			mapInstanceRef.current = map;
 			lastRouteIdRef.current = routeData.id;
