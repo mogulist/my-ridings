@@ -32,3 +32,13 @@ declare module "lucide-react/dist/esm/icons/utensils.js" {
   import type { IconNode } from "lucide-react";
   export const __iconNode: IconNode;
 }
+
+declare module "lucide-react/dist/esm/icons/map-pin.js" {
+  import type { IconNode } from "lucide-react";
+  export const __iconNode: IconNode;
+}
+
+declare module "lucide-react/dist/esm/icons/square-check-big.js" {
+  import type { IconNode } from "lucide-react";
+  export const __iconNode: IconNode;
+}
