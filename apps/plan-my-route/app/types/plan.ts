@@ -1,4 +1,4 @@
-// ── Stage 색상 (3색 순환) ──────────────────────────────────────────
+// ── Stage 색상 (2색 순환, emerald 제거 — 지형 green과 구분) ─────────
 export interface StageColor {
 	stroke: string;
 	fill: string;
@@ -6,7 +6,6 @@ export interface StageColor {
 
 export const STAGE_COLORS: readonly StageColor[] = [
 	{ stroke: "#3B82F6", fill: "#93C5FD" }, // Blue
-	{ stroke: "#10B981", fill: "#6EE7B7" }, // Emerald
 	{ stroke: "#8B5CF6", fill: "#C4B5FD" }, // Violet
 ] as const;
 

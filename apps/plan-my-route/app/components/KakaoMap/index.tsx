@@ -3,7 +3,13 @@
 import { Expand, Locate } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import type { PlanPoiRow } from "@/app/types/planPoi";
+import {
+	normalizeReviewState,
+	type PlaceReviewRow,
+	type ReviewState,
+} from "@/app/types/placeReview";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
 import { AddPlanPoiDialog } from "./AddPlanPoiDialog";
@@ -18,25 +24,7 @@ import {
 } from "./poiMarkerLucideNodes";
 import { getPoiRoundedRectMarkerImage, POI_ROUNDED_MARKER_FILL } from "./poiRoundedMarkerImage";
 
-export type ReviewState = "up2" | "up1" | "neutral" | "down";
-
-export type PlaceReviewRow = {
-	id: string;
-	place_id: string;
-	place_name: string;
-	place_url: string | null;
-	address_name: string | null;
-	lat: number | null;
-	lng: number | null;
-	place_kind: string;
-	review_state: ReviewState;
-	note: string | null;
-	route_id: string | null;
-	plan_id: string | null;
-	stage_id: string | null;
-	created_at: string;
-	updated_at: string;
-};
+export type { PlaceReviewRow, ReviewState };
 
 export type ReviewContext = {
 	routeId: string;
@@ -477,10 +465,9 @@ const EMPTY_NEARBY_DOCS = (): NearbyDocsState => ({
 });
 
 const REVIEW_STATE_COLORS: Record<ReviewState, string> = {
-	up2: "#16a34a",
-	up1: "#2563eb",
-	neutral: "#6b7280",
-	down: "#d1d5db",
+	interested: MAP_VISUAL_PALETTE.reviewInterested,
+	neutral: MAP_VISUAL_PALETTE.reviewNeutral,
+	dismissed: MAP_VISUAL_PALETTE.reviewDismissed,
 };
 
 function buildNaverMapUrls(
@@ -526,7 +513,7 @@ function buildAccommodationTooltipHtml(
 	const naverLink =
 		naverUrls &&
 		`<a href="${naverUrls.webUrl.replace(/"/g, "&quot;")}" class="open-naver-map" target="_blank" rel="noopener noreferrer" data-naver-web-url="${naverUrls.webUrl.replace(/"/g, "&quot;")}" data-naver-app-url="${naverUrls.appSchemeUrl.replace(/"/g, "&quot;")}" style="${badgeStyle}">네이버맵</a>`;
-	const state = review?.review_state ?? "neutral";
+	const state = normalizeReviewState(review?.review_state ?? "neutral");
 	const note = review?.note ?? "";
 	const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
 	const linksBlock =
@@ -543,10 +530,9 @@ function buildAccommodationTooltipHtml(
   ${addPoiBlock}
   <div style="margin-bottom:6px;font-size:11px;color:#6b7280;">평가</div>
   <div style="display:flex;gap:4px;margin-bottom:8px;">
-    <button type="button" class="place-review-state-btn" data-state="up2" aria-label="확정" title="확정" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "up2" ? REVIEW_STATE_COLORS.up2 : "#fff"};color:${state === "up2" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👍👍</button>
-    <button type="button" class="place-review-state-btn" data-state="up1" aria-label="괜찮음" title="괜찮음" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "up1" ? REVIEW_STATE_COLORS.up1 : "#fff"};color:${state === "up1" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👍</button>
+    <button type="button" class="place-review-state-btn" data-state="interested" aria-label="관심" title="관심" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "interested" ? REVIEW_STATE_COLORS.interested : "#fff"};color:${state === "interested" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👍</button>
     <button type="button" class="place-review-state-btn" data-state="neutral" aria-label="미평가" title="미평가" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "neutral" ? REVIEW_STATE_COLORS.neutral : "#fff"};color:${state === "neutral" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">○</button>
-    <button type="button" class="place-review-state-btn" data-state="down" aria-label="제외" title="제외" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "down" ? REVIEW_STATE_COLORS.down : "#fff"};color:${state === "down" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👎</button>
+    <button type="button" class="place-review-state-btn" data-state="dismissed" aria-label="비선호" title="비선호" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;background:${state === "dismissed" ? REVIEW_STATE_COLORS.dismissed : "#fff"};color:${state === "dismissed" ? "#fff" : "#374151"};cursor:pointer;font-size:12px;">👎</button>
   </div>
   <div style="margin-bottom:4px;font-size:11px;color:#6b7280;">메모</div>
   <textarea class="place-review-note" rows="2" placeholder="${esc(notePlaceholder)}" style="width:100%;padding:6px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box;">${esc(note)}</textarea>
@@ -1012,7 +998,12 @@ export default function KakaoMap({
 		if (!res.ok) return {};
 		const data = (await res.json()) as PlaceReviewRow[];
 		const map: Record<string, PlaceReviewRow> = {};
-		for (const row of data) map[row.place_id] = row;
+		for (const row of data) {
+			map[row.place_id] = {
+				...row,
+				review_state: normalizeReviewState(row.review_state),
+			};
+		}
 		setPlaceReviewsMap(map);
 		return map;
 	}, []);
@@ -1121,7 +1112,7 @@ export default function KakaoMap({
 			clearStarredMarkers();
 			const nextMarkers: KakaoMarker[] = [];
 			for (const { doc, categoryId, review } of items) {
-				const state = review.review_state as ReviewState;
+				const state = normalizeReviewState(review.review_state);
 				const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
 				const tooltipMeta = cfg
 					? {
@@ -1182,7 +1173,9 @@ export default function KakaoMap({
 			clearAccommodationMarkers();
 			const nextMarkers: KakaoMarker[] = [];
 			for (const doc of docs) {
-				const state = (reviewsMap[doc.id]?.review_state ?? "neutral") as ReviewState;
+				const state = normalizeReviewState(
+					reviewsMap[doc.id]?.review_state ?? "neutral",
+				);
 				const marker = new maps.Marker({
 					map: map as never,
 					position: new maps.LatLng(Number(doc.y), Number(doc.x)),
@@ -1236,7 +1229,7 @@ export default function KakaoMap({
 			review: PlaceReviewRow;
 		}[] = [];
 		for (const review of Object.values(placeReviewsMap)) {
-			if (review.review_state !== "up1" && review.review_state !== "up2") continue;
+			if (normalizeReviewState(review.review_state) !== "interested") continue;
 			if (review.lat == null || review.lng == null) continue;
 			const categoryId = placeKindToCategory(review.place_kind);
 			const doc: KakaoPlaceDoc = {
@@ -1365,11 +1358,15 @@ export default function KakaoMap({
 	}, [showNearbyPlaces, clearAccommodationMarkers]);
 
 	onReviewChangeRef.current = (placeId: string, review: PlaceReviewRow) => {
-		setPlaceReviewsMap((prev) => ({ ...prev, [placeId]: review }));
+		const normalized: PlaceReviewRow = {
+			...review,
+			review_state: normalizeReviewState(review.review_state),
+		};
+		setPlaceReviewsMap((prev) => ({ ...prev, [placeId]: normalized }));
 		const activeInfo = activePlaceInfoRef.current;
 		if (activeInfo && activeInfo.doc.id === placeId) {
 			activeInfo.infoWindow.setContent?.(
-				buildAccommodationTooltipHtml(activeInfo.doc, review, activeInfo.tooltipMeta, {
+				buildAccommodationTooltipHtml(activeInfo.doc, normalized, activeInfo.tooltipMeta, {
 					showAddPoiButton: !readOnlyRef.current && Boolean(activePlanIdRef.current),
 				}),
 			);
@@ -1417,7 +1414,9 @@ export default function KakaoMap({
 				const root = (e.target as HTMLElement).closest(".accommodation-tooltip");
 				if (!root) return;
 				if ((root as HTMLElement).dataset.saving === "true") return;
-				const state = (stateBtn as HTMLButtonElement).dataset.state as ReviewState;
+				const state = normalizeReviewState(
+					(stateBtn as HTMLButtonElement).dataset.state ?? "neutral",
+				);
 				(root as HTMLElement).dataset.currentState = state;
 				const activeInfo = activePlaceInfoRef.current;
 				if (activeInfo) {
@@ -1455,7 +1454,7 @@ export default function KakaoMap({
 			const address = el.dataset.address;
 			const lat = el.dataset.lat;
 			const lng = el.dataset.lng;
-			const state = (el.dataset.currentState ?? "neutral") as ReviewState;
+			const state = normalizeReviewState(el.dataset.currentState ?? "neutral");
 			const noteEl = root.querySelector(".place-review-note") as HTMLTextAreaElement | null;
 			const note = noteEl?.value?.trim() ?? "";
 			if (!placeId || !placeName) return;

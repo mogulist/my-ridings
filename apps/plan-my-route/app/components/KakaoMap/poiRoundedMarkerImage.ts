@@ -1,5 +1,6 @@
 import type { IconNode } from "lucide-react";
 
+import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import { lucideIconNodeToSvgMarkup } from "./lucideIconNodeToSvgMarkup";
 import type { KakaoMapsMarkerImageApi } from "./nearbyCategoryMarkerImages";
 
@@ -9,8 +10,8 @@ const H = 26;
 const RX = 7;
 const GLYPH_SCALE = 0.6;
 
-/** POI·CP 마커 기본 채움색 — 팔레트는 후속 단계에서 조정 */
-export const POI_ROUNDED_MARKER_FILL = "#64748b";
+/** POI·시작·종료 둥근 마커 기본 채움색 */
+export const POI_ROUNDED_MARKER_FILL = MAP_VISUAL_PALETTE.poiMarkerFill;
 
 export type PoiRoundedMarkerGlyphMode = "stroke" | "fill";
 

@@ -1,8 +1,8 @@
 -- Migration: Add place_review table (generalized place evaluation)
--- Replaces bookmark conceptually; supports up2/up1/neutral/down + note + route/plan/stage context.
+-- Replaces bookmark conceptually; supports interested/neutral/dismissed + note + route/plan/stage context.
 -- Run after supabase-migration-bookmark.sql (or supabase-app-schema.sql which defines bookmark).
 
--- review_state: up2 = 확정, up1 = 괜찮음, neutral = 미평가/중립, down = 제외
+-- review_state: interested = 관심, neutral = 미평가, dismissed = 비선호
 CREATE TABLE IF NOT EXISTS public.place_review (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     user_id uuid NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.place_review (
     lng numeric,
     place_kind text NOT NULL DEFAULT 'accommodation',
     review_state text NOT NULL DEFAULT 'neutral'
-        CHECK (review_state IN ('up2', 'up1', 'neutral', 'down')),
+        CHECK (review_state IN ('interested', 'neutral', 'dismissed')),
     note text,
     route_id uuid,
     plan_id uuid,
@@ -73,7 +73,7 @@ SELECT
     lat,
     lng,
     'accommodation',
-    'up1',
+    'interested',
     created_at,
     created_at
 FROM public.bookmark

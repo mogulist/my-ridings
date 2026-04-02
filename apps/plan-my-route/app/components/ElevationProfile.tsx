@@ -12,6 +12,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
+import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 import {
@@ -425,7 +426,7 @@ function computeSegmentGainBetweenKm(
 }
 
 // ── CP 마커 라벨 (Recharts ReferenceLine label) ──────────────────
-const CP_COLOR = "#10b981";
+const CP_COLOR = MAP_VISUAL_PALETTE.elevationCpStroke;
 
 function CPMarkerLabel({
 	viewBox,

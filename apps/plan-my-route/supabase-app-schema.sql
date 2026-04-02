@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.bookmark (
 
 CREATE INDEX IF NOT EXISTS bookmark_user_id_idx ON public.bookmark (user_id);
 
--- 5. Place reviews (generalized place evaluation: up2/up1/neutral/down + note + route/plan/stage context)
+-- 5. Place reviews (interested/neutral/dismissed + note + route/plan/stage context)
 CREATE TABLE IF NOT EXISTS public.place_review (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     user_id uuid NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS public.place_review (
     lng numeric,
     place_kind text NOT NULL DEFAULT 'accommodation',
     review_state text NOT NULL DEFAULT 'neutral'
-        CHECK (review_state IN ('up2', 'up1', 'neutral', 'down')),
+        CHECK (review_state IN ('interested', 'neutral', 'dismissed')),
     note text,
     route_id uuid,
     plan_id uuid,
