@@ -11,6 +11,7 @@
 		"auth": "bun run src/auth.ts"
 	},
 	"dependencies": {
+		"@my-ridings/design-tokens": "workspace:*",
 		"@supabase/supabase-js": "^2.89.0",
 		"@tanstack/react-query": "^5.90.12",
 		"axios": "^1.6.0",
