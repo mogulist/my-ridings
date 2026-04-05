@@ -715,8 +715,8 @@ export default function KakaoMap({
 	const [zoomLevel, setZoomLevel] = useState<number | null>(null);
 	const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
 	const [loadingCategory, setLoadingCategory] = useState<NearbyCategoryId | null>(null);
-	const [activeCategory, setActiveCategory] = useState<NearbyCategoryId>("accommodation");
-	const activeCategoryRef = useRef<NearbyCategoryId>(activeCategory);
+	const [activeCategory, setActiveCategory] = useState<NearbyCategoryId | null>(null);
+	const activeCategoryRef = useRef<NearbyCategoryId | null>(activeCategory);
 	activeCategoryRef.current = activeCategory;
 	const [showSearchPopover, setShowSearchPopover] = useState(false);
 	const [accommodationFilters, setAccommodationFilters] = useState<AccommodationFilterState>(
@@ -1402,7 +1402,7 @@ export default function KakaoMap({
 				setAddPoiDialog({
 					open: true,
 					doc: activeInfo.doc,
-					categoryId: activeCategoryRef.current,
+					categoryId: activeCategoryRef.current ?? "accommodation",
 				});
 				return;
 			}
@@ -1538,6 +1538,7 @@ export default function KakaoMap({
 	}, [route?.id, invalidateAllNearbyCache]);
 
 	const visibleNearbyDocs = useMemo(() => {
+		if (activeCategory == null) return [];
 		if (activeCategory === "accommodation") {
 			return filterAccommodationDocuments(nearbyDocs.accommodation, accommodationFilters);
 		}
@@ -1563,13 +1564,13 @@ export default function KakaoMap({
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
 		const maps = window.kakao?.maps;
 		if (!map || !maps) return;
-		if (showNearbyPlaces) {
+		if (showNearbyPlaces && activeCategory != null) {
 			renderNearbyMarkers(map, maps, activeCategory, visibleNearbyDocs, placeReviewsMap);
 		} else {
 			clearAccommodationMarkers();
 		}
 		afterRouteDrawRef.current = (drawMap, drawMaps) => {
-			if (showNearbyPlaces) {
+			if (showNearbyPlaces && activeCategory != null) {
 				renderNearbyMarkers(drawMap, drawMaps, activeCategory, visibleNearbyDocs, placeReviewsMap);
 			} else {
 				clearAccommodationMarkers();
@@ -1831,7 +1832,8 @@ export default function KakaoMap({
 						>
 							<div className="flex max-w-[calc(100vw-2rem)] flex-nowrap items-center justify-end gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 								{NEARBY_CATEGORIES.map((cat) => {
-									const isActive = activeCategory === cat.id;
+									const isLayerVisible =
+										showNearbyPlaces && activeCategory != null && activeCategory === cat.id;
 									const isLoading = loadingCategory === cat.id;
 									return (
 										<button
@@ -1840,12 +1842,12 @@ export default function KakaoMap({
 											onClick={() => handleNearbyCategoryClick(cat.id)}
 											disabled={isNearbySearchDisabled}
 											className={
-												isActive
+												isLayerVisible
 													? "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-blue-500 bg-blue-500 px-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
 													: "inline-flex h-8 shrink-0 items-center gap-0.5 rounded border border-gray-200 bg-white px-2 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
 											}
 											aria-label={`${cat.label} 주변 탐색`}
-											aria-pressed={isActive}
+											aria-pressed={isLayerVisible}
 											title={
 												zoomLevel != null && zoomLevel > ZOOM_LIMIT_ACCOMMODATION
 													? "줌 레벨 7 이하에서만 사용 가능"
@@ -1855,13 +1857,13 @@ export default function KakaoMap({
 											{isLoading ? (
 												<span
 													className={
-														isActive
+														isLayerVisible
 															? "size-4 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent"
 															: "size-4 shrink-0 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
 													}
 												/>
 											) : (
-												<span className={isActive ? "text-white" : "text-gray-600"}>
+												<span className={isLayerVisible ? "text-white" : "text-gray-600"}>
 													{nearbyCategoryIcon(cat.id)}
 												</span>
 											)}
@@ -1870,7 +1872,7 @@ export default function KakaoMap({
 									);
 								})}
 							</div>
-							{showSearchPopover && !readOnly && (
+							{showSearchPopover && activeCategory != null && !readOnly && (
 								<div className="w-64 shrink-0 rounded border border-gray-200 bg-white p-3 shadow-lg">
 									<div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2">
 										<span className="text-sm font-semibold text-gray-800">
