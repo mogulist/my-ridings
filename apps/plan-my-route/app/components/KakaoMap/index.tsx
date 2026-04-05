@@ -511,8 +511,9 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 	const actionsHtml = showActions
 		? `<div style="margin-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:nowrap;"><button type="button" class="plan-poi-edit-btn" style="${btnStyle}">수정</button><button type="button" class="plan-poi-delete-btn" style="${btnStyle}">삭제</button></div>`
 		: "";
-	const inner = `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="box-sizing:border-box;margin:0;padding:10px 12px 12px;border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12);line-height:1.4;overflow:hidden;"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
-	return `<div class="plan-poi-tooltip-wrap" style="box-sizing:border-box;width:258px;max-width:258px;margin:0;padding:1px;">${inner}</div>`;
+	const rootStyle =
+		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
+	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
 }
 
 function buildAccommodationTooltipHtml(
@@ -1089,7 +1090,7 @@ export default function KakaoMap({
 							poi.poi_type_name,
 						)}</div>`
 					: "";
-				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);max-width:200px;line-height:1.4;">📍 ${esc(poi.name)}${typeLine}</div>`;
+				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;max-width:200px;line-height:1.4;box-sizing:border-box;">📍 ${esc(poi.name)}${typeLine}</div>`;
 				const infoWindow = new maps.InfoWindow({
 					content: infoContent,
 					removable: true,
