@@ -1,4 +1,8 @@
 export { Button, buttonVariants } from "./button";
+export { Field, FieldDescription, FieldGroup, FieldLabel } from "./field";
+export { Input, type InputProps } from "./input";
+export { Label } from "./label";
+export { Textarea, type TextareaProps } from "./textarea";
 export {
 	DropdownMenu,
 	DropdownMenuTrigger,

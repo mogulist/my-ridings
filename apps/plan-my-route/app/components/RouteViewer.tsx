@@ -383,6 +383,58 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [activePlanId],
   );
 
+  const handleUpdatePlanPoi = useCallback(
+    async (
+      poiId: string,
+      payload: { name: string; poi_type: string; memo: string | null },
+    ) => {
+      if (!activePlanId) return null;
+      const res = await fetch(`/api/plans/${activePlanId}/pois/${poiId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 401) {
+        alert("로그인 후 저장할 수 있습니다.");
+        return null;
+      }
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        alert(err.error ?? "POI 수정에 실패했습니다.");
+        return null;
+      }
+      const row = (await res.json()) as PlanPoiRow;
+      setPlanPois((prev) => prev.map((p) => (p.id === row.id ? row : p)));
+      return row;
+    },
+    [activePlanId],
+  );
+
+  const handleDeletePlanPoi = useCallback(
+    async (poiId: string) => {
+      if (!activePlanId) return false;
+      const res = await fetch(`/api/plans/${activePlanId}/pois/${poiId}`, {
+        method: "DELETE",
+      });
+      if (res.status === 401) {
+        alert("로그인 후 삭제할 수 있습니다.");
+        return false;
+      }
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        alert(err.error ?? "POI 삭제에 실패했습니다.");
+        return false;
+      }
+      setPlanPois((prev) => prev.filter((p) => p.id !== poiId));
+      return true;
+    },
+    [activePlanId],
+  );
+
   const routeSummary = useMemo(() => {
     if (!route || !dbRoute) return null;
     return {
@@ -895,6 +947,8 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               activePlanId={activePlanId}
               planPois={planPois}
               onCreatePlanPoi={handleCreatePlanPoi}
+              onUpdatePlanPoi={handleUpdatePlanPoi}
+              onDeletePlanPoi={handleDeletePlanPoi}
             />
           )}
         </section>
