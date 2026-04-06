@@ -5,6 +5,7 @@ import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import type { PlanPoiRow } from "@/app/types/planPoi";
+import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import {
 	normalizeReviewState,
 	type PlaceReviewRow,
@@ -17,6 +18,7 @@ import type { NearbyCategoryId } from "./nearbyCategoryId";
 import { getNearbyCategoryMarkerImage } from "./nearbyCategoryMarkerImages";
 import { nearbyCategoryIcon } from "./nearbyCategoryToolbarIcons";
 import {
+	lucideIconNodeForOfficialSummit,
 	lucideIconNodeForPlanPoiType,
 	lucideIconNodeForRwgpsPoi,
 	ROUTE_FINISH_MARKER_LUCIDE_ICON_NODE,
@@ -516,6 +518,29 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
 }
 
+function buildOfficialSummitInfoWindowHtml(
+	row: SummitCatalogRow,
+	showActions: boolean,
+): string {
+	const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
+	const titleStyle =
+		"font-size:13px;font-weight:700;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;";
+	const badgeStyle =
+		`margin-top:4px;font-size:11px;font-weight:600;color:${MAP_VISUAL_PALETTE.elevationCpStroke};`;
+	const elevationText =
+		row.elevation_m == null ? "고도 정보 없음" : `고도 ${Math.round(row.elevation_m)}m`;
+	const detailStyle =
+		"margin-top:6px;font-size:12px;color:#374151;line-height:1.45;white-space:pre-line;";
+	const btnStyle =
+		"padding:3px 10px;font-size:11px;border:1px solid #d1d5db;background:#fff;color:#6b7280;border-radius:4px;cursor:pointer;line-height:1.3;box-sizing:border-box;flex-shrink:0;";
+	const actionsHtml = showActions
+		? `<div style="margin-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:nowrap;"><button type="button" class="official-summit-delete-btn" style="${btnStyle}">삭제</button></div>`
+		: "";
+	const rootStyle =
+		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
+	return `<div class="official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
+}
+
 function buildAccommodationTooltipHtml(
 	doc: KakaoPlaceDoc,
 	review: PlaceReviewRow | null,
@@ -635,16 +660,26 @@ const HIGHLIGHT_MARKER_COLOR = "#f97316";
 const PLACE_MARKER_Z_INDEX = 50;
 /** RWGPS·플랜 POI — 주변/선호(북마크) 원형 마커보다 위 */
 const POI_MERGED_MARKER_Z_INDEX = 60;
+/** 공식 Summit — CP보다 아래에 표시 */
+const SUMMIT_MARKER_Z_INDEX = 55;
 /** START/FINISH — 종료 지점에 겹치는 CP(merged POI)보다 위에 두어 종료 마커가 가려지지 않게 함 */
 const ROUTE_ENDPOINT_MARKER_Z_INDEX = 70;
 /** 마커·하이라이트보다 위에 인포윈도우(툴팁)가 오도록 함 */
 const INFO_WINDOW_Z_INDEX = 100;
 const ZOOM_LIMIT_ACCOMMODATION = 7;
+const ZOOM_LIMIT_SUMMIT = 10;
 const NEARBY_SEARCH_BUFFER_KM = 2;
 
-function highlightCircleMarkerHtml(size: number, clickable: boolean): string {
+function highlightCircleMarkerHtml(
+	size: number,
+	clickable: boolean,
+	elevationLabel: string | null = null,
+): string {
 	const cursor = clickable ? "cursor:pointer;" : "";
-	return `<div class="highlight-marker-circle" style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);${cursor}"></div>`;
+	const badge = elevationLabel
+		? `<div style="position:absolute;left:50%;transform:translateX(-50%);bottom:${size + 8}px;padding:2px 6px;border-radius:9999px;background:rgba(17,24,39,0.92);color:#fff;font-size:11px;font-weight:600;line-height:1.2;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.25);">${elevationLabel}</div>`
+		: "";
+	return `<div style="position:relative;">${badge}<div class="highlight-marker-circle" style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);${cursor}"></div></div>`;
 }
 
 interface KakaoMapProps {
@@ -666,6 +701,14 @@ interface KakaoMapProps {
 	/** 활성 플랜 (POI 저장·표시) */
 	activePlanId?: string | null;
 	planPois?: PlanPoiRow[];
+	officialSummits?: SummitCatalogRow[];
+	onCreateOfficialSummit?: (payload: {
+		name: string;
+		lat: number;
+		lng: number;
+		elevation_m: number | null;
+	}) => Promise<SummitCatalogRow | null>;
+	onDeleteOfficialSummit?: (summitId: string) => Promise<boolean>;
 	onCreatePlanPoi?: (payload: {
 		kakao_place_id: string | null;
 		name: string;
@@ -723,6 +766,9 @@ export default function KakaoMap({
 	reviewContext = { routeId: "", planId: null, stageId: null },
 	activePlanId = null,
 	planPois = [],
+	officialSummits = [],
+	onCreateOfficialSummit,
+	onDeleteOfficialSummit,
 	onCreatePlanPoi,
 	onUpdatePlanPoi,
 	onDeletePlanPoi,
@@ -759,6 +805,7 @@ export default function KakaoMap({
 	const mergedPoiMarkersRef = useRef<KakaoMarker[]>([]);
 	const [showPoiOnMap, setShowPoiOnMap] = useState(true);
 	const [showPreferredPlaces, setShowPreferredPlaces] = useState(false);
+	const [isSummitAddMode, setIsSummitAddMode] = useState(false);
 	const [addPoiDialog, setAddPoiDialog] = useState<{
 		open: boolean;
 		doc: KakaoPlaceDoc | null;
@@ -790,6 +837,12 @@ export default function KakaoMap({
 	planPoisRef.current = planPois;
 	const onDeletePlanPoiRef = useRef(onDeletePlanPoi);
 	onDeletePlanPoiRef.current = onDeletePlanPoi;
+	const onCreateOfficialSummitRef = useRef(onCreateOfficialSummit);
+	onCreateOfficialSummitRef.current = onCreateOfficialSummit;
+	const onDeleteOfficialSummitRef = useRef(onDeleteOfficialSummit);
+	onDeleteOfficialSummitRef.current = onDeleteOfficialSummit;
+	const isSummitAddModeRef = useRef(isSummitAddMode);
+	isSummitAddModeRef.current = isSummitAddMode;
 
 	const tooltipAddPoiOptions = useMemo(
 		() => ({ showAddPoiButton: !readOnly && Boolean(activePlanId) }),
@@ -814,6 +867,49 @@ export default function KakaoMap({
 			return shouldUpdate ? next : prev;
 		});
 	}, []);
+
+	const promptAndCreateOfficialSummit = useCallback(
+		async (lat: number, lng: number, points: TrackPoint[]) => {
+			const createFn = onCreateOfficialSummitRef.current;
+			if (!createFn) return;
+
+			const nearestIdx = findNearestIndexByLatLng(points, lat, lng);
+			const nearestTrackPoint = nearestIdx >= 0 ? points[nearestIdx] : null;
+			const defaultElevation =
+				nearestTrackPoint?.e != null && Number.isFinite(nearestTrackPoint.e)
+					? Math.round(nearestTrackPoint.e)
+					: null;
+
+			const nameInput = window.prompt("공식 Summit 이름을 입력해 주세요.");
+			const name = nameInput?.trim();
+			if (!name) return;
+
+			const elevationInput = window.prompt(
+				"고도(m)를 입력해 주세요. 비워두면 자동값을 사용합니다.",
+				defaultElevation == null ? "" : String(defaultElevation),
+			);
+			if (elevationInput == null) return;
+			const trimmedElevation = elevationInput.trim();
+			const elevationM =
+				trimmedElevation === ""
+					? defaultElevation
+					: Number.isFinite(Number(trimmedElevation))
+						? Math.round(Number(trimmedElevation))
+						: NaN;
+			if (Number.isNaN(elevationM)) {
+				alert("고도는 숫자로 입력해 주세요.");
+				return;
+			}
+
+			await createFn({
+				name,
+				lat,
+				lng,
+				elevation_m: elevationM ?? null,
+			});
+		},
+		[],
+	);
 
 	const drawRoute = useCallback(
 		(kakaoMaps: KakaoMapsAPI, routeData: RideWithGPSRoute) => {
@@ -987,6 +1083,15 @@ export default function KakaoMap({
 					const lng = ev.latLng.getLng();
 					const idx = findNearestIndexByLatLng(points, lat, lng);
 					onPinRef.current?.(idx);
+					if (
+						!readOnlyRef.current &&
+						isSummitAddModeRef.current &&
+						onCreateOfficialSummitRef.current
+					) {
+						isSummitAddModeRef.current = false;
+						setIsSummitAddMode(false);
+						void promptAndCreateOfficialSummit(lat, lng, points);
+					}
 				};
 				kakaoMaps.event.addListener(map, "click", clickCb);
 			}
@@ -1003,7 +1108,12 @@ export default function KakaoMap({
 				invalidateAllNearbyCache();
 			});
 		},
-		[stages, activeStageId, invalidateAllNearbyCache],
+		[
+			stages,
+			activeStageId,
+			invalidateAllNearbyCache,
+			promptAndCreateOfficialSummit,
+		],
 	);
 
 	const handleScriptLoad = useCallback(() => {
@@ -1069,6 +1179,8 @@ export default function KakaoMap({
 			maps: KakaoMapsAPI,
 			routeData: RideWithGPSRoute | null | undefined,
 			rows: PlanPoiRow[],
+			summitRows: SummitCatalogRow[],
+			showOfficialSummits: boolean,
 			visible: boolean,
 			readOnlyPoiActions: boolean,
 		) => {
@@ -1126,6 +1238,37 @@ export default function KakaoMap({
 					openInfoWindowRef.current = infoWindow;
 				});
 				nextMarkers.push(marker);
+			}
+			if (showOfficialSummits) {
+				for (const summit of summitRows) {
+					const pos = new maps.LatLng(summit.lat, summit.lng);
+					const marker = new maps.Marker({
+						map: map as never,
+						position: pos,
+						title: summit.name,
+						image: getPoiRoundedRectMarkerImage(
+							maps,
+							lucideIconNodeForOfficialSummit(),
+						MAP_VISUAL_PALETTE.elevationCpStroke,
+						"stroke",
+						0.82,
+						1.8,
+						),
+					});
+					marker.setZIndex?.(SUMMIT_MARKER_Z_INDEX);
+					const infoWindow = new maps.InfoWindow({
+						content: buildOfficialSummitInfoWindowHtml(summit, !readOnlyPoiActions),
+						removable: true,
+						zIndex: INFO_WINDOW_Z_INDEX,
+					});
+					maps.event.addListener(marker, "click", () => {
+						if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+						infoWindow.open(map, marker);
+						infoWindow.setZIndex?.(INFO_WINDOW_Z_INDEX);
+						openInfoWindowRef.current = infoWindow;
+					});
+					nextMarkers.push(marker);
+				}
 			}
 			mergedPoiMarkersRef.current = nextMarkers;
 		},
@@ -1475,6 +1618,27 @@ export default function KakaoMap({
 				return;
 			}
 
+			const summitDeleteBtn = (e.target as HTMLElement).closest(".official-summit-delete-btn");
+			if (summitDeleteBtn) {
+				e.preventDefault();
+				if (readOnlyRef.current) return;
+				const root = (e.target as HTMLElement).closest(".official-summit-tooltip");
+				if (!root) return;
+				const summitId = (root as HTMLElement).dataset.summitId;
+				if (!summitId) return;
+				if (!window.confirm("이 Summit을 삭제할까요?")) return;
+				void (async () => {
+					const del = onDeleteOfficialSummitRef.current;
+					if (!del) return;
+					const ok = await del(summitId);
+					if (ok) {
+						openInfoWindowRef.current?.close();
+						openInfoWindowRef.current = null;
+					}
+				})();
+				return;
+			}
+
 			const stateBtn = (e.target as HTMLElement).closest(".place-review-state-btn");
 			if (stateBtn) {
 				e.preventDefault();
@@ -1625,8 +1789,28 @@ export default function KakaoMap({
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
 		const maps = window.kakao?.maps;
 		if (!map || !maps || !mapReady || !route) return;
-		renderMergedPoiMarkers(map, maps, route, planPois, showPoiOnMap, readOnly);
-	}, [mapReady, route, planPois, showPoiOnMap, readOnly, renderMergedPoiMarkers]);
+		const showOfficialSummitsOnMap =
+			zoomLevel != null && zoomLevel <= ZOOM_LIMIT_SUMMIT;
+		renderMergedPoiMarkers(
+			map,
+			maps,
+			route,
+			planPois,
+			officialSummits,
+			showOfficialSummitsOnMap,
+			showPoiOnMap,
+			readOnly,
+		);
+	}, [
+		mapReady,
+		route,
+		planPois,
+		officialSummits,
+		zoomLevel,
+		showPoiOnMap,
+		readOnly,
+		renderMergedPoiMarkers,
+	]);
 
 	useEffect(() => {
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
@@ -1653,6 +1837,8 @@ export default function KakaoMap({
 				drawMaps,
 				route ?? undefined,
 				planPois,
+				officialSummits,
+				zoomLevel != null && zoomLevel <= ZOOM_LIMIT_SUMMIT,
 				showPoiOnMap,
 				readOnly,
 			);
@@ -1671,6 +1857,8 @@ export default function KakaoMap({
 		renderMergedPoiMarkers,
 		route,
 		planPois,
+		officialSummits,
+		zoomLevel,
 		showPoiOnMap,
 		readOnly,
 	]);
@@ -1803,6 +1991,15 @@ export default function KakaoMap({
 		});
 	}, []);
 
+	const summitModeHighlightElevationLabel = useMemo(() => {
+		if (!isSummitAddMode || !highlightPosition || trackPoints.length === 0) return null;
+		const [lat, lng] = highlightPosition;
+		const nearestIdx = findNearestIndexByLatLng(trackPoints, lat, lng);
+		const elevation = nearestIdx >= 0 ? trackPoints[nearestIdx]?.e : null;
+		if (elevation == null || !Number.isFinite(elevation)) return null;
+		return `${Math.round(elevation)}m`;
+	}, [isSummitAddMode, highlightPosition, trackPoints]);
+
 	// highlightPosition 변경 시 동그란 마커 overlay 업데이트
 	useEffect(() => {
 		const map = mapInstanceRef.current as { getDiv?: () => HTMLElement } | null;
@@ -1817,15 +2014,23 @@ export default function KakaoMap({
 
 		const [lat, lng] = highlightPosition;
 		const nextPosition = new maps.LatLng(lat, lng);
+		const content = highlightCircleMarkerHtml(
+			HIGHLIGHT_MARKER_SIZE,
+			true,
+			summitModeHighlightElevationLabel,
+		);
 
 		if (overlay) {
+			const overlayWithContent = overlay as KakaoCustomOverlay & {
+				setContent?: (content: string) => void;
+			};
 			overlay.setMap(map);
 			overlay.setPosition(nextPosition);
+			overlayWithContent.setContent?.(content);
 			overlay.setVisible(true);
 			return;
 		}
 
-		const content = highlightCircleMarkerHtml(HIGHLIGHT_MARKER_SIZE, true);
 		const newOverlay = new maps.CustomOverlay({
 			map: map as never,
 			position: nextPosition,
@@ -1850,7 +2055,7 @@ export default function KakaoMap({
 				onUnpinRef.current?.();
 			});
 		}
-	}, [highlightPosition]);
+	}, [highlightPosition, summitModeHighlightElevationLabel]);
 
 	const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 	if (!appKey) {
@@ -2042,8 +2247,24 @@ export default function KakaoMap({
 					</button>
 				</div>
 			)}
+			{mapReady && !readOnly && onCreateOfficialSummit && (
+				<div className="pointer-events-auto absolute bottom-4 left-4 z-10">
+					<button
+						type="button"
+						onClick={() => setIsSummitAddMode((prev) => !prev)}
+						className={isSummitAddMode ? toggleBtnOn : toggleBtnOff}
+						title={
+							isSummitAddMode
+								? "지도에서 Summit 위치를 클릭해 추가할 수 있습니다"
+								: "Summit 찍기 모드 시작"
+						}
+					>
+						{isSummitAddMode ? "Summit 찍는 중..." : "Summit 추가"}
+					</button>
+				</div>
+			)}
 			{mapReady && zoomLevel != null && (
-				<div className="absolute bottom-4 left-4 z-10 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 shadow dark:bg-zinc-800/90 dark:text-zinc-300">
+				<div className="absolute bottom-4 right-4 z-10 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 shadow dark:bg-zinc-800/90 dark:text-zinc-300">
 					줌 레벨 {zoomLevel}
 				</div>
 			)}

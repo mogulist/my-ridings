@@ -5,7 +5,8 @@ import { BookOpenIcon } from "lucide-react";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import type { PlanPoiRow } from "../types/planPoi";
-import { computeCPsOnRoute } from "./RouteViewer";
+import type { SummitCatalogRow } from "../types/summitCatalog";
+import { computeCPsOnRoute, computeSummitsOnRoute } from "./RouteViewer";
 import { getStageColor, type Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
 import { MemoReviewPane } from "./MemoReviewPane";
@@ -43,10 +44,43 @@ type PublicPlanViewerProps = {
   token: string;
 };
 
+function summitQueryStringForRoute(route: RideWithGPSRoute | null): string | null {
+  const trackPoints = route?.track_points ?? [];
+  if (trackPoints.length === 0) return null;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const point of trackPoints) {
+    if (point.y < minLat) minLat = point.y;
+    if (point.y > maxLat) maxLat = point.y;
+    if (point.x < minLng) minLng = point.x;
+    if (point.x > maxLng) maxLng = point.x;
+  }
+  if (
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLat) ||
+    !Number.isFinite(minLng) ||
+    !Number.isFinite(maxLng)
+  ) {
+    return null;
+  }
+  const buffer = 0.01;
+  const search = new URLSearchParams({
+    minLat: String(minLat - buffer),
+    maxLat: String(maxLat + buffer),
+    minLng: String(minLng - buffer),
+    maxLng: String(maxLng + buffer),
+    limit: "1200",
+  });
+  return search.toString();
+}
+
 export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
   const [publicPlan, setPublicPlan] = useState<PublicPlanResponse | null>(null);
   const [planPois, setPlanPois] = useState<PlanPoiRow[]>([]);
+  const [officialSummits, setOfficialSummits] = useState<SummitCatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
@@ -94,6 +128,26 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
       cancelled = true;
     };
   }, [token]);
+
+  useEffect(() => {
+    const query = summitQueryStringForRoute(route);
+    if (!query) {
+      setOfficialSummits([]);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/public/summits?${query}`)
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json() as Promise<SummitCatalogRow[]>;
+      })
+      .then((rows) => {
+        if (!cancelled) setOfficialSummits(rows ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route?.id, route?.track_points]);
 
   const stages = useMemo<Stage[]>(() => {
     const source = publicPlan?.stages ?? [];
@@ -164,6 +218,13 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         ? computeCPsOnRoute(route.points_of_interest, route.track_points)
         : [],
     [route],
+  );
+  const summitMarkers = useMemo(
+    () =>
+      route
+        ? computeSummitsOnRoute(officialSummits, route.track_points)
+        : [],
+    [route, officialSummits],
   );
 
   const handlePin = (index: number) => {
@@ -338,6 +399,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             reviewContext={{ routeId: "", planId: null, stageId: null }}
             activePlanId={publicPlan.plan.id}
             planPois={planPois}
+            officialSummits={officialSummits}
             readOnly
           />
         </section>
@@ -355,6 +417,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             onPin={handlePin}
             onUnpin={handleUnpin}
             cpMarkers={cpMarkers}
+            summitMarkers={summitMarkers}
           />
         </section>
       </div>

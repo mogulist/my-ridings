@@ -36,6 +36,14 @@ export type CPOnRoute = {
 	trackPointIndex: number;
 };
 
+export type SummitOnRoute = {
+	id: string;
+	name: string;
+	distanceKm: number;
+	elevation: number;
+	trackPointIndex: number;
+};
+
 interface ChartDatum {
 	distanceKm: number;
 	ele: number;
@@ -79,6 +87,8 @@ interface ElevationProfileProps {
 	elevationCalibratedThreshold?: number;
 	/** 경로상 CP(Control Point) 리스트 — 거리순 정렬 */
 	cpMarkers?: CPOnRoute[];
+	/** 경로상 Summit 리스트 — 거리순 정렬 */
+	summitMarkers?: SummitOnRoute[];
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -427,6 +437,8 @@ function computeSegmentGainBetweenKm(
 
 // ── CP 마커 라벨 (Recharts ReferenceLine label) ──────────────────
 const CP_COLOR = MAP_VISUAL_PALETTE.elevationCpStroke;
+const SUMMIT_COLOR = CP_COLOR;
+const CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE = 3;
 
 function CPMarkerLabel({
 	viewBox,
@@ -446,6 +458,41 @@ function CPMarkerLabel({
 			<polygon
 				points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`}
 				fill={CP_COLOR}
+			/>
+			{showName && (
+				<text
+					x={x}
+					y={y - 4}
+					textAnchor="middle"
+					fill="#71717a"
+					fontSize={11}
+					fontWeight={500}
+				>
+					{name}
+				</text>
+			)}
+		</g>
+	);
+}
+
+function SummitMarkerLabel({
+	viewBox,
+	showName,
+	name,
+}: {
+	viewBox?: { x?: number; y?: number };
+	showName: boolean;
+	name: string;
+}) {
+	if (viewBox?.x == null || viewBox?.y == null) return null;
+	const { x, y } = viewBox;
+	const triW = 4;
+	const triH = 6;
+	return (
+		<g>
+			<polygon
+				points={`${x - triW},${y + triH} ${x + triW},${y + triH} ${x},${y}`}
+				fill={SUMMIT_COLOR}
 			/>
 			{showName && (
 				<text
@@ -579,6 +626,7 @@ export function ElevationProfile({
 	onUnpin,
 	elevationCalibratedThreshold,
 	cpMarkers = [],
+	summitMarkers = [],
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -765,6 +813,22 @@ export function ElevationProfile({
 		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
 	);
 	const showCPNames = selectedDayNumber != null;
+	const showSummits = selectedDayNumber != null;
+	const visibleSummits = showSummits
+		? summitMarkers
+				.filter(
+					(summit) =>
+						summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd,
+				)
+				.filter(
+					(summit) =>
+						!visibleCPs.some(
+							(cp) =>
+								Math.abs(cp.trackPointIndex - summit.trackPointIndex) <=
+								CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE,
+						),
+				)
+		: [];
 	const tooltipCpAnchorKm = selectedStage?.startDistanceKm ?? 0;
 	const tooltipCpAnchorMaxKm = selectedStage?.endDistanceKm ?? totalKm;
 	const tooltipAnchorDayNumber = selectedStage?.dayNumber ?? null;
@@ -1084,6 +1148,22 @@ export function ElevationProfile({
 									<CPMarkerLabel
 										showName={showCPNames}
 										name={cp.name}
+									/>
+								}
+							/>
+						))}
+						{/* Summit 마커 (스테이지 선택 시에만, CP 겹침은 제외) */}
+						{visibleSummits.map((summit) => (
+							<ReferenceLine
+								key={`summit-${summit.id}`}
+								x={summit.distanceKm}
+								stroke={SUMMIT_COLOR}
+								strokeWidth={0.5}
+								strokeDasharray="2 3"
+								label={
+									<SummitMarkerLabel
+										showName={showSummits}
+										name={summit.name}
 									/>
 								}
 							/>

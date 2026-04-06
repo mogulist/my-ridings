@@ -11,6 +11,7 @@ import {
 import {
   ElevationProfile,
   type CPOnRoute,
+  type SummitOnRoute,
   type TrackPoint,
 } from "./ElevationProfile";
 import KakaoMap, {
@@ -28,6 +29,7 @@ import {
 } from "./DeleteStageDialog";
 import type { Stage } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
+import type { SummitCatalogRow } from "../types/summitCatalog";
 
 interface RouteViewerProps {
   routeId: string;
@@ -128,6 +130,66 @@ export function computeCPsOnRoute(
     .sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
+export function computeSummitsOnRoute(
+  summits: SummitCatalogRow[],
+  trackPoints: TrackPoint[],
+): SummitOnRoute[] {
+  if (summits.length === 0 || trackPoints.length === 0) return [];
+  return summits
+    .map((summit) => {
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < trackPoints.length; i++) {
+        const tp = trackPoints[i];
+        const d2 = (tp.y - summit.lat) ** 2 + (tp.x - summit.lng) ** 2;
+        if (d2 < bestDist) {
+          bestDist = d2;
+          bestIdx = i;
+        }
+      }
+      const tp = trackPoints[bestIdx];
+      return {
+        id: summit.id,
+        name: summit.name,
+        distanceKm: (tp.d ?? 0) / 1000,
+        elevation: summit.elevation_m ?? tp.e ?? 0,
+        trackPointIndex: bestIdx,
+      };
+    })
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+function summitQueryStringForTrackPoints(trackPoints: TrackPoint[]): string | null {
+  if (trackPoints.length === 0) return null;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const point of trackPoints) {
+    if (point.y < minLat) minLat = point.y;
+    if (point.y > maxLat) maxLat = point.y;
+    if (point.x < minLng) minLng = point.x;
+    if (point.x > maxLng) maxLng = point.x;
+  }
+  if (
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLat) ||
+    !Number.isFinite(minLng) ||
+    !Number.isFinite(maxLng)
+  ) {
+    return null;
+  }
+  const buffer = 0.01;
+  const search = new URLSearchParams({
+    minLat: String(minLat - buffer),
+    maxLat: String(maxLat + buffer),
+    minLng: String(minLng - buffer),
+    maxLng: String(maxLng + buffer),
+    limit: "1200",
+  });
+  return search.toString();
+}
+
 export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
   const [dbRoute, setDbRoute] = useState<any>(null);
@@ -155,6 +217,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   >(null);
   const [isStagesPending, startStagesTransition] = useTransition();
   const [planPois, setPlanPois] = useState<PlanPoiRow[]>([]);
+  const [officialSummits, setOfficialSummits] = useState<SummitCatalogRow[]>([]);
 
   const handlePin = useCallback((index: number) => {
     setPositionIndex(index);
@@ -171,6 +234,13 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         ? computeCPsOnRoute(route.points_of_interest, route.track_points)
         : [],
     [route],
+  );
+  const summitMarkers = useMemo(
+    () =>
+      route
+        ? computeSummitsOnRoute(officialSummits, route.track_points)
+        : [],
+    [route, officialSummits],
   );
 
   useEffect(() => {
@@ -350,6 +420,26 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     };
   }, [activePlanId]);
 
+  useEffect(() => {
+    const query = summitQueryStringForTrackPoints(route?.track_points ?? []);
+    if (!query) {
+      setOfficialSummits([]);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/public/summits?${query}`)
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json() as Promise<SummitCatalogRow[]>;
+      })
+      .then((rows) => {
+        if (!cancelled) setOfficialSummits(rows ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route?.id, route?.track_points]);
+
   const handleCreatePlanPoi = useCallback(
     async (payload: {
       kakao_place_id: string | null;
@@ -382,6 +472,68 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     },
     [activePlanId],
   );
+
+  const handleCreateOfficialSummit = useCallback(
+    async (payload: {
+      name: string;
+      lat: number;
+      lng: number;
+      elevation_m: number | null;
+    }) => {
+      const res = await fetch("/api/summits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          source_route_id: routeId,
+          source_plan_id: activePlanId,
+        }),
+      });
+      if (res.status === 401) {
+        alert("로그인 후 Summit을 추가할 수 있습니다.");
+        return null;
+      }
+      if (res.status === 403) {
+        alert("Summit 추가 권한이 없습니다.");
+        return null;
+      }
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        alert(err.error ?? "Summit 저장에 실패했습니다.");
+        return null;
+      }
+      const row = (await res.json()) as SummitCatalogRow;
+      setOfficialSummits((prev) => [row, ...prev.filter((s) => s.id !== row.id)]);
+      alert("공식 Summit이 추가되었습니다.");
+      return row;
+    },
+    [routeId, activePlanId],
+  );
+
+  const handleDeleteOfficialSummit = useCallback(async (summitId: string) => {
+    const res = await fetch(`/api/summits/${summitId}`, {
+      method: "DELETE",
+    });
+    if (res.status === 401) {
+      alert("로그인 후 Summit을 삭제할 수 있습니다.");
+      return false;
+    }
+    if (res.status === 403) {
+      alert("Summit 삭제 권한이 없습니다.");
+      return false;
+    }
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      alert(err.error ?? "Summit 삭제에 실패했습니다.");
+      return false;
+    }
+    setOfficialSummits((prev) => prev.filter((s) => s.id !== summitId));
+    return true;
+  }, []);
 
   const handleUpdatePlanPoi = useCallback(
     async (
@@ -946,6 +1098,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
               reviewContext={reviewContext}
               activePlanId={activePlanId}
               planPois={planPois}
+              officialSummits={officialSummits}
+              onCreateOfficialSummit={handleCreateOfficialSummit}
+              onDeleteOfficialSummit={handleDeleteOfficialSummit}
               onCreatePlanPoi={handleCreatePlanPoi}
               onUpdatePlanPoi={handleUpdatePlanPoi}
               onDeletePlanPoi={handleDeletePlanPoi}
@@ -976,6 +1131,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
             onUnpin={handleUnpin}
             elevationCalibratedThreshold={calibratedThreshold}
             cpMarkers={cpMarkers}
+            summitMarkers={summitMarkers}
           />
         </section>
       </div>

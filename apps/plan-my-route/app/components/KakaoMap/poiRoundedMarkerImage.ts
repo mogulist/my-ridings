@@ -8,7 +8,7 @@ import type { KakaoMapsMarkerImageApi } from "./nearbyCategoryMarkerImages";
 const W = 26;
 const H = 26;
 const RX = 7;
-const GLYPH_SCALE = 0.6;
+const DEFAULT_GLYPH_SCALE = 0.6;
 
 /** POI·시작·종료 둥근 마커 기본 채움색 */
 export const POI_ROUNDED_MARKER_FILL = MAP_VISUAL_PALETTE.poiMarkerFill;
@@ -20,14 +20,16 @@ function lucideGlyphCentered(
 	cx: number,
 	cy: number,
 	mode: PoiRoundedMarkerGlyphMode,
+	glyphScale: number,
+	glyphStrokeWidth: number,
 ): string {
 	const inner = lucideIconNodeToSvgMarkup(iconNode);
-	const t = `translate(${cx} ${cy}) scale(${GLYPH_SCALE}) translate(-12 -12)`;
+	const t = `translate(${cx} ${cy}) scale(${glyphScale}) translate(-12 -12)`;
 	if (mode === "fill") {
 		return `<g transform="${t}" fill="#fff" stroke="none">` + `${inner}</g>`;
 	}
 	return (
-		`<g transform="${t}" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+		`<g transform="${t}" fill="none" stroke="#fff" stroke-width="${glyphStrokeWidth}" stroke-linecap="round" stroke-linejoin="round">` +
 		`${inner}</g>`
 	);
 }
@@ -37,12 +39,21 @@ export function getPoiRoundedRectMarkerImage(
 	iconNode: IconNode,
 	fill: string = POI_ROUNDED_MARKER_FILL,
 	glyphMode: PoiRoundedMarkerGlyphMode = "stroke",
+	glyphScale: number = DEFAULT_GLYPH_SCALE,
+	glyphStrokeWidth: number = 2,
 ): unknown {
 	const cx = W / 2;
 	const cy = H / 2;
 	const innerW = W - 2.6;
 	const innerH = H - 2.6;
-	const glyph = lucideGlyphCentered(iconNode, cx, cy, glyphMode);
+	const glyph = lucideGlyphCentered(
+		iconNode,
+		cx,
+		cy,
+		glyphMode,
+		glyphScale,
+		glyphStrokeWidth,
+	);
 	const svg =
 		`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
 		`<rect x="1.3" y="1.3" width="${innerW}" height="${innerH}" rx="${RX}" ry="${RX}" ` +
