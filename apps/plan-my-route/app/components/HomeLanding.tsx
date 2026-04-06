@@ -3,6 +3,7 @@
 import { Map } from "lucide-react";
 import { HomeLandingHero } from "./HomeLandingHero";
 import { HomeLandingHowToUse } from "./HomeLandingHowToUse";
+import { HomeLandingGuestRoutes } from "./HomeLandingGuestRoutes";
 import { HomeLandingSharedPlans } from "./HomeLandingSharedPlans";
 import { PlanMyRouteHeader } from "./PlanMyRouteHeader";
 
@@ -13,6 +14,7 @@ export default function HomeLanding() {
     <div className="min-h-screen bg-white text-gray-900 dark:bg-zinc-950 dark:text-zinc-50">
       <PlanMyRouteHeader />
       <HomeLandingHero signInHref={SIGN_IN_HREF} />
+      <HomeLandingGuestRoutes />
       <HomeLandingSharedPlans />
       <HomeLandingHowToUse />
 

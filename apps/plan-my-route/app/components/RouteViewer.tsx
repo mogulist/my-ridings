@@ -19,6 +19,7 @@ import KakaoMap, {
   type PointOfInterest,
 } from "./KakaoMap";
 import { usePlanStages } from "../hooks/usePlanStages";
+import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import { PlanListPane } from "./PlanListPane";
 import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
 import { MemoPane } from "./MemoPane";
@@ -29,11 +30,13 @@ import {
 } from "./DeleteStageDialog";
 import type { Stage } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
+import type { GuestPlan } from "../types/guestPlan";
 import type { SummitCatalogRow } from "../types/summitCatalog";
 
-interface RouteViewerProps {
+type RouteViewerProps = {
   routeId: string;
-}
+  mode?: "db" | "guest";
+};
 
 type DbStage = {
   id: string;
@@ -190,7 +193,10 @@ function summitQueryStringForTrackPoints(trackPoints: TrackPoint[]): string | nu
   return search.toString();
 }
 
-export default function RouteViewer({ routeId }: RouteViewerProps) {
+export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) {
+  const isGuestMode = mode === "guest";
+  const { getRouteById, upsertRoute } = useGuestRouteStore();
+  const [isGuestRouteLoaded, setIsGuestRouteLoaded] = useState(!isGuestMode);
   const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
   const [dbRoute, setDbRoute] = useState<any>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
@@ -218,6 +224,68 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
   const [isStagesPending, startStagesTransition] = useTransition();
   const [planPois, setPlanPois] = useState<PlanPoiRow[]>([]);
   const [officialSummits, setOfficialSummits] = useState<SummitCatalogRow[]>([]);
+  /** guest: loadFromGuest가 planPois를 반영하기 전 빈 배열로 persist하면 LS의 POI가 지워지므로, 하이드 완료 후에만 POI persist 허용 */
+  const [guestPlanPoiPersistReady, setGuestPlanPoiPersistReady] = useState(false);
+
+  const mapPlanToGuestPlan = useCallback((plan: any, index: number): GuestPlan => {
+    const nowIso = new Date().toISOString();
+    const guestStages = ((plan?.stages ?? []) as DbStage[]).map((stage) => ({
+      id: stage.id,
+      title: null,
+      start_distance: stage.start_distance,
+      end_distance: stage.end_distance,
+      elevation_gain: Number(stage.elevation_gain) || 0,
+      elevation_loss: Number(stage.elevation_loss) || 0,
+      memo: stage.memo ?? null,
+    }));
+    return {
+      id: plan.id,
+      name: plan.name ?? "플랜",
+      start_date: plan.start_date ?? null,
+      public_share_token: plan.public_share_token ?? null,
+      shared_at: plan.shared_at ?? null,
+      sort_order: Number.isFinite(plan.sort_order) ? plan.sort_order : index,
+      created_at: plan.created_at ?? nowIso,
+      updated_at: nowIso,
+      stages: guestStages,
+    };
+  }, []);
+
+  const persistGuestRoute = useCallback(
+    (options?: { nextDbRoute?: any; targetPlanId?: string; nextPlanPois?: PlanPoiRow[] }) => {
+      if (!isGuestMode) return;
+      const baseRoute = getRouteById(routeId);
+      const sourceRoute = options?.nextDbRoute ?? dbRoute;
+      if (!baseRoute || !sourceRoute) return;
+
+      const nextPlans = (sourceRoute.plans ?? []).map((plan: any, index: number) =>
+        mapPlanToGuestPlan(plan, index),
+      );
+      const nextPlanPoisByPlanId = { ...(baseRoute.plan_pois_by_plan_id ?? {}) };
+      const targetPlanId = options?.targetPlanId ?? activePlanId;
+      if (targetPlanId && options?.nextPlanPois) {
+        nextPlanPoisByPlanId[targetPlanId] = options.nextPlanPois;
+      }
+      for (const plan of nextPlans) {
+        if (!nextPlanPoisByPlanId[plan.id]) nextPlanPoisByPlanId[plan.id] = [];
+      }
+
+      upsertRoute({
+        ...baseRoute,
+        name: sourceRoute.name ?? baseRoute.name,
+        rwgps_url: sourceRoute.rwgps_url ?? baseRoute.rwgps_url,
+        total_distance:
+          sourceRoute.total_distance ?? sourceRoute.distance ?? baseRoute.total_distance,
+        elevation_gain: sourceRoute.elevation_gain ?? baseRoute.elevation_gain,
+        elevation_loss: sourceRoute.elevation_loss ?? baseRoute.elevation_loss,
+        start_date: sourceRoute.start_date ?? baseRoute.start_date,
+        plans: nextPlans,
+        plan_pois_by_plan_id: nextPlanPoisByPlanId,
+        updated_at: new Date().toISOString(),
+      });
+    },
+    [isGuestMode, getRouteById, routeId, dbRoute, mapPlanToGuestPlan, activePlanId, upsertRoute],
+  );
 
   const handlePin = useCallback((index: number) => {
     setPositionIndex(index);
@@ -247,32 +315,65 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    if (isGuestMode) setGuestPlanPoiPersistReady(false);
 
-    // Fetch from DB first to get RWGPS URL and nested plans/stages
-    fetch(`/api/routes/${routeId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load route from DB");
-        return res.json();
-      })
-      .then((dbData) => {
-        if (cancelled) return;
-        setDbRoute(dbData);
+    const loadFromDb = () =>
+      fetch(`/api/routes/${routeId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load route from DB");
+          return res.json();
+        })
+        .then((dbData) => {
+          if (cancelled) return null;
+          setDbRoute(dbData);
 
-        if (dbData.plans && dbData.plans.length > 0) {
-          // Select the first plan by default
-          const firstPlan = dbData.plans[0];
-          setActivePlanId(firstPlan.id);
-          setDbStages(normalizeDbStages(firstPlan.stages || []));
-        }
+          if (dbData.plans && dbData.plans.length > 0) {
+            const firstPlan = dbData.plans[0];
+            setActivePlanId(firstPlan.id);
+            setDbStages(normalizeDbStages(firstPlan.stages || []));
+          }
 
-        // Extract RWGPS ID from dbData.rwgps_url
-        const match = dbData.rwgps_url.match(/\/routes\/(\d+)/);
-        const rwgpsId = match ? match[1] : null;
+          const match = dbData.rwgps_url.match(/\/routes\/(\d+)/);
+          const rwgpsId = match ? match[1] : null;
+          if (!rwgpsId) throw new Error("Invalid RWGPS URL in database");
+          return fetch(`/api/ridewithgps?routeId=${rwgpsId}`);
+        });
 
-        if (!rwgpsId) throw new Error("Invalid RWGPS URL in database");
+    const loadFromGuest = async () => {
+      const guestRoute = getRouteById(routeId);
+      if (!guestRoute) throw new Error("로컬에 저장된 guest 플랜을 찾을 수 없습니다.");
+      if (cancelled) return null;
+      setDbRoute({
+        id: guestRoute.id,
+        name: guestRoute.name,
+        rwgps_url: guestRoute.rwgps_url,
+        total_distance: guestRoute.total_distance,
+        elevation_gain: guestRoute.elevation_gain,
+        elevation_loss: guestRoute.elevation_loss,
+        start_date: guestRoute.start_date,
+        plans: guestRoute.plans,
+      });
+      const firstPlan = guestRoute.plans[0];
+      if (firstPlan) {
+        const initialPois = guestRoute.plan_pois_by_plan_id[firstPlan.id] ?? [];
+        setActivePlanId(firstPlan.id);
+        setDbStages(normalizeDbStages(firstPlan.stages as DbStage[]));
+        setPlanPois(initialPois);
+      } else {
+        setActivePlanId(null);
+        setDbStages([]);
+        setPlanPois([]);
+      }
+      if (cancelled) return null;
+      setGuestPlanPoiPersistReady(true);
+      setIsGuestRouteLoaded(true);
+      const match = guestRoute.rwgps_url.match(/\/routes\/(\d+)/);
+      const rwgpsId = match ? match[1] : null;
+      if (!rwgpsId) throw new Error("Invalid RWGPS URL in guest route");
+      return fetch(`/api/ridewithgps?routeId=${rwgpsId}`);
+    };
 
-        return fetch(`/api/ridewithgps?routeId=${rwgpsId}`);
-      })
+    (isGuestMode ? loadFromGuest() : loadFromDb())
       .then((res) => {
         if (!res) return;
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -291,7 +392,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [routeId, isGuestMode, getRouteById]);
 
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,6 +400,27 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     setIsCreatingPlan(true);
     setPlanActionInProgress("create");
     try {
+      if (isGuestMode) {
+        const nowIso = new Date().toISOString();
+        const newPlan = {
+          id: crypto.randomUUID(),
+          name: newPlanName,
+          start_date: null,
+          sort_order: (dbRoute?.plans?.length ?? 0) + 1,
+          created_at: nowIso,
+          updated_at: nowIso,
+          stages: [],
+        };
+        setDbRoute((prev: any) => ({
+          ...prev,
+          plans: [...(prev?.plans || []), newPlan],
+        }));
+        setActivePlanId(newPlan.id);
+        setDbStages([]);
+        setPlanPois([]);
+        setNewPlanName("");
+        return;
+      }
       const res = await fetch("/api/plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -356,7 +478,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     route?.track_points ?? [],
     route?.elevation_gain ?? 0,
     dbStages, // Pass initial stages loaded from DB
-    activePlanId, // Pass active plan ID to let hook sync updates with API
+    isGuestMode ? null : activePlanId, // Guest mode는 API sync를 사용하지 않음
   );
 
   useEffect(() => {
@@ -400,9 +522,40 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     [routeId, activePlanId, effectiveSelectedDay, stages],
   );
 
+  /** guest: dbRoute-only persist와 planPois persist를 분리하면 같은 프레임에서 빈 planPois로 LS를 덮을 수 있어 한 effect에서 atomic 저장 */
+  useEffect(() => {
+    if (!isGuestMode) return;
+    if (!isGuestRouteLoaded) return;
+    if (!guestPlanPoiPersistReady) return;
+    if (!dbRoute) return;
+    if (activePlanId) {
+      persistGuestRoute({
+        nextDbRoute: dbRoute,
+        targetPlanId: activePlanId,
+        nextPlanPois: planPois,
+      });
+    } else {
+      persistGuestRoute({ nextDbRoute: dbRoute });
+    }
+  }, [
+    isGuestMode,
+    isGuestRouteLoaded,
+    guestPlanPoiPersistReady,
+    dbRoute,
+    activePlanId,
+    planPois,
+    persistGuestRoute,
+  ]);
+
   useEffect(() => {
     if (!activePlanId) {
       setPlanPois([]);
+      return;
+    }
+    if (isGuestMode) {
+      const guestRoute = getRouteById(routeId);
+      const fromLs = guestRoute?.plan_pois_by_plan_id?.[activePlanId] ?? [];
+      setPlanPois(fromLs);
       return;
     }
     let cancelled = false;
@@ -418,7 +571,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [activePlanId]);
+  }, [activePlanId, isGuestMode, getRouteById, routeId]);
 
   useEffect(() => {
     const query = summitQueryStringForTrackPoints(route?.track_points ?? []);
@@ -450,6 +603,23 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       lng: number;
     }) => {
       if (!activePlanId) return null;
+      if (isGuestMode) {
+        const now = new Date().toISOString();
+        const row: PlanPoiRow = {
+          id: crypto.randomUUID(),
+          plan_id: activePlanId,
+          kakao_place_id: payload.kakao_place_id,
+          name: payload.name,
+          poi_type: payload.poi_type,
+          memo: payload.memo,
+          lat: payload.lat,
+          lng: payload.lng,
+          created_at: now,
+          updated_at: now,
+        };
+        setPlanPois((prev) => [...prev, row]);
+        return row;
+      }
       const res = await fetch(`/api/plans/${activePlanId}/pois`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -470,7 +640,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       setPlanPois((prev) => [...prev, row]);
       return row;
     },
-    [activePlanId],
+    [activePlanId, isGuestMode],
   );
 
   const handleCreateOfficialSummit = useCallback(
@@ -541,6 +711,34 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       payload: { name: string; poi_type: string; memo: string | null },
     ) => {
       if (!activePlanId) return null;
+      if (isGuestMode) {
+        const updated: PlanPoiRow = {
+          id: poiId,
+          plan_id: activePlanId,
+          kakao_place_id: null,
+          name: payload.name,
+          poi_type: payload.poi_type,
+          memo: payload.memo,
+          lat: 0,
+          lng: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setPlanPois((prev) =>
+          prev.map((poi) =>
+            poi.id === poiId
+              ? {
+                  ...poi,
+                  name: payload.name,
+                  poi_type: payload.poi_type,
+                  memo: payload.memo,
+                  updated_at: updated.updated_at,
+                }
+              : poi,
+          ),
+        );
+        return updated;
+      }
       const res = await fetch(`/api/plans/${activePlanId}/pois/${poiId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -561,12 +759,16 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       setPlanPois((prev) => prev.map((p) => (p.id === row.id ? row : p)));
       return row;
     },
-    [activePlanId],
+    [activePlanId, isGuestMode],
   );
 
   const handleDeletePlanPoi = useCallback(
     async (poiId: string) => {
       if (!activePlanId) return false;
+      if (isGuestMode) {
+        setPlanPois((prev) => prev.filter((poi) => poi.id !== poiId));
+        return true;
+      }
       const res = await fetch(`/api/plans/${activePlanId}/pois/${poiId}`, {
         method: "DELETE",
       });
@@ -584,7 +786,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       setPlanPois((prev) => prev.filter((p) => p.id !== poiId));
       return true;
     },
-    [activePlanId],
+    [activePlanId, isGuestMode],
   );
 
   const routeSummary = useMemo(() => {
@@ -655,6 +857,10 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
 
   const handlePlanSelect = useCallback(
     (planId: string) => {
+      if (isGuestMode) {
+        const guestRoute = getRouteById(routeId);
+        setPlanPois(guestRoute?.plan_pois_by_plan_id?.[planId] ?? []);
+      }
       setActivePlanId(planId);
       setMemoPaneStageId(null);
       setIsMemoReviewOpen(false);
@@ -665,13 +871,22 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         });
       }
     },
-    [dbRoute?.plans],
+    [dbRoute?.plans, isGuestMode, getRouteById, routeId],
   );
 
   const handleUpdatePlan = useCallback(
     async (planId: string, newName: string) => {
       setPlanActionInProgress("update");
       try {
+        if (isGuestMode) {
+          setDbRoute((prev: any) => ({
+            ...prev,
+            plans: (prev?.plans ?? []).map((plan: any) =>
+              plan.id === planId ? { ...plan, name: newName } : plan,
+            ),
+          }));
+          return;
+        }
         const res = await fetch(`/api/plans/${planId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -691,15 +906,17 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         setPlanActionInProgress(null);
       }
     },
-    [],
+    [isGuestMode],
   );
 
   const handleDeletePlan = useCallback(
     async (planId: string) => {
       setPlanActionInProgress("delete");
       try {
-        const res = await fetch(`/api/plans/${planId}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("Plan delete failed");
+        if (!isGuestMode) {
+          const res = await fetch(`/api/plans/${planId}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Plan delete failed");
+        }
         const prevPlans = dbRoute?.plans ?? [];
         const nextPlans = prevPlans.filter((p: any) => p.id !== planId);
         setDbRoute((prev: any) => ({ ...prev, plans: nextPlans }));
@@ -720,7 +937,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         setPlanActionInProgress(null);
       }
     },
-    [dbRoute?.plans, activePlanId],
+    [dbRoute?.plans, activePlanId, isGuestMode],
   );
 
   const handleDuplicatePlan = useCallback(
@@ -728,6 +945,38 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       setPlanActionInProgress("duplicate");
       try {
         const newName = `Copy of ${plan.name}`;
+        if (isGuestMode) {
+          const nowIso = new Date().toISOString();
+          const createdStages = ((plan.stages ?? []) as DbStage[]).map((stage) => ({
+            ...stage,
+            id: crypto.randomUUID(),
+          }));
+          const guestRoute = getRouteById(routeId);
+          const sourcePlanPois = guestRoute?.plan_pois_by_plan_id?.[plan.id] ?? [];
+          const newPlan = {
+            id: crypto.randomUUID(),
+            name: newName,
+            start_date: null,
+            sort_order: (dbRoute?.plans?.length ?? 0) + 1,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+          const clonedPlanPois = sourcePlanPois.map((poi) => ({
+            ...poi,
+            id: crypto.randomUUID(),
+            plan_id: newPlan.id,
+            created_at: nowIso,
+            updated_at: nowIso,
+          }));
+          setDbRoute((prev: any) => ({
+            ...prev,
+            plans: [...(prev?.plans ?? []), { ...newPlan, stages: createdStages }],
+          }));
+          setActivePlanId(newPlan.id);
+          setDbStages(normalizeDbStages(createdStages));
+          setPlanPois(clonedPlanPois);
+          return;
+        }
         const planRes = await fetch("/api/plans", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -766,6 +1015,28 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
           createdStages.push(await stageRes.json());
         }
 
+        const sourcePoiRes = await fetch(`/api/plans/${plan.id}/pois`);
+        const sourcePois = sourcePoiRes.ok
+          ? ((await sourcePoiRes.json()) as PlanPoiRow[])
+          : [];
+        const clonedPois: PlanPoiRow[] = [];
+        for (const poi of sourcePois) {
+          const poiRes = await fetch(`/api/plans/${newPlan.id}/pois`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              kakao_place_id: poi.kakao_place_id,
+              name: poi.name,
+              poi_type: poi.poi_type,
+              memo: poi.memo,
+              lat: poi.lat,
+              lng: poi.lng,
+            }),
+          });
+          if (!poiRes.ok) throw new Error("Plan POI copy failed");
+          clonedPois.push((await poiRes.json()) as PlanPoiRow);
+        }
+
         setDbRoute((prev: any) => ({
           ...prev,
           plans: [
@@ -775,6 +1046,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         }));
         setActivePlanId(newPlan.id);
         setDbStages(normalizeDbStages(createdStages));
+        setPlanPois(clonedPois);
       } catch (err) {
         console.error(err);
         alert("플랜 복제에 실패했습니다.");
@@ -782,7 +1054,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         setPlanActionInProgress(null);
       }
     },
-    [routeId],
+    [routeId, isGuestMode, dbRoute?.plans?.length, getRouteById],
   );
 
   const handleReorderPlans = useCallback(
@@ -796,6 +1068,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
       setDbRoute((prev: any) => ({ ...prev, plans: reorderedPlans }));
       setIsReorderingPlans(true);
       try {
+        if (isGuestMode) return;
         const res = await fetch(`/api/routes/${routeId}/plans/order`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -810,12 +1083,21 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         setIsReorderingPlans(false);
       }
     },
-    [dbRoute?.plans, routeId],
+    [dbRoute?.plans, routeId, isGuestMode],
   );
 
   const handleUpdatePlanStartDateByPlanId = useCallback(
     async (planId: string, startDate: string | null) => {
       try {
+        if (isGuestMode) {
+          setDbRoute((prev: any) => ({
+            ...prev,
+            plans: (prev?.plans ?? []).map((plan: any) =>
+              plan.id === planId ? { ...plan, start_date: startDate } : plan,
+            ),
+          }));
+          return;
+        }
         const res = await fetch(`/api/plans/${planId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -833,13 +1115,17 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         alert("시작일 저장에 실패했습니다.");
       }
     },
-    [],
+    [isGuestMode],
   );
 
   const handleTogglePlanShare = useCallback(
     async (planId: string, enabled: boolean) => {
       setPlanActionInProgress("share");
       try {
+        if (isGuestMode) {
+          alert("guest 모드에서는 공유 링크를 생성할 수 없습니다.");
+          return;
+        }
         const res = await fetch(`/api/plans/${planId}/share`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -874,7 +1160,7 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
         setPlanActionInProgress(null);
       }
     },
-    [],
+    [isGuestMode],
   );
 
   const handleCopyPlanShareLink = useCallback(async (token: string) => {
@@ -960,7 +1246,9 @@ export default function RouteViewer({ routeId }: RouteViewerProps) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
-            <span className="text-sm text-zinc-500">경로 불러오는 중…</span>
+            <span className="text-sm text-zinc-500">
+              {isGuestMode ? "guest 경로 불러오는 중…" : "경로 불러오는 중…"}
+            </span>
           </div>
         ) : error ? (
           <div className="w-80 p-4">

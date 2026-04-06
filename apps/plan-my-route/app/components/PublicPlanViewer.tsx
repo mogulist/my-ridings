@@ -11,6 +11,7 @@ import { getStageColor, type Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
 import { MemoReviewPane } from "./MemoReviewPane";
 import { RouteSummaryBlock } from "./RouteSummaryBlock";
+import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
 
 type PublicPlanResponse = {
   plan: {
@@ -320,6 +321,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
               <BookOpenIcon className="h-3.5 w-3.5" />
               메모 리뷰
             </button>
+            <SharePlanDuplicateCta token={token} />
           </div>
           <div className="space-y-2 p-4">
             {stages.map((stage) => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import HeaderAuth from "@/app/components/HeaderAuth";
 import { PublicPlanViewer } from "@/app/components/PublicPlanViewer";
+import { SharePlanDuplicateCta } from "@/app/components/SharePlanDuplicateCta";
 
 type SharePageProps = {
 	params: Promise<{ token: string }>;
@@ -24,6 +25,7 @@ export default async function SharePage({ params }: SharePageProps) {
 					</span>
 				</div>
 				<div className="flex items-center gap-2">
+					<SharePlanDuplicateCta token={token} variant="header" />
 					<HeaderAuth />
 				</div>
 			</header>

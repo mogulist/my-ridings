@@ -46,3 +46,6 @@ next-env.d.ts
 
 # git worktrees (local agent / parallel work)
 .worktrees/
+
+# local debug logs
+.cursor/*.log
