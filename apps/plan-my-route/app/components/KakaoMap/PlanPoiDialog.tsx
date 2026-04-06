@@ -1,7 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
-import { X } from "lucide-react";
 import {
 	Button,
 	cn,
@@ -9,8 +7,13 @@ import {
 	FieldGroup,
 	FieldLabel,
 	Input,
+	Label,
+	RadioGroup,
+	RadioGroupItem,
 	Textarea,
 } from "@my-ridings/ui";
+import { X } from "lucide-react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
 	isPlanPoiType,
 	PLAN_POI_TYPES,
@@ -26,10 +29,6 @@ const POI_TYPE_LABELS: Record<PlanPoiType, string> = {
 	cafe: "카페",
 	restaurant: "음식점",
 };
-
-const SELECT_TRIGGER_CLASS = cn(
-	"border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-2 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-);
 
 function categoryToDefaultPoiType(categoryId: NearbyCategoryId): PlanPoiType {
 	if (categoryId === "restaurant") return "restaurant";
@@ -79,7 +78,7 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 	const { open, onOpenChange, mode } = props;
 	const titleId = useId();
 	const baseId = useId();
-	const typeId = `${baseId}-type`;
+	const typeLegendId = `${baseId}-type-label`;
 	const nameId = `${baseId}-name`;
 	const memoId = `${baseId}-memo`;
 
@@ -194,27 +193,38 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 				<FieldGroup className="p-4">
 					<Field>
 						<FieldLabel htmlFor={nameId}>이름</FieldLabel>
-						<Input
-							id={nameId}
-							type="text"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-						/>
+						<Input id={nameId} type="text" value={name} onChange={(e) => setName(e.target.value)} />
 					</Field>
 					<Field>
-						<FieldLabel htmlFor={typeId}>타입</FieldLabel>
-						<select
-							id={typeId}
+						<FieldLabel id={typeLegendId}>타입</FieldLabel>
+						<RadioGroup
+							aria-labelledby={typeLegendId}
 							value={poiType}
-							onChange={(e) => setPoiType(e.target.value as PlanPoiType)}
-							className={SELECT_TRIGGER_CLASS}
+							onValueChange={(v) => setPoiType(v as PlanPoiType)}
+							disabled={isSaving}
+							className="flex flex-wrap gap-2 pt-0.5"
 						>
-							{PLAN_POI_TYPES.map((t) => (
-								<option key={t} value={t}>
-									{POI_TYPE_LABELS[t]}
-								</option>
-							))}
-						</select>
+							{PLAN_POI_TYPES.map((t) => {
+								const itemId = `${baseId}-type-${t}`;
+								return (
+									<div key={t} className="relative">
+										<RadioGroupItem value={t} id={itemId} className="peer sr-only" />
+										<Label
+											htmlFor={itemId}
+											className={cn(
+												"border-input bg-background text-foreground inline-flex cursor-pointer rounded-full border px-3 py-1.5 text-sm font-normal transition-colors",
+												"hover:bg-accent hover:text-accent-foreground",
+												"peer-focus-visible:ring-ring peer-focus-visible:ring-offset-background peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2",
+												"peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary",
+												"peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+											)}
+										>
+											{POI_TYPE_LABELS[t]}
+										</Label>
+									</div>
+								);
+							})}
+						</RadioGroup>
 					</Field>
 					<Field>
 						<FieldLabel htmlFor={memoId}>메모</FieldLabel>
@@ -227,12 +237,7 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 					</Field>
 				</FieldGroup>
 				<div className="border-border flex justify-end gap-2 border-t px-4 py-3">
-					<Button
-						type="button"
-						variant="outline"
-						onClick={handleClose}
-						disabled={isSaving}
-					>
+					<Button type="button" variant="outline" onClick={handleClose} disabled={isSaving}>
 						취소
 					</Button>
 					<Button
