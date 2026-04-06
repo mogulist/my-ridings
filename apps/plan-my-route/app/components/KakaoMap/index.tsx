@@ -12,7 +12,7 @@ import {
 } from "@/app/types/placeReview";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
-import { AddPlanPoiDialog } from "./AddPlanPoiDialog";
+import { PlanPoiDialog } from "./PlanPoiDialog";
 import type { NearbyCategoryId } from "./nearbyCategoryId";
 import { getNearbyCategoryMarkerImage } from "./nearbyCategoryMarkerImages";
 import { nearbyCategoryIcon } from "./nearbyCategoryToolbarIcons";
@@ -496,6 +496,26 @@ function planPoiTypeLabelKo(poiType: string): string {
 	return m[poiType] ?? poiType;
 }
 
+function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): string {
+	const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
+	const titleStyle =
+		"font-size:13px;font-weight:700;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;";
+	const typeStyle =
+		"margin-top:4px;font-size:11px;font-weight:600;color:#1976d2;";
+	const hasMemo = Boolean(row.memo?.trim());
+	const memoInner = hasMemo ? esc(row.memo ?? "") : esc("메모 없음");
+	const memoColor = hasMemo ? "#374151" : "#9ca3af";
+	const memoStyle = `margin-top:6px;font-size:12px;color:${memoColor};line-height:1.45;min-height:2.9em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;white-space:pre-line;`;
+	const btnStyle =
+		"padding:3px 10px;font-size:11px;border:1px solid #d1d5db;background:#fff;color:#6b7280;border-radius:4px;cursor:pointer;line-height:1.3;box-sizing:border-box;flex-shrink:0;";
+	const actionsHtml = showActions
+		? `<div style="margin-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:nowrap;"><button type="button" class="plan-poi-edit-btn" style="${btnStyle}">수정</button><button type="button" class="plan-poi-delete-btn" style="${btnStyle}">삭제</button></div>`
+		: "";
+	const rootStyle =
+		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
+	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
+}
+
 function buildAccommodationTooltipHtml(
 	doc: KakaoPlaceDoc,
 	review: PlaceReviewRow | null,
@@ -654,6 +674,11 @@ interface KakaoMapProps {
 		lat: number;
 		lng: number;
 	}) => Promise<PlanPoiRow | null>;
+	onUpdatePlanPoi?: (
+		poiId: string,
+		payload: { name: string; poi_type: string; memo: string | null },
+	) => Promise<PlanPoiRow | null>;
+	onDeletePlanPoi?: (poiId: string) => Promise<boolean>;
 	/** 공유 뷰 등: 주변 검색·북마크·POI 추가 비활성 */
 	readOnly?: boolean;
 }
@@ -699,6 +724,8 @@ export default function KakaoMap({
 	activePlanId = null,
 	planPois = [],
 	onCreatePlanPoi,
+	onUpdatePlanPoi,
+	onDeletePlanPoi,
 	readOnly = false,
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -737,6 +764,10 @@ export default function KakaoMap({
 		doc: KakaoPlaceDoc | null;
 		categoryId: NearbyCategoryId;
 	}>({ open: false, doc: null, categoryId: "accommodation" });
+	const [editPoiDialog, setEditPoiDialog] = useState<{
+		open: boolean;
+		row: PlanPoiRow | null;
+	}>({ open: false, row: null });
 	const onReviewChangeRef = useRef<((placeId: string, review: PlaceReviewRow) => void) | null>(
 		null,
 	);
@@ -755,6 +786,10 @@ export default function KakaoMap({
 	readOnlyRef.current = readOnly;
 	const activePlanIdRef = useRef(activePlanId);
 	activePlanIdRef.current = activePlanId;
+	const planPoisRef = useRef(planPois);
+	planPoisRef.current = planPois;
+	const onDeletePlanPoiRef = useRef(onDeletePlanPoi);
+	onDeletePlanPoiRef.current = onDeletePlanPoi;
 
 	const tooltipAddPoiOptions = useMemo(
 		() => ({ showAddPoiButton: !readOnly && Boolean(activePlanId) }),
@@ -1035,6 +1070,7 @@ export default function KakaoMap({
 			routeData: RideWithGPSRoute | null | undefined,
 			rows: PlanPoiRow[],
 			visible: boolean,
+			readOnlyPoiActions: boolean,
 		) => {
 			clearMergedPoiMarkers();
 			if (!visible || !routeData) return;
@@ -1054,7 +1090,7 @@ export default function KakaoMap({
 							poi.poi_type_name,
 						)}</div>`
 					: "";
-				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);max-width:200px;line-height:1.4;">📍 ${esc(poi.name)}${typeLine}</div>`;
+				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;max-width:200px;line-height:1.4;box-sizing:border-box;">📍 ${esc(poi.name)}${typeLine}</div>`;
 				const infoWindow = new maps.InfoWindow({
 					content: infoContent,
 					removable: true,
@@ -1077,10 +1113,7 @@ export default function KakaoMap({
 					image: getPoiRoundedRectMarkerImage(maps, lucideIconNodeForPlanPoiType(row.poi_type)),
 				});
 				marker.setZIndex?.(POI_MERGED_MARKER_Z_INDEX);
-				const memoHtml = row.memo
-					? `<div style="margin-top:6px;font-size:12px;font-weight:400;color:#374151;white-space:pre-wrap;">${esc(row.memo)}</div>`
-					: "";
-				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);max-width:220px;line-height:1.4;"><div>${esc(row.name)}</div><div style="margin-top:4px;font-size:11px;font-weight:600;color:#ea580c;">${esc(planPoiTypeLabelKo(row.poi_type))}</div>${memoHtml}</div>`;
+				const infoContent = buildPlanPoiInfoWindowHtml(row, !readOnlyPoiActions);
 				const infoWindow = new maps.InfoWindow({
 					content: infoContent,
 					removable: true,
@@ -1407,6 +1440,41 @@ export default function KakaoMap({
 				return;
 			}
 
+			const planPoiEditBtn = (e.target as HTMLElement).closest(".plan-poi-edit-btn");
+			if (planPoiEditBtn) {
+				e.preventDefault();
+				if (readOnlyRef.current) return;
+				const root = (e.target as HTMLElement).closest(".plan-poi-tooltip");
+				if (!root) return;
+				const id = (root as HTMLElement).dataset.poiId;
+				if (!id) return;
+				const row = planPoisRef.current.find((r) => r.id === id);
+				if (!row) return;
+				setEditPoiDialog({ open: true, row });
+				return;
+			}
+
+			const planPoiDeleteBtn = (e.target as HTMLElement).closest(".plan-poi-delete-btn");
+			if (planPoiDeleteBtn) {
+				e.preventDefault();
+				if (readOnlyRef.current) return;
+				const root = (e.target as HTMLElement).closest(".plan-poi-tooltip");
+				if (!root) return;
+				const id = (root as HTMLElement).dataset.poiId;
+				if (!id) return;
+				if (!window.confirm("이 POI를 삭제할까요?")) return;
+				void (async () => {
+					const del = onDeletePlanPoiRef.current;
+					if (!del) return;
+					const ok = await del(id);
+					if (ok) {
+						openInfoWindowRef.current?.close();
+						openInfoWindowRef.current = null;
+					}
+				})();
+				return;
+			}
+
 			const stateBtn = (e.target as HTMLElement).closest(".place-review-state-btn");
 			if (stateBtn) {
 				e.preventDefault();
@@ -1557,8 +1625,8 @@ export default function KakaoMap({
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
 		const maps = window.kakao?.maps;
 		if (!map || !maps || !mapReady || !route) return;
-		renderMergedPoiMarkers(map, maps, route, planPois, showPoiOnMap);
-	}, [mapReady, route, planPois, showPoiOnMap, renderMergedPoiMarkers]);
+		renderMergedPoiMarkers(map, maps, route, planPois, showPoiOnMap, readOnly);
+	}, [mapReady, route, planPois, showPoiOnMap, readOnly, renderMergedPoiMarkers]);
 
 	useEffect(() => {
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
@@ -1580,7 +1648,14 @@ export default function KakaoMap({
 			} else {
 				clearStarredMarkers();
 			}
-			renderMergedPoiMarkers(drawMap, drawMaps, route ?? undefined, planPois, showPoiOnMap);
+			renderMergedPoiMarkers(
+				drawMap,
+				drawMaps,
+				route ?? undefined,
+				planPois,
+				showPoiOnMap,
+				readOnly,
+			);
 		};
 	}, [
 		showNearbyPlaces,
@@ -1597,6 +1672,7 @@ export default function KakaoMap({
 		route,
 		planPois,
 		showPoiOnMap,
+		readOnly,
 	]);
 
 	const computeBounds = useCallback(() => {
@@ -1972,7 +2048,9 @@ export default function KakaoMap({
 				</div>
 			)}
 			{mapReady && addPoiDialog.open && addPoiDialog.doc && onCreatePlanPoi && !readOnly && (
-				<AddPlanPoiDialog
+				<PlanPoiDialog
+					key={`poi-create-${addPoiDialog.doc.id}`}
+					mode="create"
 					open={addPoiDialog.open}
 					onOpenChange={(open) => setAddPoiDialog((s) => ({ ...s, open }))}
 					initialPlaceName={addPoiDialog.doc.place_name}
@@ -1981,9 +2059,37 @@ export default function KakaoMap({
 					lat={Number(addPoiDialog.doc.y)}
 					lng={Number(addPoiDialog.doc.x)}
 					hasActivePlan={Boolean(activePlanId)}
-					onCreate={onCreatePlanPoi}
+					onSave={onCreatePlanPoi}
 				/>
 			)}
+			{mapReady &&
+				editPoiDialog.open &&
+				editPoiDialog.row &&
+				onUpdatePlanPoi &&
+				!readOnly && (
+					<PlanPoiDialog
+						key={`poi-edit-${editPoiDialog.row.id}`}
+						mode="edit"
+						open={editPoiDialog.open}
+						onOpenChange={(open) =>
+							setEditPoiDialog((s) => ({
+								open,
+								row: open ? s.row : null,
+							}))
+						}
+						row={editPoiDialog.row}
+						onSave={async (payload) => {
+							const id = editPoiDialog.row?.id;
+							if (!id) return null;
+							const updated = await onUpdatePlanPoi(id, payload);
+							if (updated) {
+								openInfoWindowRef.current?.close();
+								openInfoWindowRef.current = null;
+							}
+							return updated;
+						}}
+					/>
+				)}
 		</div>
 	);
 }

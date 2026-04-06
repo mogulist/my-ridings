@@ -112,7 +112,7 @@ export function HomeLandingSharedPlans() {
         <p className="mb-2 text-center text-sm tracking-wide text-indigo-600">
           SHARED PLANS
         </p>
-        <h2 className="text-center text-2xl text-slate-900 md:text-3xl">
+        <h2 className="text-center text-2xl text-slate-900 font-bold md:text-3xl">
           공유된 라이딩 계획
         </h2>
         <p className="mt-3 text-center text-sm text-slate-500 md:text-base">
