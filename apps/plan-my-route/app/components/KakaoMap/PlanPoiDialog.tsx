@@ -193,6 +193,15 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 				</div>
 				<FieldGroup className="p-4">
 					<Field>
+						<FieldLabel htmlFor={nameId}>이름</FieldLabel>
+						<Input
+							id={nameId}
+							type="text"
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+						/>
+					</Field>
+					<Field>
 						<FieldLabel htmlFor={typeId}>타입</FieldLabel>
 						<select
 							id={typeId}
@@ -206,15 +215,6 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 								</option>
 							))}
 						</select>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor={nameId}>이름</FieldLabel>
-						<Input
-							id={nameId}
-							type="text"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-						/>
 					</Field>
 					<Field>
 						<FieldLabel htmlFor={memoId}>메모</FieldLabel>
