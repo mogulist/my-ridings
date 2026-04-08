@@ -9,7 +9,7 @@ export default function MapScreen() {
   return (
     <ThemedView style={styles.root}>
       <ThemedText type="default" style={styles.text}>
-        카카오 지도는 iOS/Android 개발 빌드에서 표시됩니다.
+        네이버 지도는 iOS/Android 개발 빌드에서 표시됩니다.
       </ThemedText>
     </ThemedView>
   );

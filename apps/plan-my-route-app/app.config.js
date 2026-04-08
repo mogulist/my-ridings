@@ -10,7 +10,7 @@ if (!naverMapClientId) {
 
 if (process.env.EAS_BUILD && !naverMapClientId) {
   throw new Error(
-    'EAS 빌드에는 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID가 필요합니다. Expo 프로젝트 환경 변수에 AI·NAVER Maps Client ID를 등록한 뒤 다시 빌드하세요.',
+    'EAS 빌드에는 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID가 필요합니다. Expo 프로젝트 환경 변수에 네이버 Maps Client ID를 등록한 뒤 다시 빌드하세요.',
   );
 }
 
