@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const NICKNAME_MAX = 40;
 
-export async function GET() {
-	const session = await auth();
-	if (!session?.user?.id) {
+export async function GET(request: Request) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	const { data, error } = await supabaseAdmin
 		.from("user_profile")
 		.select("nickname")
-		.eq("user_id", session.user.id)
+		.eq("user_id", user.id)
 		.maybeSingle();
 
 	if (error) {
@@ -25,8 +25,8 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -66,7 +66,7 @@ export async function PATCH(request: Request) {
 
 	const { error } = await supabaseAdmin.from("user_profile").upsert(
 		{
-			user_id: session.user.id,
+			user_id: user.id,
 			nickname,
 			updated_at: new Date().toISOString(),
 		},

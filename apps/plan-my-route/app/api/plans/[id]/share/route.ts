@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 type ShareRequestBody = {
@@ -22,8 +22,8 @@ export async function PATCH(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -45,7 +45,7 @@ export async function PATCH(
 			.single();
 
 		const owner = planData as PlanOwnerLookup | null;
-		if (planError || !owner || owner.route.user_id !== session.user.id) {
+		if (planError || !owner || owner.route.user_id !== user.id) {
 			return NextResponse.json(
 				{ error: "Unauthorized or Plan not found" },
 				{ status: 403 }

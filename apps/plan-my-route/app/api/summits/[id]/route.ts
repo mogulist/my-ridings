@@ -13,7 +13,7 @@ export async function PATCH(
 	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
-	const gate = await assertSummitAdmin();
+	const gate = await assertSummitAdmin(request);
 	if (!gate.ok) {
 		return NextResponse.json({ error: gate.message }, { status: gate.status });
 	}
@@ -129,10 +129,10 @@ export async function PATCH(
 }
 
 export async function DELETE(
-	_request: Request,
+	request: Request,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
-	const gate = await assertSummitAdmin();
+	const gate = await assertSummitAdmin(request);
 	if (!gate.ok) {
 		return NextResponse.json({ error: gate.message }, { status: gate.status });
 	}

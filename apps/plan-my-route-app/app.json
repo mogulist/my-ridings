@@ -10,6 +10,7 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.herbertlim.planmyrouteapp",
+      "appleTeamId": "HJQ38R7WDY",
       "config": {
         "usesNonExemptEncryption": false
       }

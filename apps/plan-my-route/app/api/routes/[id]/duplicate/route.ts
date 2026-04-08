@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 type DbStage = {
@@ -33,8 +33,8 @@ export async function POST(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -66,7 +66,7 @@ export async function POST(
 				)
 			`)
 			.eq("id", id)
-			.eq("user_id", session.user.id)
+			.eq("user_id", user.id)
 			.single<RouteWithPlans>();
 
 		if (sourceError || !sourceRoute) {
@@ -76,7 +76,7 @@ export async function POST(
 		const { data: newRoute, error: insertRouteError } = await supabaseAdmin
 			.from("route")
 			.insert({
-				user_id: session.user.id,
+				user_id: user.id,
 				name: `${sourceRoute.name} (복제)`,
 				rwgps_url: sourceRoute.rwgps_url,
 				total_distance: sourceRoute.total_distance,

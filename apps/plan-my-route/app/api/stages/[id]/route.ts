@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function PUT(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -26,7 +26,7 @@ export async function PUT(
 
 		if (
 			stageError ||
-			(stageData as any).plan.route.user_id !== session.user.id
+			(stageData as any).plan.route.user_id !== user.id
 		) {
 			return NextResponse.json(
 				{ error: "Unauthorized or Stage not found" },
@@ -63,8 +63,8 @@ export async function DELETE(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -79,7 +79,7 @@ export async function DELETE(
 
 		if (
 			stageError ||
-			(stageData as any).plan.route.user_id !== session.user.id
+			(stageData as any).plan.route.user_id !== user.id
 		) {
 			return NextResponse.json(
 				{ error: "Unauthorized or Stage not found" },

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(request: Request) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 			.from("route")
 			.select("id")
 			.eq("id", route_id)
-			.eq("user_id", session.user.id)
+			.eq("user_id", user.id)
 			.single();
 
 		if (routeError || !routeData) {

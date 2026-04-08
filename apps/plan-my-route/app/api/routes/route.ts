@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
-export async function GET() {
+export async function GET(request: Request) {
 	try {
-		const session = await auth();
-		if (!session?.user?.id) {
+		const user = await getAuthenticatedUser(request);
+		if (!user) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
 		const { data, error } = await supabaseAdmin
 			.from("route")
 			.select("*")
-			.eq("user_id", session.user.id)
+			.eq("user_id", user.id)
 			.order("created_at", { ascending: false });
 
 		if (error) {
@@ -28,8 +28,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
 	try {
-		const session = await auth();
-		if (!session?.user?.id) {
+		const user = await getAuthenticatedUser(request);
+		if (!user) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 		const { data, error } = await supabaseAdmin
 			.from("route")
 			.insert({
-				user_id: session.user.id,
+				user_id: user.id,
 				name,
 				rwgps_url,
 				total_distance,
