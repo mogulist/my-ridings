@@ -16,8 +16,7 @@
     "build:debug:android:local": "eas build --profile debug --platform android --local"
   },
   "dependencies": {
-    "@react-native-kakao/core": "2.2.7",
-    "@react-native-kakao/map": "^2.2.7",
+    "@mj-studio/react-native-naver-map": "^2.7.1",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/elements": "^2.9.10",
     "@react-navigation/native": "^7.1.33",

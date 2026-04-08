@@ -1,17 +1,17 @@
-import { KakaoMapView } from '@react-native-kakao/map';
+import { NaverMapView } from '@mj-studio/react-native-naver-map';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 const INITIAL_CAMERA = {
-  lat: 37.5665,
-  lng: 126.978,
-  zoomLevel: 15,
+  latitude: 37.5665,
+  longitude: 126.978,
+  zoom: 15,
 };
 
 export default function MapScreen() {
   return (
     <View style={styles.root}>
-      <KakaoMapView style={styles.map} camera={INITIAL_CAMERA} />
+      <NaverMapView style={styles.map} initialCamera={INITIAL_CAMERA} />
     </View>
   );
 }
