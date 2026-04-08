@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { isPlanPoiType, type PlanPoiRow } from "@/app/types/planPoi";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 
 const SELECT_COLS =
   "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, created_at, updated_at";
@@ -28,16 +28,16 @@ async function assertPlanOwner(
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: planId } = await params;
-  const gate = await assertPlanOwner(planId, session.user.id);
+  const gate = await assertPlanOwner(planId, user.id);
   if (!gate.ok) {
     return NextResponse.json({ error: gate.message }, { status: gate.status });
   }
@@ -71,13 +71,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: planId } = await params;
-  const gate = await assertPlanOwner(planId, session.user.id);
+  const gate = await assertPlanOwner(planId, user.id);
   if (!gate.ok) {
     return NextResponse.json({ error: gate.message }, { status: gate.status });
   }

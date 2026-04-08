@@ -1,5 +1,5 @@
-import { auth } from "@/auth";
 import { normalizeSummitName } from "@/app/types/summitCatalog";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export const SUMMIT_SELECT_COLS =
@@ -12,9 +12,9 @@ export type AdminGateResult =
 	| { ok: true; userId: string }
 	| { ok: false; status: number; message: string };
 
-export const assertSummitAdmin = async (): Promise<AdminGateResult> => {
-	const session = await auth();
-	if (!session?.user?.id) {
+export const assertSummitAdmin = async (request: Request): Promise<AdminGateResult> => {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return { ok: false, status: 401, message: "Unauthorized" };
 	}
 
@@ -30,12 +30,12 @@ export const assertSummitAdmin = async (): Promise<AdminGateResult> => {
 
 	// 로컬/개발 환경에서 env 미설정 시 기능이 완전히 막히지 않도록 로그인 사용자 허용
 	if (allowedUserIds.length === 0 && allowedEmails.length === 0) {
-		return { ok: true, userId: session.user.id };
+		return { ok: true, userId: user.id };
 	}
 
 	const isAllowedByUserId =
-		allowedUserIds.length > 0 && allowedUserIds.includes(session.user.id);
-	const sessionEmail = (session.user.email ?? "").trim().toLowerCase();
+		allowedUserIds.length > 0 && allowedUserIds.includes(user.id);
+	const sessionEmail = (user.email ?? "").trim().toLowerCase();
 	const isAllowedByEmail =
 		allowedEmails.length > 0 &&
 		sessionEmail.length > 0 &&
@@ -45,7 +45,7 @@ export const assertSummitAdmin = async (): Promise<AdminGateResult> => {
 		return { ok: false, status: 403, message: "Forbidden" };
 	}
 
-	return { ok: true, userId: session.user.id };
+	return { ok: true, userId: user.id };
 };
 
 export const parseNumber = (value: unknown): number | null => {

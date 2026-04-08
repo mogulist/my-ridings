@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 type SupabaseLikeError = {
@@ -17,8 +17,8 @@ export async function DELETE(
   _request: NextRequest,
   context: { params: Promise<{ placeId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getAuthenticatedUser(_request);
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -33,7 +33,7 @@ export async function DELETE(
   const { error } = await supabaseAdmin
     .from("place_review")
     .delete()
-    .eq("user_id", session.user.id)
+    .eq("user_id", user.id)
     .eq("provider", "kakao")
     .eq("place_id", decodeURIComponent(placeId));
 

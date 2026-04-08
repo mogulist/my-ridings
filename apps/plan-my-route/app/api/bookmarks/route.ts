@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
 	normalizeReviewState,
@@ -23,16 +23,16 @@ function isPlaceReviewSchemaError(error: SupabaseLikeError | null): boolean {
 const SELECT_COLS =
 	"id, place_id, place_name, place_url, address_name, lat, lng, place_kind, review_state, note, route_id, plan_id, stage_id, created_at, updated_at";
 
-export async function GET() {
-	const session = await auth();
-	if (!session?.user?.id) {
+export async function GET(request: Request) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	const { data, error } = await supabaseAdmin
 		.from("place_review")
 		.select(SELECT_COLS)
-		.eq("user_id", session.user.id)
+		.eq("user_id", user.id)
 		.order("updated_at", { ascending: false });
 
 	if (error) {
@@ -60,8 +60,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 		const safeState: ReviewState = normalizeReviewState(review_state);
 
 		const row = {
-			user_id: session.user.id,
+			user_id: user.id,
 			provider: String(provider),
 			place_id: String(place_id),
 			place_name: String(place_name),

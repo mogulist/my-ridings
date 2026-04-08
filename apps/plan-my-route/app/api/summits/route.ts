@@ -9,8 +9,8 @@ import {
 	SUMMIT_SELECT_COLS,
 } from "./shared";
 
-export async function GET() {
-	const gate = await assertSummitAdmin();
+export async function GET(request: Request) {
+	const gate = await assertSummitAdmin(request);
 	if (!gate.ok) {
 		return NextResponse.json({ error: gate.message }, { status: gate.status });
 	}
@@ -28,7 +28,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-	const gate = await assertSummitAdmin();
+	const gate = await assertSummitAdmin(request);
 	if (!gate.ok) {
 		return NextResponse.json({ error: gate.message }, { status: gate.status });
 	}

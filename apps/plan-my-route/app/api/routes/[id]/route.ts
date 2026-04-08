@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -24,7 +24,7 @@ export async function GET(
 			)
 		`)
 		.eq("id", id)
-		.eq("user_id", session.user.id)
+		.eq("user_id", user.id)
 		.single();
 
 	if (error) {
@@ -48,8 +48,8 @@ export async function PUT(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -85,7 +85,7 @@ export async function PUT(
 			.from("route")
 			.update(updatePayload)
 			.eq("id", id)
-			.eq("user_id", session.user.id)
+			.eq("user_id", user.id)
 			.select()
 			.single();
 
@@ -101,8 +101,8 @@ export async function DELETE(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const session = await auth();
-	if (!session?.user?.id) {
+	const user = await getAuthenticatedUser(request);
+	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -112,7 +112,7 @@ export async function DELETE(
 		.from("route")
 		.delete()
 		.eq("id", id)
-		.eq("user_id", session.user.id);
+		.eq("user_id", user.id);
 
 	if (error) {
 		return NextResponse.json({ error: error.message }, { status: 500 });
