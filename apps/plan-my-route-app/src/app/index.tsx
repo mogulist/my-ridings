@@ -226,7 +226,18 @@ async function exchangeAndVerify({
       }),
     });
     if (!authResponse.ok) {
-      throw new Error(`mobile auth failed (${authResponse.status})`);
+      let detail = '';
+      try {
+        const json = (await authResponse.json()) as { error?: string };
+        detail = typeof json.error === 'string' ? json.error : '';
+      } catch {
+        detail = await authResponse.text();
+      }
+      throw new Error(
+        detail
+          ? `mobile auth failed (${authResponse.status}): ${detail}`
+          : `mobile auth failed (${authResponse.status})`,
+      );
     }
 
     const authJson = (await authResponse.json()) as MobileAuthResponse;

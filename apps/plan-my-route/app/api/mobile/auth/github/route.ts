@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { signMobileAccessToken } from "@/lib/mobile-auth";
 
-// Required env: AUTH_GITHUB_ID, AUTH_GITHUB_SECRET (optional allowlist: MOBILE_AUTH_GITHUB_REDIRECT_URIS)
+// Required env:
+// - MOBILE_AUTH_GITHUB_ID / MOBILE_AUTH_GITHUB_SECRET (recommended for app-only OAuth app)
+// - or AUTH_GITHUB_ID / AUTH_GITHUB_SECRET as fallback
+// Optional: MOBILE_AUTH_GITHUB_REDIRECT_URIS
 type GitHubTokenResponse = {
 	access_token?: string;
 	scope?: string;
@@ -57,10 +60,13 @@ const readToken = async ({
 	codeVerifier: string;
 	redirectUri: string;
 }) => {
-	const clientId = process.env.AUTH_GITHUB_ID;
-	const clientSecret = process.env.AUTH_GITHUB_SECRET;
+	const clientId = process.env.MOBILE_AUTH_GITHUB_ID ?? process.env.AUTH_GITHUB_ID;
+	const clientSecret =
+		process.env.MOBILE_AUTH_GITHUB_SECRET ?? process.env.AUTH_GITHUB_SECRET;
 	if (!clientId || !clientSecret) {
-		throw new Error("Missing AUTH_GITHUB_ID or AUTH_GITHUB_SECRET");
+		throw new Error(
+			"Missing GitHub OAuth credentials (MOBILE_AUTH_GITHUB_* or AUTH_GITHUB_*)",
+		);
 	}
 
 	const params = new URLSearchParams({
