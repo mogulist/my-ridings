@@ -34,7 +34,6 @@ type MobileAuthResponse = {
 const ACCESS_TOKEN_KEY = 'plan-my-route-access-token';
 const GOOGLE_AUTH_PATH = '/api/mobile/auth/google';
 const GITHUB_AUTH_PATH = '/api/mobile/auth/github';
-const DEBUG_RUN_ID = 'run1-pre-fix';
 const GOOGLE_REDIRECT_URI_FALLBACK = 'https://plan-my-route.vercel.app/api/mobile/oauth/google/callback';
 
 export default function HomeScreen() {
@@ -64,9 +63,6 @@ export default function HomeScreen() {
     },
     { authorizationEndpoint: 'https://github.com/login/oauth/authorize' },
   );
-  // #region agent log
-  fetch('http://127.0.0.1:7759/ingest/481b419d-6f30-460f-b63b-c3b015ba0dad',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fcfd8a'},body:JSON.stringify({sessionId:'fcfd8a',runId:DEBUG_RUN_ID,hypothesisId:'H1',location:'apps/plan-my-route-app/src/app/index.tsx:62',message:'google auth request config snapshot before useAuthRequest',data:{hasGoogleClientId:Boolean(googleClientId),googleClientIdLength:googleClientId.length,hasGoogleRedirectUri:Boolean(googleRedirectUri),googleRedirectUri,googleRedirectUriStartsWithHttp:googleRedirectUri.startsWith('http://')||googleRedirectUri.startsWith('https://')},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
     {
       clientId: googleClientId || 'missing-google-client-id',
@@ -110,9 +106,6 @@ export default function HomeScreen() {
   }, [apiOrigin, githubRedirectUri, githubRequest?.codeVerifier, githubResponse]);
   useEffect(() => {
     if (!isGoogleOauthConfigValid) return;
-    // #region agent log
-    fetch('http://127.0.0.1:7759/ingest/481b419d-6f30-460f-b63b-c3b015ba0dad',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fcfd8a'},body:JSON.stringify({sessionId:'fcfd8a',runId:DEBUG_RUN_ID,hypothesisId:'H2',location:'apps/plan-my-route-app/src/app/index.tsx:104',message:'google response observer fired',data:{responseType:googleResponse?.type??null,hasGoogleRequest:Boolean(googleRequest),hasCodeVerifier:Boolean(googleRequest?.codeVerifier),hasAuthCode:Boolean(googleResponse?.type==='success'&&Boolean(googleResponse.params.code))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (googleResponse?.type !== 'success') return;
     const code = googleResponse.params.code;
     const codeVerifier = googleRequest?.codeVerifier;
@@ -374,9 +367,6 @@ function getApiOrigin() {
 
 function getGoogleRedirectUri() {
   const raw = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI ?? '';
-  // #region agent log
-  fetch('http://127.0.0.1:7759/ingest/481b419d-6f30-460f-b63b-c3b015ba0dad',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fcfd8a'},body:JSON.stringify({sessionId:'fcfd8a',runId:DEBUG_RUN_ID,hypothesisId:'H3',location:'apps/plan-my-route-app/src/app/index.tsx:367',message:'google redirect env read',data:{hasRaw:Boolean(raw),rawLength:raw.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   return raw.trim();
 }
 
