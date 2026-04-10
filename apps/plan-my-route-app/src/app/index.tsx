@@ -32,6 +32,10 @@ type MobileAuthResponse = {
 };
 
 const ACCESS_TOKEN_KEY = 'plan-my-route-access-token';
+const GOOGLE_AUTH_PATH = '/api/mobile/auth/google';
+const GITHUB_AUTH_PATH = '/api/mobile/auth/github';
+const DEBUG_RUN_ID = 'run1-pre-fix';
+const GOOGLE_REDIRECT_URI_FALLBACK = 'https://plan-my-route.vercel.app/api/mobile/oauth/google/callback';
 
 export default function HomeScreen() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -41,19 +45,36 @@ export default function HomeScreen() {
 
   const apiOrigin = useMemo(getApiOrigin, []);
   const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID ?? '';
-  const redirectUri = useMemo(
+  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+  const githubRedirectUri = useMemo(
     () => AuthSession.makeRedirectUri({ scheme: 'planmyrouteapp', path: 'oauth/github' }),
     [],
   );
+  const googleRedirectUri = useMemo(getGoogleRedirectUri, []);
+  const hasValidGoogleRedirectUri =
+    googleRedirectUri.startsWith('https://') || googleRedirectUri.startsWith('http://');
+  const isGoogleOauthConfigValid = Boolean(googleClientId && hasValidGoogleRedirectUri);
 
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+  const [githubRequest, githubResponse, promptGithubAsync] = AuthSession.useAuthRequest(
     {
       clientId: githubClientId,
-      redirectUri,
+      redirectUri: githubRedirectUri,
       scopes: ['read:user', 'user:email'],
       usePKCE: true,
     },
     { authorizationEndpoint: 'https://github.com/login/oauth/authorize' },
+  );
+  // #region agent log
+  fetch('http://127.0.0.1:7759/ingest/481b419d-6f30-460f-b63b-c3b015ba0dad',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fcfd8a'},body:JSON.stringify({sessionId:'fcfd8a',runId:DEBUG_RUN_ID,hypothesisId:'H1',location:'apps/plan-my-route-app/src/app/index.tsx:62',message:'google auth request config snapshot before useAuthRequest',data:{hasGoogleClientId:Boolean(googleClientId),googleClientIdLength:googleClientId.length,hasGoogleRedirectUri:Boolean(googleRedirectUri),googleRedirectUri,googleRedirectUriStartsWithHttp:googleRedirectUri.startsWith('http://')||googleRedirectUri.startsWith('https://')},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: googleClientId || 'missing-google-client-id',
+      redirectUri: hasValidGoogleRedirectUri ? googleRedirectUri : GOOGLE_REDIRECT_URI_FALLBACK,
+      scopes: ['openid', 'profile', 'email'],
+      usePKCE: true,
+    },
+    { authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth' },
   );
 
   useEffect(() => {
@@ -67,25 +88,51 @@ export default function HomeScreen() {
   }, [apiOrigin]);
 
   useEffect(() => {
-    if (response?.type !== 'success') return;
-    const code = response.params.code;
-    const codeVerifier = request?.codeVerifier;
+    if (githubResponse?.type !== 'success') return;
+    const code = githubResponse.params.code;
+    const codeVerifier = githubRequest?.codeVerifier;
     if (!code || !codeVerifier) {
       setErrorMessage('GitHub authorization code or PKCE verifier is missing.');
       return;
     }
 
     void exchangeAndVerify({
+      authPath: GITHUB_AUTH_PATH,
       apiOrigin,
       code,
       codeVerifier,
-      redirectUri,
+      redirectUri: githubRedirectUri,
       onBusyChange: setIsBusy,
       onErrorChange: setErrorMessage,
       onTokenChange: setAccessToken,
       onVerifyChange: setVerifyResult,
     });
-  }, [apiOrigin, redirectUri, request?.codeVerifier, response]);
+  }, [apiOrigin, githubRedirectUri, githubRequest?.codeVerifier, githubResponse]);
+  useEffect(() => {
+    if (!isGoogleOauthConfigValid) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7759/ingest/481b419d-6f30-460f-b63b-c3b015ba0dad',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fcfd8a'},body:JSON.stringify({sessionId:'fcfd8a',runId:DEBUG_RUN_ID,hypothesisId:'H2',location:'apps/plan-my-route-app/src/app/index.tsx:104',message:'google response observer fired',data:{responseType:googleResponse?.type??null,hasGoogleRequest:Boolean(googleRequest),hasCodeVerifier:Boolean(googleRequest?.codeVerifier),hasAuthCode:Boolean(googleResponse?.type==='success'&&Boolean(googleResponse.params.code))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    if (googleResponse?.type !== 'success') return;
+    const code = googleResponse.params.code;
+    const codeVerifier = googleRequest?.codeVerifier;
+    if (!code || !codeVerifier) {
+      setErrorMessage('Google authorization code or PKCE verifier is missing.');
+      return;
+    }
+
+    void exchangeAndVerify({
+      authPath: GOOGLE_AUTH_PATH,
+      apiOrigin,
+      code,
+      codeVerifier,
+      redirectUri: googleRedirectUri,
+      onBusyChange: setIsBusy,
+      onErrorChange: setErrorMessage,
+      onTokenChange: setAccessToken,
+      onVerifyChange: setVerifyResult,
+    });
+  }, [apiOrigin, googleRedirectUri, googleRequest?.codeVerifier, googleResponse, isGoogleOauthConfigValid]);
 
   return (
     <ThemedView style={styles.container}>
@@ -96,7 +143,7 @@ export default function HomeScreen() {
             Plan My Route
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-            GitHub 로그인 후 web과 동일 계정으로 API를 확인합니다.
+            GitHub 또는 Google 로그인 후 web과 동일 계정으로 API를 확인합니다.
           </ThemedText>
         </ThemedView>
 
@@ -104,17 +151,34 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => {
               setErrorMessage(null);
-              void promptAsync();
+              void promptGithubAsync();
             }}
-            disabled={!request || isBusy || !githubClientId || !apiOrigin}
+            disabled={!githubRequest || isBusy || !githubClientId || !apiOrigin}
             style={({ pressed }) => [
               styles.primaryButton,
               pressed && styles.primaryButtonPressed,
-              (!request || isBusy || !githubClientId || !apiOrigin) && styles.buttonDisabled,
+              (!githubRequest || isBusy || !githubClientId || !apiOrigin) && styles.buttonDisabled,
             ]}>
             <ThemedText style={styles.buttonText}>
               {isBusy ? '로그인 처리 중...' : 'GitHub로 로그인'}
             </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setErrorMessage(null);
+              void promptGoogleAsync();
+            }}
+            disabled={!googleRequest || isBusy || !isGoogleOauthConfigValid || !apiOrigin}
+            style={({ pressed }) => [
+              styles.googleButton,
+              pressed && styles.secondaryButtonPressed,
+              (!googleRequest ||
+                isBusy ||
+                !isGoogleOauthConfigValid ||
+                !apiOrigin) &&
+                styles.buttonDisabled,
+            ]}>
+            <ThemedText style={styles.googleButtonText}>Google로 로그인</ThemedText>
           </Pressable>
 
           <Pressable
@@ -136,7 +200,13 @@ export default function HomeScreen() {
           </Pressable>
 
           <ThemedText type="small">API: {apiOrigin || 'EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 미설정'}</ThemedText>
-          <ThemedText type="small">Redirect URI: {redirectUri}</ThemedText>
+          <ThemedText type="small">
+            Google Client ID: {googleClientId ? '설정됨' : 'EXPO_PUBLIC_GOOGLE_CLIENT_ID 미설정'}
+          </ThemedText>
+          <ThemedText type="small">GitHub Redirect URI: {githubRedirectUri}</ThemedText>
+          <ThemedText type="small">
+            Google Redirect URI: {googleRedirectUri || 'EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI 미설정'}
+          </ThemedText>
           <ThemedText type="small">
             상태: {accessToken ? '토큰 저장됨' : '로그인 필요'}
           </ThemedText>
@@ -190,6 +260,7 @@ async function restoreAndVerifyToken({
 }
 
 async function exchangeAndVerify({
+  authPath,
   apiOrigin,
   code,
   codeVerifier,
@@ -199,6 +270,7 @@ async function exchangeAndVerify({
   onTokenChange,
   onVerifyChange,
 }: {
+  authPath: '/api/mobile/auth/github' | '/api/mobile/auth/google';
   apiOrigin: string;
   code: string;
   codeVerifier: string;
@@ -216,7 +288,7 @@ async function exchangeAndVerify({
   onBusyChange(true);
   onErrorChange(null);
   try {
-    const authResponse = await fetch(`${apiOrigin}/api/mobile/auth/github`, {
+    const authResponse = await fetch(`${apiOrigin}${authPath}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -300,6 +372,14 @@ function getApiOrigin() {
   return raw.trim().replace(/\/+$/, '');
 }
 
+function getGoogleRedirectUri() {
+  const raw = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI ?? '';
+  // #region agent log
+  fetch('http://127.0.0.1:7759/ingest/481b419d-6f30-460f-b63b-c3b015ba0dad',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fcfd8a'},body:JSON.stringify({sessionId:'fcfd8a',runId:DEBUG_RUN_ID,hypothesisId:'H3',location:'apps/plan-my-route-app/src/app/index.tsx:367',message:'google redirect env read',data:{hasRaw:Boolean(raw),rawLength:raw.length},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  return raw.trim();
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -355,8 +435,21 @@ const styles = StyleSheet.create({
   secondaryButtonPressed: {
     opacity: 0.85,
   },
+  googleButton: {
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A0A4AE',
+    backgroundColor: '#FFFFFF',
+  },
   buttonText: {
     color: '#ffffff',
+    fontWeight: 700,
+  },
+  googleButtonText: {
+    color: '#202124',
     fontWeight: 700,
   },
   secondaryButtonText: {
