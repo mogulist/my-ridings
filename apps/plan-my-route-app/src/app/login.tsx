@@ -11,10 +11,12 @@ import { ThemedView } from '@/components/themed-view';
 import { fetchRoutes } from '@/features/api/plan-my-route';
 import {
   getApiOrigin,
+  getGithubRedirectUri,
   getGoogleRedirectUri,
   getStoredAccessToken,
   setStoredAccessToken,
   GITHUB_AUTH_PATH,
+  GITHUB_REDIRECT_URI_FALLBACK,
   GOOGLE_AUTH_PATH,
   GOOGLE_REDIRECT_URI_FALLBACK,
 } from '@/features/auth/session';
@@ -34,14 +36,18 @@ export default function LoginScreen() {
   const apiOrigin = useMemo(getApiOrigin, []);
   const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID ?? '';
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
-  const githubRedirectUri = useMemo(
-    () => AuthSession.makeRedirectUri({ scheme: 'planmyrouteapp', path: 'oauth/github' }),
-    [],
-  );
+  const githubRedirectFromEnv = useMemo(getGithubRedirectUri, []);
+  const hasValidGithubRedirectUri =
+    githubRedirectFromEnv.startsWith('https://') ||
+    githubRedirectFromEnv.startsWith('http://');
+  const githubRedirectUri = hasValidGithubRedirectUri
+    ? githubRedirectFromEnv
+    : GITHUB_REDIRECT_URI_FALLBACK;
   const googleRedirectUri = useMemo(getGoogleRedirectUri, []);
   const hasValidGoogleRedirectUri =
     googleRedirectUri.startsWith('https://') || googleRedirectUri.startsWith('http://');
   const isGoogleOauthConfigValid = Boolean(googleClientId && hasValidGoogleRedirectUri);
+  const isGithubOauthConfigValid = Boolean(githubClientId && githubRedirectUri);
 
   const [githubRequest, githubResponse, promptGithubAsync] = AuthSession.useAuthRequest(
     {
@@ -147,12 +153,13 @@ export default function LoginScreen() {
               setErrorMessage(null);
               void promptGithubAsync();
             }}
-            disabled={!githubRequest || isBusy || !githubClientId || !apiOrigin}
+            disabled={!githubRequest || isBusy || !isGithubOauthConfigValid || !apiOrigin}
             style={({ pressed }) => [
               styles.oauthButton,
               styles.githubButton,
               pressed && styles.pressed,
-              (!githubRequest || isBusy || !githubClientId || !apiOrigin) && styles.buttonDisabled,
+              (!githubRequest || isBusy || !isGithubOauthConfigValid || !apiOrigin) &&
+                styles.buttonDisabled,
             ]}>
             <Image
               source={{ uri: 'https://github.githubassets.com/favicons/favicon.png' }}

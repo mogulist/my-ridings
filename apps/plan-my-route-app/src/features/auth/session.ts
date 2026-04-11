@@ -5,6 +5,8 @@ export const GOOGLE_AUTH_PATH = '/api/mobile/auth/google';
 export const GITHUB_AUTH_PATH = '/api/mobile/auth/github';
 export const GOOGLE_REDIRECT_URI_FALLBACK =
   'https://plan-my-route.vercel.app/api/mobile/oauth/google/callback';
+export const GITHUB_REDIRECT_URI_FALLBACK =
+  'https://plan-my-route.vercel.app/api/mobile/oauth/github/callback';
 
 export const getApiOrigin = () => {
   const raw = process.env.EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN ?? '';
@@ -13,6 +15,11 @@ export const getApiOrigin = () => {
 
 export const getGoogleRedirectUri = () => {
   const raw = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI ?? '';
+  return raw.trim();
+};
+
+export const getGithubRedirectUri = () => {
+  const raw = process.env.EXPO_PUBLIC_GITHUB_OAUTH_REDIRECT_URI ?? '';
   return raw.trim();
 };
 

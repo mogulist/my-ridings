@@ -5,7 +5,8 @@ import { signMobileAccessToken } from "@/lib/mobile-auth";
 // Required env:
 // - MOBILE_AUTH_GITHUB_ID / MOBILE_AUTH_GITHUB_SECRET (recommended for app-only OAuth app)
 // - or AUTH_GITHUB_ID / AUTH_GITHUB_SECRET as fallback
-// Optional: MOBILE_AUTH_GITHUB_REDIRECT_URIS
+// Optional: MOBILE_AUTH_GITHUB_REDIRECT_URIS (comma-separated). HTTPS 프록시 사용 시 예:
+// https://plan-my-route.vercel.app/api/mobile/oauth/github/callback
 type GitHubTokenResponse = {
 	access_token?: string;
 	scope?: string;
