@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
+import { regenerateRouteCoverImages } from "@/lib/route-cover";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(request: Request) {
@@ -67,6 +68,17 @@ export async function POST(request: Request) {
 		if (error) {
 			throw error;
 		}
+
+		after(async () => {
+			try {
+				await regenerateRouteCoverImages({
+					routeId: data.id,
+					rwgpsUrl: data.rwgps_url,
+				});
+			} catch (coverError) {
+				console.error("Failed to generate route cover images:", coverError);
+			}
+		});
 
 		return NextResponse.json(data, { status: 201 });
 	} catch (error: any) {

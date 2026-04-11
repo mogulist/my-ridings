@@ -18,6 +18,8 @@ type PublicPlanRouteForClient = {
   total_distance: number | null;
   elevation_gain: number | null;
   elevation_loss: number | null;
+  cover_image_hero_url: string | null;
+  cover_image_og_url: string | null;
 };
 
 type PublicPlanRouteRow = PublicPlanRouteForClient & { user_id: string };
@@ -59,6 +61,8 @@ export async function GET(
 				total_distance,
 				elevation_gain,
 				elevation_loss,
+				cover_image_hero_url,
+				cover_image_og_url,
 				user_id
 			),
 			stages:stage (
@@ -104,6 +108,8 @@ export async function GET(
     total_distance: routeRow.total_distance,
     elevation_gain: routeRow.elevation_gain,
     elevation_loss: routeRow.elevation_loss,
+    cover_image_hero_url: routeRow.cover_image_hero_url,
+    cover_image_og_url: routeRow.cover_image_og_url,
   };
 
   let planPois: PlanPoiRow[] = [];

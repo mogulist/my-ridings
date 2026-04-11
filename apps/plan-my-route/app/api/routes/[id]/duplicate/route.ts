@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
+import { regenerateRouteCoverImages } from "@/lib/route-cover";
 import { supabaseAdmin } from "@/lib/supabase";
 
 type DbStage = {
@@ -89,6 +90,17 @@ export async function POST(
 			.single();
 
 		if (insertRouteError || !newRoute) throw insertRouteError;
+
+		after(async () => {
+			try {
+				await regenerateRouteCoverImages({
+					routeId: newRoute.id,
+					rwgpsUrl: newRoute.rwgps_url,
+				});
+			} catch (coverError) {
+				console.error("Failed to generate duplicated route cover images:", coverError);
+			}
+		});
 
 		const sortedPlans = [...(sourceRoute.plans ?? [])].sort((a, b) => {
 			const orderA = a.sort_order ?? Number.MAX_SAFE_INTEGER;

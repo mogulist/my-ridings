@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MoreHorizontalIcon, PencilIcon, TrashIcon, CopyIcon } from "lucide-react";
+import { toast } from "sonner";
+import {
+	MoreHorizontalIcon,
+	PencilIcon,
+	TrashIcon,
+	CopyIcon,
+	ImageIcon,
+	Loader2Icon,
+} from "lucide-react";
 import {
 	Button,
 	DropdownMenu,
@@ -19,6 +27,7 @@ type Route = {
 	rwgps_url: string;
 	created_at: string;
 	start_date?: string | null;
+	cover_image_thumb_url?: string | null;
 };
 
 type DialogMode = "create" | "edit";
@@ -41,6 +50,7 @@ export default function RouteList() {
 	const [routeStartDateInput, setRouteStartDateInput] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [openMenuRouteId, setOpenMenuRouteId] = useState<string | null>(null);
+	const [regeneratingRouteId, setRegeneratingRouteId] = useState<string | null>(null);
 	const router = useRouter();
 
 	useEffect(() => {
@@ -148,12 +158,39 @@ export default function RouteList() {
 		}
 	}
 
+	async function handleRegenerateCover(routeId: string) {
+		if (regeneratingRouteId === routeId) return;
+		setRegeneratingRouteId(routeId);
+		setOpenMenuRouteId(null);
+		try {
+			const res = await fetch(`/api/routes/${routeId}/regenerate-cover`, { method: "POST" });
+			if (!res.ok) throw new Error("Failed to regenerate cover");
+			await fetchRoutes();
+			toast.success("대표 이미지 생성을 완료했습니다.");
+		} catch (error) {
+			console.error(error);
+			toast.error("대표 이미지 재생성에 실패했습니다.");
+		} finally {
+			setRegeneratingRouteId(null);
+		}
+	}
+
 	if (loading) {
 		return <div className="p-8 text-center text-zinc-500">불러오는 중...</div>;
 	}
 
 	return (
 		<div className="mx-auto max-w-4xl p-6">
+			{regeneratingRouteId ? (
+				<div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+					<div className="flex items-center gap-3 rounded-lg bg-white px-5 py-4 shadow-xl dark:bg-zinc-900">
+						<Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
+						<p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+							대표이미지를 생성하는 중입니다...
+						</p>
+					</div>
+				</div>
+			) : null}
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
 					내 라이딩 경로
@@ -182,19 +219,27 @@ export default function RouteList() {
 						<li key={route.id} className="relative">
 							<Link
 								href={`/routes/${route.id}`}
-								className="block rounded-lg border border-zinc-200 bg-white p-4 pr-12 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+								className="block overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
 							>
-								<h2 className="font-semibold text-zinc-900 dark:text-zinc-100">
-									{route.name}
-								</h2>
-								<p className="mt-1 text-sm text-zinc-500 truncate">
-									{route.rwgps_url}
-								</p>
-								<p className="mt-2 text-xs text-zinc-400">
-									{route.start_date
-										? formatDateForDisplay(route.start_date)
-										: new Date(route.created_at).toLocaleDateString()}
-								</p>
+								{route.cover_image_thumb_url ? (
+									<div
+										className="aspect-video w-full bg-zinc-200 bg-cover bg-center dark:bg-zinc-800"
+										style={{ backgroundImage: `url(${route.cover_image_thumb_url})` }}
+									/>
+								) : (
+									<div className="aspect-video w-full bg-zinc-100 dark:bg-zinc-800" />
+								)}
+								<div className="p-4 pr-12">
+									<h2 className="font-semibold text-zinc-900 dark:text-zinc-100">
+										{route.name}
+									</h2>
+									<p className="mt-1 truncate text-sm text-zinc-500">{route.rwgps_url}</p>
+									<p className="mt-2 text-xs text-zinc-400">
+										{route.start_date
+											? formatDateForDisplay(route.start_date)
+											: new Date(route.created_at).toLocaleDateString()}
+									</p>
+								</div>
 							</Link>
 							<div className="absolute right-2 top-2 z-10">
 								<DropdownMenu
@@ -219,6 +264,20 @@ export default function RouteList() {
 										<DropdownMenuItem onSelect={() => handleDuplicateRoute(route.id)}>
 											<CopyIcon className="h-4 w-4" />
 											복제
+										</DropdownMenuItem>
+										<DropdownMenuItem
+											disabled={regeneratingRouteId === route.id}
+											onSelect={(event) => {
+												event.preventDefault();
+												void handleRegenerateCover(route.id);
+											}}
+										>
+											{regeneratingRouteId === route.id ? (
+												<Loader2Icon className="h-4 w-4 animate-spin" />
+											) : (
+												<ImageIcon className="h-4 w-4" />
+											)}
+											대표이미지 재생성
 										</DropdownMenuItem>
 										<DropdownMenuSeparator />
 										<DropdownMenuItem

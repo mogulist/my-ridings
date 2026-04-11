@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS public.route (
     elevation_gain numeric,
     elevation_loss numeric,
     smoothing_param numeric,
+    cover_image_thumb_url text,
+    cover_image_hero_url text,
+    cover_image_og_url text,
+    cover_image_generated_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT route_pkey PRIMARY KEY (id),
@@ -217,3 +221,8 @@ GRANT ALL ON TABLE public.summit_catalog TO service_role;
 -- If stage table already exists without elevation columns, run:
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS elevation_gain numeric;
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS elevation_loss numeric;
+-- If route table already exists without cover columns, run:
+-- ALTER TABLE public.route ADD COLUMN IF NOT EXISTS cover_image_thumb_url text;
+-- ALTER TABLE public.route ADD COLUMN IF NOT EXISTS cover_image_hero_url text;
+-- ALTER TABLE public.route ADD COLUMN IF NOT EXISTS cover_image_og_url text;
+-- ALTER TABLE public.route ADD COLUMN IF NOT EXISTS cover_image_generated_at timestamp with time zone;

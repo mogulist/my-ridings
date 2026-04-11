@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
+import { regenerateRouteCoverImages } from "@/lib/route-cover";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(
@@ -90,6 +91,19 @@ export async function PUT(
 			.single();
 
 		if (error) throw error;
+
+		if (typeof rwgps_url === "string" && rwgps_url.trim().length > 0) {
+			after(async () => {
+				try {
+					await regenerateRouteCoverImages({
+						routeId: data.id,
+						rwgpsUrl: rwgps_url,
+					});
+				} catch (coverError) {
+					console.error("Failed to regenerate route cover images:", coverError);
+				}
+			});
+		}
 
 		return NextResponse.json(data);
 	} catch (error: any) {
