@@ -2,7 +2,7 @@ import * as AuthSession from 'expo-auth-session';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -28,8 +28,14 @@ type MobileAuthResponse = {
   accessToken: string;
 };
 
+const GOOGLE_ICON_URI = 'https://www.google.com/favicon.ico';
+const GITHUB_ICON_URI_LIGHT = 'https://github.githubassets.com/favicons/favicon.png';
+const GITHUB_ICON_URI_DARK = 'https://cdn.simpleicons.org/github/ffffff';
+
 export default function LoginScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
@@ -135,17 +141,19 @@ export default function LoginScreen() {
             disabled={!googleRequest || isBusy || !isGoogleOauthConfigValid || !apiOrigin}
             style={({ pressed }) => [
               styles.oauthButton,
-              styles.googleButton,
+              isDark ? styles.oauthButtonDark : styles.oauthButtonLight,
               pressed && styles.pressed,
               (!googleRequest || isBusy || !isGoogleOauthConfigValid || !apiOrigin) &&
                 styles.buttonDisabled,
             ]}>
             <Image
-              source={{ uri: 'https://www.google.com/favicon.ico' }}
+              source={{ uri: GOOGLE_ICON_URI }}
               style={styles.logo}
               contentFit="contain"
             />
-            <ThemedText style={styles.googleText}>{isBusy ? '처리 중...' : 'Google로 로그인'}</ThemedText>
+            <Text style={isDark ? styles.oauthLabelDark : styles.oauthLabelLight}>
+              {isBusy ? '처리 중...' : 'Google로 로그인'}
+            </Text>
           </Pressable>
 
           <Pressable
@@ -156,17 +164,19 @@ export default function LoginScreen() {
             disabled={!githubRequest || isBusy || !isGithubOauthConfigValid || !apiOrigin}
             style={({ pressed }) => [
               styles.oauthButton,
-              styles.githubButton,
+              isDark ? styles.oauthButtonDark : styles.oauthButtonLight,
               pressed && styles.pressed,
               (!githubRequest || isBusy || !isGithubOauthConfigValid || !apiOrigin) &&
                 styles.buttonDisabled,
             ]}>
             <Image
-              source={{ uri: 'https://github.githubassets.com/favicons/favicon.png' }}
+              source={{ uri: isDark ? GITHUB_ICON_URI_DARK : GITHUB_ICON_URI_LIGHT }}
               style={styles.logo}
               contentFit="contain"
             />
-            <ThemedText style={styles.githubText}>{isBusy ? '처리 중...' : 'GitHub로 로그인'}</ThemedText>
+            <Text style={isDark ? styles.oauthLabelDark : styles.oauthLabelLight}>
+              {isBusy ? '처리 중...' : 'GitHub로 로그인'}
+            </Text>
           </Pressable>
 
           {errorMessage ? (
@@ -254,30 +264,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   oauthButton: {
-    borderRadius: Spacing.two,
+    borderRadius: 8,
     borderWidth: 1,
-    paddingVertical: Spacing.two,
+    minHeight: 48,
+    paddingVertical: 12,
     paddingHorizontal: Spacing.three,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
-  googleButton: {
+  oauthButtonLight: {
     backgroundColor: '#FFFFFF',
     borderColor: '#DADCE0',
   },
-  githubButton: {
-    backgroundColor: '#24292F',
-    borderColor: '#24292F',
+  oauthButtonDark: {
+    backgroundColor: '#000000',
+    borderColor: '#3E3E3E',
   },
-  googleText: {
-    color: '#3C4043',
-    fontWeight: 700,
+  oauthLabelLight: {
+    color: '#111111',
+    fontSize: 15,
+    fontWeight: '600',
   },
-  githubText: {
+  oauthLabelDark: {
     color: '#FFFFFF',
-    fontWeight: 700,
+    fontSize: 15,
+    fontWeight: '600',
   },
   logo: {
     width: 18,
