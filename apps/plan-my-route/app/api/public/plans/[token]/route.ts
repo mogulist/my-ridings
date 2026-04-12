@@ -10,6 +10,8 @@ type PublicPlanStage = {
   elevation_gain: number | null;
   elevation_loss: number | null;
   memo: string | null;
+  start_name: string | null;
+  end_name: string | null;
 };
 
 type PublicPlanRouteForClient = {
@@ -72,7 +74,9 @@ export async function GET(
 				end_distance,
 				elevation_gain,
 				elevation_loss,
-				memo
+				memo,
+				start_name,
+				end_name
 			)
 		`,
     )

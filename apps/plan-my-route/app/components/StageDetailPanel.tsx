@@ -25,6 +25,8 @@ type StageDetailPanelProps = {
 	onPoiRowClick: (poiId: string) => void;
 	onEditPoi: (poi: SnappedPlanPoi) => void;
 	onDeletePoi: (poiId: string) => void;
+	/** 공유 뷰 등: 수정·삭제 UI 숨김 */
+	readOnly?: boolean;
 };
 
 function formatNumber(n: number): string {
@@ -54,6 +56,7 @@ export function StageDetailPanel({
 	onPoiRowClick,
 	onEditPoi,
 	onDeletePoi,
+	readOnly = false,
 }: StageDetailPanelProps) {
 	const snapped = useMemo(
 		() => snapPlanPoisToTrack(planPois, trackPoints),
@@ -119,26 +122,28 @@ export function StageDetailPanel({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-0.5">
-						<DotsMenu
-							entries={[
-								{
-									type: "item",
-									key: "edit",
-									label: "수정",
-									icon: <PencilIcon className="h-4 w-4" />,
-									onSelect: onEditStage,
-								},
-								{ type: "separator", key: "sep" },
-								{
-									type: "item",
-									key: "delete",
-									label: "삭제",
-									icon: <TrashIcon className="h-4 w-4" />,
-									variant: "destructive",
-									onSelect: () => onDeleteStage(stage.id),
-								},
-							]}
-						/>
+						{readOnly ? null : (
+							<DotsMenu
+								entries={[
+									{
+										type: "item",
+										key: "edit",
+										label: "수정",
+										icon: <PencilIcon className="h-4 w-4" />,
+										onSelect: onEditStage,
+									},
+									{ type: "separator", key: "sep" },
+									{
+										type: "item",
+										key: "delete",
+										label: "삭제",
+										icon: <TrashIcon className="h-4 w-4" />,
+										variant: "destructive",
+										onSelect: () => onDeleteStage(stage.id),
+									},
+								]}
+							/>
+						)}
 						<button
 							type="button"
 							onClick={onClose}
@@ -200,32 +205,34 @@ export function StageDetailPanel({
 											) : null}
 										</div>
 									</button>
-									<span className="inline-flex shrink-0 pt-0.5">
-										<DotsMenu
-											entries={[
-												{
-													type: "item",
-													key: "edit",
-													label: "편집",
-													icon: <PencilIcon className="h-4 w-4" />,
-													onSelect: () => onEditPoi(poi),
-												},
-												{ type: "separator", key: "sep" },
-												{
-													type: "item",
-													key: "delete",
-													label: "삭제",
-													icon: <TrashIcon className="h-4 w-4" />,
-													variant: "destructive",
-													onSelect: () => {
-														if (window.confirm("이 경유지를 삭제할까요?")) {
-															onDeletePoi(poi.id);
-														}
+									{readOnly ? null : (
+										<span className="inline-flex shrink-0 pt-0.5">
+											<DotsMenu
+												entries={[
+													{
+														type: "item",
+														key: "edit",
+														label: "편집",
+														icon: <PencilIcon className="h-4 w-4" />,
+														onSelect: () => onEditPoi(poi),
 													},
-												},
-											]}
-										/>
-									</span>
+													{ type: "separator", key: "sep" },
+													{
+														type: "item",
+														key: "delete",
+														label: "삭제",
+														icon: <TrashIcon className="h-4 w-4" />,
+														variant: "destructive",
+														onSelect: () => {
+															if (window.confirm("이 경유지를 삭제할까요?")) {
+																onDeletePoi(poi.id);
+															}
+														},
+													},
+												]}
+											/>
+										</span>
+									)}
 								</li>
 							))}
 						</ul>

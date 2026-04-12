@@ -18,6 +18,8 @@ type StageCardProps = {
 	onEditStage: (stageId: string) => void;
 	maxDistanceKm: number;
 	dateLabel?: string;
+	/** 공유 뷰 등: ⋮ 메뉴·거리(km) 숫자 편집 비활성 */
+	readOnly?: boolean;
 };
 
 function formatNumber(n: number): string {
@@ -38,6 +40,7 @@ export default function StageCard({
 	onEditStage,
 	maxDistanceKm,
 	dateLabel,
+	readOnly = false,
 }: StageCardProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState("");
@@ -105,33 +108,44 @@ export default function StageCard({
 						</span>
 					)}
 				</div>
-				<div className="flex items-center gap-1">
-					<DotsMenu
-						entries={[
-							{
-								type: "item",
-								key: "edit",
-								label: "수정",
-								icon: <PencilIcon className="h-4 w-4" />,
-								onSelect: () => onEditStage(stage.id),
-							},
-							{ type: "separator", key: "sep" },
-							{
-								type: "item",
-								key: "delete",
-								label: "삭제",
-								icon: <TrashIcon className="h-4 w-4" />,
-								variant: "destructive",
-								onSelect: () => onDelete(stage.id),
-							},
-						]}
-					/>
-				</div>
+				{readOnly ? null : (
+					<div className="flex items-center gap-1">
+						<DotsMenu
+							entries={[
+								{
+									type: "item",
+									key: "edit",
+									label: "수정",
+									icon: <PencilIcon className="h-4 w-4" />,
+									onSelect: () => onEditStage(stage.id),
+								},
+								{ type: "separator", key: "sep" },
+								{
+									type: "item",
+									key: "delete",
+									label: "삭제",
+									icon: <TrashIcon className="h-4 w-4" />,
+									variant: "destructive",
+									onSelect: () => onDelete(stage.id),
+								},
+							]}
+						/>
+					</div>
+				)}
 			</div>
 
 			<div className="flex items-center justify-between text-sm">
 				<div className="flex items-center gap-1">
-					{isEditing ? (
+					{readOnly ? (
+						<span className="flex items-center gap-1">
+							<span className="font-medium text-zinc-700 dark:text-zinc-300">
+								{formatNumber(stage.distanceKm)} km
+							</span>
+							<span className="text-xs text-green-600 dark:text-green-400">
+								+{formatNumber(stage.elevationGain)}m
+							</span>
+						</span>
+					) : isEditing ? (
 						<>
 							<input
 								type="number"

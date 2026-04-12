@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpenIcon } from "lucide-react";
+import { motion } from "motion/react";
+import { cn } from "@my-ridings/ui";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { SummitCatalogRow } from "../types/summitCatalog";
 import { computeCPsOnRoute, computeSummitsOnRoute } from "./RouteViewer";
-import { getStageColor, type Stage } from "../types/plan";
+import type { Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
+import StageCard from "./StageCard";
+import { StageDetailPanel } from "./StageDetailPanel";
 import { MemoReviewPane } from "./MemoReviewPane";
 import { RouteSummaryBlock } from "./RouteSummaryBlock";
 import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
@@ -39,6 +43,8 @@ export type PublicPlanResponse = {
     elevation_gain: number | null;
     elevation_loss: number | null;
     memo: string | null;
+    start_name: string | null;
+    end_name: string | null;
   }[];
   plan_pois: PlanPoiRow[];
   author: { nickname: string | null };
@@ -94,6 +100,11 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   );
   const [isMemoReviewOpen, setIsMemoReviewOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  const [panelStageId, setPanelStageId] = useState<string | null>(null);
+  const [focusPlanPoiRequest, setFocusPlanPoiRequest] = useState<{
+    poiId: string;
+    nonce: number;
+  } | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -197,6 +208,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         isLastStage: false,
         memo: stage.memo ?? undefined,
         title: stage.title ?? null,
+        startName: stage.start_name?.trim() ? stage.start_name : undefined,
+        endName: stage.end_name?.trim() ? stage.end_name : undefined,
       };
     });
   }, [publicPlan?.stages]);
@@ -291,6 +304,27 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     setIsPinned(false);
   };
 
+  const panelStage = useMemo(
+    () => stages.find((s) => s.id === panelStageId) ?? null,
+    [stages, panelStageId],
+  );
+
+  const handleStageCardSelect = useCallback((stageId: string) => {
+    setPanelStageId(stageId);
+    setActiveStageId(stageId);
+  }, []);
+
+  const handleFocusPlanPoiConsumed = useCallback(() => {
+    setFocusPlanPoiRequest(null);
+  }, []);
+
+  const requestFocusPlanPoi = useCallback((poiId: string) => {
+    setFocusPlanPoiRequest((prev) => ({
+      poiId,
+      nonce: (prev?.nonce ?? 0) + 1,
+    }));
+  }, []);
+
   const awaitingPublic = !error && !publicPlan;
   const awaitingViewport = !error && publicPlan != null && isDesktop === null;
   const awaitingRoute =
@@ -381,89 +415,105 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
           />
         </div>
       ) : (
-        <aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
-          <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-            {publicRouteSummary ? (
-              <RouteSummaryBlock
-                name={publicRouteSummary.name}
-                rwgpsUrl={publicRouteSummary.rwgpsUrl}
-                distanceMeters={publicRouteSummary.distanceMeters}
-                elevationGain={publicRouteSummary.elevationGain}
-                elevationLoss={publicRouteSummary.elevationLoss}
-              />
-            ) : null}
-            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              {publicPlan.plan.name}
-            </h3>
-            {publicPlan.author?.nickname ? (
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                작성 · {publicPlan.author.nickname}
-              </p>
-            ) : null}
-            <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <span>{stages.length}일 계획</span>
+        <aside className="hidden shrink-0 flex-row overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
+          <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 dark:border-zinc-800">
+            <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+              {publicRouteSummary ? (
+                <RouteSummaryBlock
+                  name={publicRouteSummary.name}
+                  rwgpsUrl={publicRouteSummary.rwgpsUrl}
+                  distanceMeters={publicRouteSummary.distanceMeters}
+                  elevationGain={publicRouteSummary.elevationGain}
+                  elevationLoss={publicRouteSummary.elevationLoss}
+                />
+              ) : null}
+              <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                {publicPlan.plan.name}
+              </h3>
+              {publicPlan.author?.nickname ? (
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  작성 · {publicPlan.author.nickname}
+                </p>
+              ) : null}
+              <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{stages.length}일 계획</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMemoReviewOpen(true)}
+                className="mt-2 flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+              >
+                <BookOpenIcon className="h-3.5 w-3.5" />
+                메모 리뷰
+              </button>
+              <SharePlanDuplicateCta token={token} />
             </div>
-            <button
-              type="button"
-              onClick={() => setIsMemoReviewOpen(true)}
-              className="mt-2 flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            >
-              <BookOpenIcon className="h-3.5 w-3.5" />
-              메모 리뷰
-            </button>
-            <SharePlanDuplicateCta token={token} />
+            <div className="space-y-2 p-4">
+              {stages.map((stage, idx) => {
+                const nextStage = stages[idx + 1];
+                const maxDist = nextStage
+                  ? stage.distanceKm + nextStage.distanceKm - 0.1
+                  : stage.distanceKm + unplannedDistanceKm;
+                const isHighlighted =
+                  panelStageId === stage.id || activeStageId === stage.id;
+                return (
+                  <StageCard
+                    key={stage.id}
+                    stage={stage}
+                    isHighlighted={isHighlighted}
+                    onHover={setActiveStageId}
+                    onSelect={handleStageCardSelect}
+                    onUpdateDistance={() => {}}
+                    onDelete={() => {}}
+                    onEditStage={() => {}}
+                    maxDistanceKm={maxDist}
+                    dateLabel={stageDayLabel(
+                      stage.dayNumber,
+                      publicPlan.plan.start_date,
+                    )}
+                    readOnly
+                  />
+                );
+              })}
+            </div>
+            <div className="mt-auto border-t border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+              미계획 구간 {unplannedDistanceKm.toFixed(1)}km
+            </div>
           </div>
-          <div className="space-y-2 p-4">
-            {stages.map((stage) => {
-              const color = getStageColor(stage.dayNumber);
-              const isActive = activeStageId === stage.id;
-              return (
-                <div
-                  key={stage.id}
-                  className={`rounded-lg border p-3 transition-colors ${
-                    isActive
-                      ? "border-zinc-400 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-800"
-                      : "border-zinc-200 dark:border-zinc-700"
-                  }`}
-                  onMouseEnter={() => setActiveStageId(stage.id)}
-                  onMouseLeave={() => setActiveStageId(null)}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white"
-                      style={{ backgroundColor: color.stroke }}
-                    >
-                      {stage.dayNumber}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                        스테이지 {stage.dayNumber}
-                      </p>
-                      {publicPlan.plan.start_date && (
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {stageDayLabel(
-                            stage.dayNumber,
-                            publicPlan.plan.start_date,
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
-                    거리 {stage.distanceKm.toFixed(1)}km / 상승{" "}
-                    {Math.round(stage.elevationGain)}m
-                  </div>
-                  {stage.memo && (
-                    <p className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 px-2 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                      {stage.memo}
-                    </p>
+          <div
+            className={cn(
+              "flex min-h-0 shrink-0 flex-col overflow-hidden border-zinc-200 bg-white transition-[width] duration-300 ease-out dark:border-zinc-800 dark:bg-zinc-900",
+              panelStageId
+                ? "w-80 border-r"
+                : "w-0 border-r border-transparent",
+            )}
+          >
+            {panelStage ? (
+              <motion.div
+                key={panelStage.id}
+                initial={{ x: -28, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                className="flex h-full min-h-0 w-80 shrink-0 flex-col"
+              >
+                <StageDetailPanel
+                  stage={panelStage}
+                  dateLabel={stageDayLabel(
+                    panelStage.dayNumber,
+                    publicPlan.plan.start_date,
                   )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-auto border-t border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-            미계획 구간 {unplannedDistanceKm.toFixed(1)}km
+                  trackPoints={route?.track_points ?? []}
+                  planPois={planPois}
+                  readOnly
+                  onClose={() => setPanelStageId(null)}
+                  onEditStage={() => {}}
+                  onDeleteStage={() => {}}
+                  onPoiRowClick={requestFocusPlanPoi}
+                  onEditPoi={() => {}}
+                  onDeletePoi={() => {}}
+                />
+              </motion.div>
+            ) : null}
           </div>
         </aside>
       )}
@@ -493,6 +543,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             planPois={planPois}
             officialSummits={officialSummits}
             readOnly
+            focusPlanPoiRequest={focusPlanPoiRequest}
+            onFocusPlanPoiConsumed={handleFocusPlanPoiConsumed}
           />
         </section>
 
