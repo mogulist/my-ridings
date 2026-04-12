@@ -18,6 +18,7 @@ import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 import {
 	type PendingStageEdit,
 	computeElevationGainCurve,
+	computeTrackElevationGainLoss,
 } from "../hooks/usePlanStages";
 
 // ── 타입 ─────────────────────────────────────────────────────────
@@ -433,13 +434,12 @@ function computeSegmentGainBetweenKm(
 		typeof elevationCalibratedThreshold === "number" &&
 		elevationCalibratedThreshold >= 0;
 	if (useSmooth) {
-		const curve = computeElevationGainCurve(
+		return computeTrackElevationGainLoss(
 			points,
 			fromKm,
 			toKm,
-			elevationCalibratedThreshold!,
-		);
-		return Math.round(lookupGainAtDistanceKm(curve, toKm));
+			elevationCalibratedThreshold,
+		).gain;
 	}
 	return computeRawGainBetweenKm(points, fromKm, toKm);
 }

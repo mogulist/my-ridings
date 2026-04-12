@@ -180,9 +180,10 @@ export function calibrateThreshold(
 
 /**
  * track_points 에서 startKm ~ endKm 구간의 획득/하강 고도를 계산한다.
+ * 스테이지 elevation, 고도 프로필, 경유 포인트 누적 상승 모두 이 경로만 사용한다 (SSOT).
  * calibratedThreshold: calibrateThreshold()로 구한 값 (없으면 0 → 이동평균만 적용)
  */
-function computeElevation(
+export function computeTrackElevationGainLoss(
 	trackPoints: TrackPoint[],
 	startKm: number,
 	endKm: number,
@@ -292,7 +293,7 @@ export function usePlanStages(
 			return rawStages.map((s, i) => {
 				const startKm = cursor;
 				const endKm = cursor + s.distanceKm;
-				const elev = computeElevation(
+				const elev = computeTrackElevationGainLoss(
 					trackPoints,
 					startKm,
 					endKm,
@@ -321,7 +322,7 @@ export function usePlanStages(
 
 			const startKm = stages.length > 0 ? stages[stages.length - 1].endDistanceKm : 0;
 			const endKm = startKm + distanceKm;
-			const elev = computeElevation(trackPoints, startKm, endKm, calibratedThreshold);
+			const elev = computeTrackElevationGainLoss(trackPoints, startKm, endKm, calibratedThreshold);
 
 			const newStage: Stage = {
 				id: `temp-${generateId()}`,
@@ -370,7 +371,7 @@ export function usePlanStages(
 		const startKm = stages.length > 0 ? stages[stages.length - 1].endDistanceKm : 0;
 		const endKm = totalRouteDistanceKm;
 		const distanceKm = endKm - startKm;
-		const elev = computeElevation(trackPoints, startKm, endKm, calibratedThreshold);
+		const elev = computeTrackElevationGainLoss(trackPoints, startKm, endKm, calibratedThreshold);
 
 		const newStage: Stage = {
 			id: `temp-${generateId()}`,
@@ -594,7 +595,7 @@ export function usePlanStages(
 		const distanceKm = Math.round(
 			(pendingStageEdit.previewEndKm - stage.startDistanceKm) * 10,
 		) / 10;
-		const { gain, loss } = computeElevation(
+		const { gain, loss } = computeTrackElevationGainLoss(
 			trackPoints,
 			stage.startDistanceKm,
 			pendingStageEdit.previewEndKm,

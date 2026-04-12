@@ -557,6 +557,7 @@ export function MobileSharedPlanLayout({
               scrollRef={scrollRef}
               stages={summaryStages}
               trackPoints={summaryTrackPoints}
+              knownRouteElevationGainM={totalElevationGainM}
               planStartDate={planStartDate}
               planPois={stagesPlanPois}
               cpMarkers={stagesCpMarkers}

@@ -8,6 +8,7 @@ import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { SummitCatalogRow } from "../types/summitCatalog";
+import { calibrateThreshold } from "../hooks/usePlanStages";
 import { computeCPsOnRoute, computeSummitsOnRoute } from "./RouteViewer";
 import type { Stage } from "../types/plan";
 import { stageDayLabel } from "./PlanStagesPane";
@@ -295,6 +296,15 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     [route, officialSummits],
   );
 
+  const elevationCalibratedThreshold = useMemo(
+    () =>
+      calibrateThreshold(
+        route?.track_points ?? [],
+        Number(route?.elevation_gain) || 0,
+      ),
+    [route?.track_points, route?.elevation_gain],
+  );
+
   const handlePin = (index: number) => {
     setPositionIndex(index);
     setIsPinned(true);
@@ -503,6 +513,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
                     publicPlan.plan.start_date,
                   )}
                   trackPoints={route?.track_points ?? []}
+                  elevationCalibratedThreshold={elevationCalibratedThreshold}
                   planPois={planPois}
                   cpMarkers={cpMarkers}
                   summitMarkers={summitMarkers}
@@ -554,6 +565,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
           <ElevationProfile
             trackPoints={route?.track_points ?? []}
             stages={stages}
+            elevationCalibratedThreshold={elevationCalibratedThreshold}
             activeStageId={activeStageId}
             positionIndex={positionIndex}
             onPositionChange={setPositionIndex}

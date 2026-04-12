@@ -19,6 +19,8 @@ type StageDetailPanelProps = {
 	stage: Stage | null;
 	dateLabel: string;
 	trackPoints: TrackPoint[];
+	/** usePlanStages / 공유뷰에서 calibrateThreshold 결과 */
+	elevationCalibratedThreshold: number;
 	planPois: PlanPoiRow[];
 	cpMarkers?: CPOnRoute[];
 	summitMarkers?: SummitOnRoute[];
@@ -40,6 +42,7 @@ export function StageDetailPanel({
 	stage,
 	dateLabel,
 	trackPoints,
+	elevationCalibratedThreshold,
 	planPois,
 	cpMarkers = [],
 	summitMarkers = [],
@@ -58,8 +61,15 @@ export function StageDetailPanel({
 
 	const waypointRows = useMemo(() => {
 		if (!stage) return [];
-		return stageScheduleWaypoints(stage, snapped, cpMarkers, summitMarkers, trackPoints);
-	}, [stage, snapped, cpMarkers, summitMarkers, trackPoints]);
+		return stageScheduleWaypoints(
+			stage,
+			snapped,
+			cpMarkers,
+			summitMarkers,
+			trackPoints,
+			elevationCalibratedThreshold,
+		);
+	}, [stage, snapped, cpMarkers, summitMarkers, trackPoints, elevationCalibratedThreshold]);
 
 	const maxElevationM = useMemo(() => {
 		if (!stage) return null;

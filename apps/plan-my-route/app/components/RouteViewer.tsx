@@ -1372,6 +1372,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
                         effectivePlanStartDate,
                       )}
                       trackPoints={route?.track_points ?? []}
+                      elevationCalibratedThreshold={calibratedThreshold}
                       planPois={planPois}
                       cpMarkers={cpMarkers}
                       summitMarkers={summitMarkers}
