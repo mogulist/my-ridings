@@ -363,6 +363,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         summaryMaxElevationM={sharedSummaryMaxElevationM}
         planStartDate={publicPlan.plan.start_date}
         stagesPlanPois={planPois}
+        stagesCpMarkers={cpMarkers}
+        stagesSummitMarkers={summitMarkers}
       />
     );
   }

@@ -17,16 +17,27 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
+  Coffee,
+  Hotel,
   MapPin,
   Mountain,
+  ShoppingCart,
+  SquareCheckBig,
+  Store,
+  Utensils,
 } from "lucide-react";
 import { Badge, cn } from "@my-ridings/ui";
-import type { TrackPoint } from "./ElevationProfile";
+import type {
+  CPOnRoute,
+  SummitOnRoute,
+  TrackPoint,
+} from "./ElevationProfile";
 import { ElevationProfile } from "./ElevationProfile";
 import { stageDayLabel } from "./PlanStagesPane";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
+import { isPlanPoiType } from "../types/planPoi";
 import {
   MOBILE_PLAN_ELEV_PANEL_HEIGHT_PX,
   MOBILE_PLAN_TAB_BAR_HEIGHT_PX,
@@ -89,15 +100,24 @@ export function maxElevationInStageRange(
   return Number.isFinite(max) ? Math.round(max) : null;
 }
 
-export function poisForStage(
-  snapped: SnappedPlanPoi[],
+type DistanceAlongRoute = { distanceKm: number };
+
+export function itemsInStage<T extends DistanceAlongRoute>(
+  items: T[],
   stage: Stage,
-): SnappedPlanPoi[] {
-  return snapped.filter(
+): T[] {
+  return items.filter(
     (p) =>
       p.distanceKm >= stage.startDistanceKm &&
       p.distanceKm <= stage.endDistanceKm,
   );
+}
+
+export function poisForStage(
+  snapped: SnappedPlanPoi[],
+  stage: Stage,
+): SnappedPlanPoi[] {
+  return itemsInStage(snapped, stage);
 }
 
 const POI_TYPE_LABEL_KO: Record<string, string> = {
@@ -110,6 +130,100 @@ const POI_TYPE_LABEL_KO: Record<string, string> = {
 
 function planPoiTypeLabelKo(poiType: string): string {
   return POI_TYPE_LABEL_KO[poiType] ?? poiType;
+}
+
+const CP_LABEL_KO = "체크포인트";
+const SUMMIT_LABEL_KO = "정상";
+
+export type StageScheduleMarkerKind = "cp" | "summit" | "plan_poi";
+
+export type StageScheduleWaypoint = {
+  rowKey: string;
+  name: string;
+  distanceKm: number;
+  elevation: number;
+  categoryLabel: string;
+  memo: string | null;
+  markerKind: StageScheduleMarkerKind;
+  /** `markerKind === "plan_poi"` 일 때 — 지도 `NEARBY_CATEGORY_LUCIDE_ICON_NODES` 와 동일 분기 */
+  planPoiType?: string;
+};
+
+export function stageScheduleWaypoints(
+  stage: Stage,
+  snappedPois: SnappedPlanPoi[],
+  cpMarkers: CPOnRoute[],
+  summitMarkers: SummitOnRoute[],
+): StageScheduleWaypoint[] {
+  const fromPois: StageScheduleWaypoint[] = itemsInStage(snappedPois, stage).map(
+    (p) => ({
+      rowKey: `plan-poi:${p.id}`,
+      name: p.name,
+      distanceKm: p.distanceKm,
+      elevation: p.elevation,
+      categoryLabel: planPoiTypeLabelKo(p.poiType),
+      memo: p.memo,
+      markerKind: "plan_poi",
+      planPoiType: p.poiType,
+    }),
+  );
+  const fromCp: StageScheduleWaypoint[] = itemsInStage(cpMarkers, stage).map(
+    (c) => ({
+      rowKey: `cp:${c.id}`,
+      name: c.name,
+      distanceKm: c.distanceKm,
+      elevation: Math.round(c.elevation),
+      categoryLabel: CP_LABEL_KO,
+      memo: null,
+      markerKind: "cp",
+    }),
+  );
+  const fromSummit: StageScheduleWaypoint[] = itemsInStage(
+    summitMarkers,
+    stage,
+  ).map((s) => ({
+    rowKey: `summit:${s.id}`,
+    name: s.name,
+    distanceKm: s.distanceKm,
+    elevation: Math.round(s.elevation),
+    categoryLabel: SUMMIT_LABEL_KO,
+    memo: null,
+    markerKind: "summit",
+  }));
+  return [...fromPois, ...fromCp, ...fromSummit].sort(
+    (a, b) => a.distanceKm - b.distanceKm,
+  );
+}
+
+const WAYPOINT_LIST_MARKER_ICON_CLASS =
+  "mt-0.5 size-3.5 shrink-0 text-muted-foreground";
+
+function WaypointListMarkerIcon({ row }: { row: StageScheduleWaypoint }) {
+  const iconClass = WAYPOINT_LIST_MARKER_ICON_CLASS;
+  if (row.markerKind === "cp") {
+    return <SquareCheckBig className={iconClass} aria-hidden />;
+  }
+  if (row.markerKind === "summit") {
+    return <Mountain className={iconClass} aria-hidden />;
+  }
+  const t = row.planPoiType ?? "";
+  if (isPlanPoiType(t)) {
+    switch (t) {
+      case "convenience":
+        return <Store className={iconClass} aria-hidden />;
+      case "mart":
+        return <ShoppingCart className={iconClass} aria-hidden />;
+      case "accommodation":
+        return <Hotel className={iconClass} aria-hidden />;
+      case "cafe":
+        return <Coffee className={iconClass} aria-hidden />;
+      case "restaurant":
+        return <Utensils className={iconClass} aria-hidden />;
+      default:
+        break;
+    }
+  }
+  return <MapPin className={iconClass} aria-hidden />;
 }
 
 // ── Plain collapsible (controlled) ───────────────────────────────
@@ -167,7 +281,7 @@ type InlineStageCardProps = {
   onToggle: () => void;
   planStartDate: string | null;
   maxElevationM: number | null;
-  stagePois: SnappedPlanPoi[];
+  stageWaypoints: StageScheduleWaypoint[];
 };
 
 export function InlineStageCard({
@@ -177,7 +291,7 @@ export function InlineStageCard({
   onToggle,
   planStartDate,
   maxElevationM,
-  stagePois,
+  stageWaypoints,
 }: InlineStageCardProps) {
   const color = getStageColor(stage.dayNumber).stroke;
   const dateLine =
@@ -186,7 +300,7 @@ export function InlineStageCard({
       : "";
 
   const hasExpandableBody =
-    Boolean(stage.memo?.trim()) || stagePois.length > 0;
+    Boolean(stage.memo?.trim()) || stageWaypoints.length > 0;
 
   return (
     <PlainCollapsible
@@ -261,30 +375,27 @@ export function InlineStageCard({
                 {stage.memo}
               </p>
             ) : null}
-            {stagePois.length > 0 ? (
+            {stageWaypoints.length > 0 ? (
               <div className="space-y-2">
                 <h4 className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
                   경유 포인트
                 </h4>
                 <ul className="space-y-2">
-                  {stagePois.map((poi) => (
-                    <li key={poi.id} className="flex gap-2 text-xs">
-                      <MapPin
-                        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                        aria-hidden
-                      />
+                  {stageWaypoints.map((row) => (
+                    <li key={row.rowKey} className="flex gap-2 text-xs">
+                      <WaypointListMarkerIcon row={row} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="font-medium text-foreground">{poi.name}</span>
+                          <span className="font-medium text-foreground">{row.name}</span>
                           <span className="tabular-nums text-muted-foreground">
-                            {poi.distanceKm.toFixed(1)}km · {poi.elevation}m
+                            {row.distanceKm.toFixed(1)}km · {row.elevation}m
                           </span>
                           <span className="text-[10px] text-muted-foreground">
-                            {planPoiTypeLabelKo(poi.poiType)}
+                            {row.categoryLabel}
                           </span>
                         </div>
-                        {poi.memo?.trim() ? (
-                          <p className="mt-0.5 leading-snug text-muted-foreground">{poi.memo}</p>
+                        {row.memo?.trim() ? (
+                          <p className="mt-0.5 leading-snug text-muted-foreground">{row.memo}</p>
                         ) : null}
                       </div>
                     </li>
@@ -307,6 +418,8 @@ export type StagesTabProps = {
   trackPoints: TrackPoint[];
   planStartDate: string | null;
   planPois: PlanPoiRow[];
+  cpMarkers?: CPOnRoute[];
+  summitMarkers?: SummitOnRoute[];
 };
 
 export function StagesTab({
@@ -315,6 +428,8 @@ export function StagesTab({
   trackPoints,
   planStartDate,
   planPois,
+  cpMarkers = [],
+  summitMarkers = [],
 }: StagesTabProps) {
   const [elevProfileDay, setElevProfileDay] = useState<number | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<number>>(() => new Set());
@@ -325,6 +440,17 @@ export function StagesTab({
     () => snapPlanPoisToTrack(planPois, trackPoints),
     [planPois, trackPoints],
   );
+
+  const waypointsByDay = useMemo(() => {
+    const m = new Map<number, StageScheduleWaypoint[]>();
+    for (const stage of stages) {
+      m.set(
+        stage.dayNumber,
+        stageScheduleWaypoints(stage, snappedPois, cpMarkers, summitMarkers),
+      );
+    }
+    return m;
+  }, [stages, snappedPois, cpMarkers, summitMarkers]);
 
   const maxElevByDay = useMemo(() => {
     const m = new Map<number, number | null>();
@@ -445,8 +571,8 @@ export function StagesTab({
           chartHeightPx={135}
           compactYAxis
           disablePinAndHoverScrub
-          cpMarkers={[]}
-          summitMarkers={[]}
+          cpMarkers={cpMarkers}
+          summitMarkers={summitMarkers}
         />
       </div>
 
@@ -466,7 +592,7 @@ export function StagesTab({
               onToggle={() => toggleExpand(stage.dayNumber)}
               planStartDate={planStartDate}
               maxElevationM={maxElevByDay.get(stage.dayNumber) ?? null}
-              stagePois={poisForStage(snappedPois, stage)}
+              stageWaypoints={waypointsByDay.get(stage.dayNumber) ?? []}
             />
           </div>
         ))}

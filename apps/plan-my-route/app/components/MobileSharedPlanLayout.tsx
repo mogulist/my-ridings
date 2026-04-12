@@ -17,7 +17,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Badge, Button, cn } from "@my-ridings/ui";
-import type { TrackPoint } from "./ElevationProfile";
+import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
 import {
   MOBILE_PLAN_TAB_BAR_HEIGHT_PX,
 } from "./mobileSharedPlanConstants";
@@ -48,6 +48,8 @@ type MobileSharedPlanLayoutProps = {
   summaryMaxElevationM: number | null;
   planStartDate: string | null;
   stagesPlanPois: PlanPoiRow[];
+  stagesCpMarkers?: CPOnRoute[];
+  stagesSummitMarkers?: SummitOnRoute[];
 };
 
 type SummaryTabProps = {
@@ -309,6 +311,8 @@ export function MobileSharedPlanLayout({
   summaryMaxElevationM,
   planStartDate,
   stagesPlanPois,
+  stagesCpMarkers = [],
+  stagesSummitMarkers = [],
 }: MobileSharedPlanLayoutProps) {
   const [tab, setTab] = useState<TabId>("summary");
   const [scrollY, setScrollY] = useState(0);
@@ -555,6 +559,8 @@ export function MobileSharedPlanLayout({
               trackPoints={summaryTrackPoints}
               planStartDate={planStartDate}
               planPois={stagesPlanPois}
+              cpMarkers={stagesCpMarkers}
+              summitMarkers={stagesSummitMarkers}
             />
           )}
         </div>
