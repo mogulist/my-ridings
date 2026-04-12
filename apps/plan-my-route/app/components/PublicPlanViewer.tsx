@@ -130,7 +130,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   }, [token]);
 
   useEffect(() => {
-    if (!publicPlan || isDesktop !== true || route) return;
+    if (!publicPlan || route) return;
 
     let cancelled = false;
 
@@ -156,7 +156,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [publicPlan, isDesktop, route]);
+  }, [publicPlan, route]);
 
   useEffect(() => {
     const query = summitQueryStringForRoute(route);
@@ -196,64 +196,76 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         elevationLoss: Number(stage.elevation_loss) || 0,
         isLastStage: false,
         memo: stage.memo ?? undefined,
+        title: stage.title ?? null,
       };
     });
   }, [publicPlan?.stages]);
 
-  const totalRouteDistanceKm = useMemo(() => {
-    if (route?.distance) return route.distance / 1000;
-    return (publicPlan?.route.total_distance ?? 0) / 1000;
-  }, [route?.distance, publicPlan?.route.total_distance]);
+  const totalRouteDistanceKm = route?.distance
+    ? route.distance / 1000
+    : (publicPlan?.route.total_distance ?? 0) / 1000;
 
-  const unplannedDistanceKm = useMemo(() => {
-    if (stages.length === 0) return totalRouteDistanceKm;
-    const lastEndKm = stages[stages.length - 1]?.endDistanceKm ?? 0;
-    return Math.max(0, totalRouteDistanceKm - lastEndKm);
-  }, [stages, totalRouteDistanceKm]);
+  const unplannedDistanceKm =
+    stages.length === 0
+      ? totalRouteDistanceKm
+      : Math.max(
+          0,
+          totalRouteDistanceKm - (stages[stages.length - 1]?.endDistanceKm ?? 0),
+        );
 
-  const effectiveSelectedDay = useMemo(() => {
-    if (selectedDayNumber === null) return null;
-    return stages.some((stage) => stage.dayNumber === selectedDayNumber)
+  const effectiveSelectedDay =
+    selectedDayNumber !== null &&
+    stages.some((stage) => stage.dayNumber === selectedDayNumber)
       ? selectedDayNumber
       : null;
-  }, [selectedDayNumber, stages]);
 
   /** RouteViewer·PlanListPane과 동일하게 RWGPS 응답 우선, 없으면 DB 스냅샷 */
-  const publicRouteSummary = useMemo(() => {
-    if (!publicPlan) return null;
-    const distanceM = route?.distance ?? publicPlan.route.total_distance ?? 0;
-    const gain = route
-      ? Number(route.elevation_gain) || 0
-      : Number(publicPlan.route.elevation_gain) || 0;
-    const loss = route
-      ? Number(route.elevation_loss) || 0
-      : Number(publicPlan.route.elevation_loss) || 0;
-    const name = publicPlan.route.name || route?.name || "경로";
-    const rwgpsUrl =
-      publicPlan.route.rwgps_url ||
-      (route != null ? `https://ridewithgps.com/routes/${route.id}` : "");
-    return {
-      name,
-      rwgpsUrl,
-      distanceMeters: distanceM,
-      elevationGain: gain,
-      elevationLoss: loss,
-    };
-  }, [publicPlan, route]);
+  const publicRouteSummary =
+    publicPlan == null
+      ? null
+      : {
+          name: publicPlan.route.name || route?.name || "경로",
+          rwgpsUrl:
+            publicPlan.route.rwgps_url ||
+            (route != null ? `https://ridewithgps.com/routes/${route.id}` : ""),
+          distanceMeters: route?.distance ?? publicPlan.route.total_distance ?? 0,
+          elevationGain: route
+            ? Number(route.elevation_gain) || 0
+            : Number(publicPlan.route.elevation_gain) || 0,
+          elevationLoss: route
+            ? Number(route.elevation_loss) || 0
+            : Number(publicPlan.route.elevation_loss) || 0,
+        };
 
-  const mobileStats = useMemo(() => {
-    if (!publicPlan) return null;
-    const distanceM = route?.distance ?? publicPlan.route.total_distance ?? 0;
-    const gain = route
-      ? Number(route.elevation_gain) || 0
-      : Number(publicPlan.route.elevation_gain) || 0;
-    return {
-      totalDistanceKm: distanceM / 1000,
-      totalElevationGainM: gain,
-      totalDays: stages.length,
-      createdByLabel: publicPlan.author?.nickname?.trim() || "작성자",
-    };
-  }, [publicPlan, route, stages.length]);
+  const mobileStats =
+    publicPlan == null
+      ? null
+      : {
+          totalDistanceKm:
+            (route?.distance ?? publicPlan.route.total_distance ?? 0) / 1000,
+          totalElevationGainM: route
+            ? Number(route.elevation_gain) || 0
+            : Number(publicPlan.route.elevation_gain) || 0,
+          totalDays: stages.length,
+          createdByLabel: publicPlan.author?.nickname?.trim() || "작성자",
+        };
+
+  const distRoundedKm = Math.round(totalRouteDistanceKm);
+  const sharedSummaryRouteDescription =
+    publicPlan == null
+      ? ""
+      : stages.length > 0
+        ? `${publicPlan.route.name?.trim() || "경로"} 약 ${distRoundedKm}km 구간을 ${stages.length}일로 나눈 ${publicPlan.plan.name?.trim() || "플랜"}입니다.`
+        : `${publicPlan.route.name?.trim() || "경로"}에 대한 ${publicPlan.plan.name?.trim() || "플랜"}입니다.`;
+
+  const maxElevRaw =
+    route?.track_points?.reduce<number>(
+      (m, p) => (typeof p.e === "number" && p.e > m ? p.e : m),
+      -Infinity,
+    ) ?? -Infinity;
+  const sharedSummaryMaxElevationM = Number.isFinite(maxElevRaw)
+    ? Math.round(maxElevRaw)
+    : null;
 
   const cpMarkers = useMemo(
     () =>
@@ -322,7 +334,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     );
   }
 
-  if (error || !publicPlan || !mobileStats) {
+  if (error || !publicPlan) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-100 p-6 dark:bg-zinc-800">
         <div className="rounded-lg border border-red-200 bg-white p-4 text-sm text-red-600 dark:border-red-800 dark:bg-zinc-900 dark:text-red-400">
@@ -333,17 +345,22 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   }
 
   if (isDesktop === false) {
+    const ms = mobileStats!;
     return (
       <MobileSharedPlanLayout
         token={token}
         routeName={publicPlan.route.name}
         planName={publicPlan.plan.name}
-        createdByLabel={mobileStats.createdByLabel}
-        totalDistanceKm={mobileStats.totalDistanceKm}
-        totalElevationGainM={mobileStats.totalElevationGainM}
-        totalDays={mobileStats.totalDays}
+        createdByLabel={ms.createdByLabel}
+        totalDistanceKm={ms.totalDistanceKm}
+        totalElevationGainM={ms.totalElevationGainM}
+        totalDays={ms.totalDays}
         heroImageUrl={publicPlan.route.cover_image_hero_url}
         heroImageFallbackUrl={publicPlan.route.cover_image_og_url}
+        summaryStages={stages}
+        summaryTrackPoints={route?.track_points ?? []}
+        summaryRouteDescription={sharedSummaryRouteDescription}
+        summaryMaxElevationM={sharedSummaryMaxElevationM}
       />
     );
   }

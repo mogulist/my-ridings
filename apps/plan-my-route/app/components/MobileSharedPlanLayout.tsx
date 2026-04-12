@@ -1,17 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import {
+  Activity,
+  ArrowUp,
   BarChart3,
   Calendar,
   ChevronDown,
+  Flame,
   Map as MapIcon,
   MapPin,
+  Mountain,
+  Route,
+  TrendingUp,
 } from "lucide-react";
 import { Badge, Button, cn } from "@my-ridings/ui";
+import type { TrackPoint } from "./ElevationProfile";
 import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
+import { SharedPlanSummaryElevationMini } from "./SharedPlanSummaryElevationMini";
+import type { Stage } from "../types/plan";
+import { getStageColor } from "../types/plan";
 
 const TAB_BAR_H = 68;
 
@@ -29,19 +39,211 @@ type MobileSharedPlanLayoutProps = {
   totalDays: number;
   heroImageUrl: string | null;
   heroImageFallbackUrl: string | null;
+  summaryStages: Stage[];
+  summaryTrackPoints: TrackPoint[];
+  summaryRouteDescription: string;
+  summaryMaxElevationM: number | null;
 };
 
-function SummaryTabPlaceholder() {
+type SummaryTabProps = {
+  token: string;
+  stages: Stage[];
+  trackPoints: TrackPoint[];
+  routeDescription: string;
+  maxElevationM: number | null;
+  totalDistanceKm: number;
+  totalElevationGainM: number;
+  totalDays: number;
+};
+
+function stageCardHeadline(stage: Stage) {
+  const raw = stage.title?.trim();
+  if (raw) {
+    const first = raw.split(/\s+/)[0];
+    return first || raw;
+  }
+  return `${stage.dayNumber}일차`;
+}
+
+function SummaryTab({
+  token,
+  stages,
+  trackPoints,
+  routeDescription,
+  maxElevationM,
+  totalDistanceKm,
+  totalElevationGainM,
+  totalDays,
+}: SummaryTabProps) {
   return (
-    <div className="space-y-3 p-4 pb-8">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex h-24 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm"
-        >
-          <span className="text-xs">요약 카드 {i + 1}</span>
+    <div className="space-y-4 p-4 pb-12">
+      <div>
+        <h3 className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          스테이지 요약
+        </h3>
+        {stages.length === 0 ? (
+          <p className="text-xs text-muted-foreground">등록된 일차가 없습니다.</p>
+        ) : (
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {stages.map((stage, i) => {
+              const accent = getStageColor(stage.dayNumber).stroke;
+              return (
+                <motion.div
+                  key={stage.id}
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.04, type: "spring", stiffness: 380, damping: 28 }}
+                >
+                  <div
+                    className="min-w-[108px] shrink-0 space-y-0 rounded-xl border border-border bg-card p-3 shadow-sm"
+                    style={{ borderTopWidth: 3, borderTopColor: accent }}
+                  >
+                    <div className="text-[10px] text-muted-foreground">Day {stage.dayNumber}</div>
+                    <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                      {stage.distanceKm.toFixed(1)}
+                      <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">km</span>
+                    </div>
+                    <div className="mt-0.5 text-xs font-medium tabular-nums text-red-500 dark:text-red-400">
+                      ↑{Math.round(stage.elevationGain).toLocaleString()}m
+                    </div>
+                    <div className="mt-1.5 truncate text-[10px] leading-tight text-muted-foreground">
+                      {stageCardHeadline(stage)}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          전체 고도 프로필
+        </h3>
+        <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+          <SharedPlanSummaryElevationMini trackPoints={trackPoints} height={88} />
         </div>
-      ))}
+      </div>
+
+      <SummaryKeyStats
+        stages={stages}
+        totalDistanceKm={totalDistanceKm}
+        totalElevationGainM={totalElevationGainM}
+        totalDays={totalDays}
+        maxElevationM={maxElevationM}
+      />
+
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p className="text-xs leading-relaxed text-muted-foreground">{routeDescription}</p>
+      </div>
+
+      <SharePlanDuplicateCta token={token} variant="summary" />
+    </div>
+  );
+}
+
+type SummaryKeyStatsProps = {
+  stages: Stage[];
+  totalDistanceKm: number;
+  totalElevationGainM: number;
+  totalDays: number;
+  maxElevationM: number | null;
+};
+
+type SummaryStatRow = {
+  label: string;
+  value: string;
+  sub: string;
+  icon: ReactNode;
+};
+
+function SummaryKeyStats({
+  stages,
+  totalDistanceKm,
+  totalElevationGainM,
+  totalDays,
+  maxElevationM,
+}: SummaryKeyStatsProps) {
+  const dayCount = Math.max(1, totalDays);
+  const hardestDay = [...stages].sort((a, b) => b.elevationGain - a.elevationGain)[0];
+  const longestDay = [...stages].sort((a, b) => b.distanceKm - a.distanceKm)[0];
+  const avgDailyKm =
+    stages.length > 0
+      ? Math.round(totalDistanceKm / stages.length)
+      : Math.round(totalDistanceKm / dayCount);
+  const avgDailyElevationGainM =
+    stages.length > 0
+      ? Math.round(totalElevationGainM / stages.length)
+      : Math.round(totalElevationGainM / dayCount);
+  const distanceRounded = Math.round(totalDistanceKm);
+
+  const rows: SummaryStatRow[] = [
+    {
+      label: "전체 거리",
+      value: `${distanceRounded.toLocaleString()}km`,
+      sub: "총 라이딩 거리",
+      icon: <Route className="size-4 shrink-0 text-orange-500" aria-hidden />,
+    },
+    {
+      label: "전체 획득고도",
+      value: `+${Math.round(totalElevationGainM).toLocaleString()}m`,
+      sub: "누적 상승고도",
+      icon: <ArrowUp className="size-4 shrink-0 text-red-400" aria-hidden />,
+    },
+    {
+      label: "최고 고도",
+      value: maxElevationM != null ? `${maxElevationM.toLocaleString()}m` : "—",
+      sub: maxElevationM != null ? "트랙 기준 최고점" : "트랙 미로드",
+      icon: <Mountain className="size-4 shrink-0 text-violet-500" aria-hidden />,
+    },
+    {
+      label: "일평균 거리",
+      value: `${avgDailyKm}km`,
+      sub: "하루 평균",
+      icon: <MapPin className="size-4 shrink-0 text-sky-500" aria-hidden />,
+    },
+    {
+      label: "일평균 획득고도",
+      value: `+${avgDailyElevationGainM.toLocaleString()}m`,
+      sub: "하루 평균 상승",
+      icon: <Activity className="size-4 shrink-0 text-rose-500" aria-hidden />,
+    },
+    {
+      label: "가장 힘든 날",
+      value: hardestDay ? `Day ${hardestDay.dayNumber}` : "—",
+      sub: hardestDay
+        ? `+${Math.round(hardestDay.elevationGain).toLocaleString()}m`
+        : "스테이지 없음",
+      icon: <Flame className="size-4 shrink-0 text-orange-600" aria-hidden />,
+    },
+    {
+      label: "가장 긴 날",
+      value: longestDay ? `${longestDay.distanceKm.toFixed(1)}km` : "—",
+      sub: longestDay ? `Day ${longestDay.dayNumber}` : "스테이지 없음",
+      icon: <TrendingUp className="size-4 shrink-0 text-emerald-600 dark:text-emerald-500" aria-hidden />,
+    },
+  ];
+
+  return (
+    <div>
+      <h3 className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        핵심 통계
+      </h3>
+      <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        {rows.map((stat) => (
+          <div key={stat.label} className="flex items-center gap-3 px-4 py-3">
+            {stat.icon}
+            <span className="flex-1 text-sm text-muted-foreground">{stat.label}</span>
+            <div className="text-right">
+              <span className="text-sm font-medium tabular-nums text-foreground">{stat.value}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground sm:ml-1.5 sm:mt-0 sm:inline">
+                {stat.sub}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -129,6 +331,10 @@ export function MobileSharedPlanLayout({
   totalDays,
   heroImageUrl,
   heroImageFallbackUrl,
+  summaryStages,
+  summaryTrackPoints,
+  summaryRouteDescription,
+  summaryMaxElevationM,
 }: MobileSharedPlanLayoutProps) {
   const [tab, setTab] = useState<TabId>("summary");
   const [scrollY, setScrollY] = useState(0);
@@ -186,7 +392,7 @@ export function MobileSharedPlanLayout({
       ? `+${(totalElevationGainM / 1000).toFixed(1)}k`
       : `+${Math.round(totalElevationGainM)}`;
 
-  const tabs: { key: TabId; label: string; icon: React.ReactNode }[] = [
+  const tabs: { key: TabId; label: string; icon: ReactNode }[] = [
     {
       key: "summary",
       label: "요약",
@@ -356,7 +562,18 @@ export function MobileSharedPlanLayout({
           className="flex flex-col bg-muted/40"
           style={{ minHeight: tabBodyMinHeight }}
         >
-          {tab === "summary" && <SummaryTabPlaceholder />}
+          {tab === "summary" && (
+            <SummaryTab
+              token={token}
+              stages={summaryStages}
+              trackPoints={summaryTrackPoints}
+              routeDescription={summaryRouteDescription}
+              maxElevationM={summaryMaxElevationM}
+              totalDistanceKm={totalDistanceKm}
+              totalElevationGainM={totalElevationGainM}
+              totalDays={totalDays}
+            />
+          )}
           {tab === "stages" && (
             <StagesTabPlaceholder dayCount={Math.max(1, totalDays)} />
           )}

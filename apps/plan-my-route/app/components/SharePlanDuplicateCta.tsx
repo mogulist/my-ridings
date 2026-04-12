@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Monitor } from "lucide-react";
 import { Button } from "@my-ridings/ui";
 import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import type { PublicPlanSnapshot } from "../types/guestPlan";
 
 type SharePlanDuplicateCtaProps = {
   token: string;
-  variant?: "header" | "inline" | "hero" | "sticky";
+  variant?: "header" | "inline" | "hero" | "sticky" | "summary";
 };
 
 export const SharePlanDuplicateCta = ({
@@ -77,6 +77,38 @@ export const SharePlanDuplicateCta = ({
         <Copy className="size-3.5 shrink-0" aria-hidden />
         {isPending ? "복제 중..." : "복제"}
       </button>
+    );
+  }
+
+  if (variant === "summary") {
+    return (
+      <div className="rounded-xl border border-orange-200/70 bg-linear-to-br from-orange-50/90 to-amber-50/60 p-4 dark:border-orange-900/50 dark:from-orange-950/35 dark:to-amber-950/25">
+        <div className="flex items-start gap-3">
+          <Monitor
+            className="mt-0.5 size-5 shrink-0 text-orange-500 dark:text-orange-400"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              데스크탑에서 나만의 플랜 만들기
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              이 플랜을 복제하고 내 일정에 맞게 편집해보세요.
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDuplicate}
+              disabled={isPending}
+              className="mt-2 h-auto gap-1.5 p-0 text-xs font-medium text-orange-600 hover:bg-transparent hover:text-orange-700 disabled:opacity-60 dark:text-orange-400 dark:hover:text-orange-300"
+            >
+              <Copy className="size-3.5 shrink-0" aria-hidden />
+              {isPending ? "복제 중..." : "플랜 복제하기"}
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
