@@ -504,6 +504,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
                   )}
                   trackPoints={route?.track_points ?? []}
                   planPois={planPois}
+                  cpMarkers={cpMarkers}
+                  summitMarkers={summitMarkers}
                   readOnly
                   onClose={() => setPanelStageId(null)}
                   onEditStage={() => {}}

@@ -13,19 +13,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import {
-  ArrowUp,
-  ChevronDown,
-  ChevronUp,
-  Coffee,
-  Hotel,
-  MapPin,
-  Mountain,
-  ShoppingCart,
-  SquareCheckBig,
-  Store,
-  Utensils,
-} from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronUp, MapPin, Mountain } from "lucide-react";
 import { Badge, cn } from "@my-ridings/ui";
 import type {
   CPOnRoute,
@@ -40,7 +28,11 @@ import { stageDayLabel } from "./PlanStagesPane";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
-import { isPlanPoiType } from "../types/planPoi";
+import type {
+  StageScheduleMarkerKind,
+  StageScheduleWaypoint,
+} from "../types/stageScheduleWaypoint";
+import { StageScheduleWaypointList } from "./StageScheduleWaypointList";
 import {
   MOBILE_PLAN_ELEV_PANEL_HEIGHT_PX,
   MOBILE_PLAN_TAB_BAR_HEIGHT_PX,
@@ -138,25 +130,7 @@ function planPoiTypeLabelKo(poiType: string): string {
 const CP_LABEL_KO = "체크포인트";
 const SUMMIT_LABEL_KO = "정상";
 
-export type StageScheduleMarkerKind = "cp" | "summit" | "plan_poi";
-
-export type StageScheduleWaypoint = {
-  rowKey: string;
-  name: string;
-  /** 경로 전체 기준 누적 거리(km) — 정렬·누적상승 계산용 */
-  distanceAlongRouteKm: number;
-  /** 해당 일차 시작점부터의 거리(km) — 표시용 */
-  distanceFromStageStartKm: number;
-  /** 해당 지점 해발 고도(m) — 트랙/스냅 또는 정상 카탈로그 */
-  elevationM: number;
-  /** 일차 시작 지점부터 이 지점까지 구간 누적 상승고도(m) */
-  elevationGainFromStageStartM: number;
-  categoryLabel: string;
-  memo: string | null;
-  markerKind: StageScheduleMarkerKind;
-  /** `markerKind === "plan_poi"` 일 때 — 지도 `NEARBY_CATEGORY_LUCIDE_ICON_NODES` 와 동일 분기 */
-  planPoiType?: string;
-};
+export type { StageScheduleMarkerKind, StageScheduleWaypoint };
 
 function waypointRowForAbsoluteKm(
   stage: Stage,
@@ -170,6 +144,7 @@ function waypointRowForAbsoluteKm(
     memo: string | null;
     markerKind: StageScheduleMarkerKind;
     planPoiType?: string;
+    planPoiId?: string;
   },
 ): StageScheduleWaypoint {
   const distanceFromStageStartKm =
@@ -207,6 +182,7 @@ export function stageScheduleWaypoints(
         memo: p.memo,
         markerKind: "plan_poi",
         planPoiType: p.poiType,
+        planPoiId: p.id,
       }),
   );
   const fromCp: StageScheduleWaypoint[] = itemsInStage(cpMarkers, stage).map(
@@ -246,37 +222,6 @@ export function stageScheduleWaypoints(
   return [...fromPois, ...fromCp, ...fromSummit].sort(
     (a, b) => a.distanceAlongRouteKm - b.distanceAlongRouteKm,
   );
-}
-
-const WAYPOINT_LIST_MARKER_ICON_CLASS =
-  "mt-0.5 size-3.5 shrink-0 text-muted-foreground";
-
-function WaypointListMarkerIcon({ row }: { row: StageScheduleWaypoint }) {
-  const iconClass = WAYPOINT_LIST_MARKER_ICON_CLASS;
-  if (row.markerKind === "cp") {
-    return <SquareCheckBig className={iconClass} aria-hidden />;
-  }
-  if (row.markerKind === "summit") {
-    return <Mountain className={iconClass} aria-hidden />;
-  }
-  const t = row.planPoiType ?? "";
-  if (isPlanPoiType(t)) {
-    switch (t) {
-      case "convenience":
-        return <Store className={iconClass} aria-hidden />;
-      case "mart":
-        return <ShoppingCart className={iconClass} aria-hidden />;
-      case "accommodation":
-        return <Hotel className={iconClass} aria-hidden />;
-      case "cafe":
-        return <Coffee className={iconClass} aria-hidden />;
-      case "restaurant":
-        return <Utensils className={iconClass} aria-hidden />;
-      default:
-        break;
-    }
-  }
-  return <MapPin className={iconClass} aria-hidden />;
 }
 
 // ── Plain collapsible (controlled) ───────────────────────────────
@@ -429,39 +374,7 @@ export function InlineStageCard({
               </p>
             ) : null}
             {stageWaypoints.length > 0 ? (
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                  경유 포인트
-                </h4>
-                <ul className="space-y-2">
-                  {stageWaypoints.map((row) => (
-                    <li key={row.rowKey} className="flex gap-2 text-xs">
-                      <WaypointListMarkerIcon row={row} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="font-medium text-foreground">{row.name}</span>
-                          <span
-                            className="tabular-nums text-muted-foreground"
-                            title="구간 거리 · 해발 고도 · 일차 시작~지점 누적 상승"
-                          >
-                            {row.distanceFromStageStartKm.toFixed(1)}km · {row.elevationM}m
-                            {" · "}
-                            <span className="text-muted-foreground/70">
-                              +{row.elevationGainFromStageStartM.toLocaleString()}m
-                            </span>
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {row.categoryLabel}
-                          </span>
-                        </div>
-                        {row.memo?.trim() ? (
-                          <p className="mt-0.5 leading-snug text-muted-foreground">{row.memo}</p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <StageScheduleWaypointList rows={stageWaypoints} />
             ) : null}
           </div>
         </PlainCollapsibleContent>

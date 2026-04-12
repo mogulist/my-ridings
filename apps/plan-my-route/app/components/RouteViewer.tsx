@@ -1373,6 +1373,8 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
                       )}
                       trackPoints={route?.track_points ?? []}
                       planPois={planPois}
+                      cpMarkers={cpMarkers}
+                      summitMarkers={summitMarkers}
                       onClose={() => {
                         setPanelStageId(null);
                         setStageEditOpen(false);
