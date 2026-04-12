@@ -29,6 +29,8 @@ import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,
 } from "./DeleteStageDialog";
+import { motion } from "motion/react";
+import { cn } from "@my-ridings/ui";
 import type { Stage } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { GuestPlan } from "../types/guestPlan";
@@ -1347,35 +1349,48 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
                 addLastStage={addLastStage}
                 isPending={isStagesPending}
               />
-              <StageDetailPanel
-                stage={panelStage}
-                dateLabel={
-                  panelStage
-                    ? stageDayLabel(
+              <div
+                className={cn(
+                  "flex min-h-0 shrink-0 flex-col overflow-hidden border-zinc-200 bg-white transition-[width] duration-300 ease-out dark:border-zinc-800 dark:bg-zinc-900",
+                  panelStageId
+                    ? "w-80 border-r"
+                    : "w-0 border-r border-transparent",
+                )}
+              >
+                {panelStage ? (
+                  <motion.div
+                    key={panelStage.id}
+                    initial={{ x: -28, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="flex min-h-0 h-full w-80 shrink-0 flex-col"
+                  >
+                    <StageDetailPanel
+                      stage={panelStage}
+                      dateLabel={stageDayLabel(
                         panelStage.dayNumber,
                         effectivePlanStartDate,
-                      )
-                    : ""
-                }
-                trackPoints={route?.track_points ?? []}
-                planPois={planPois}
-                onClose={() => {
-                  setPanelStageId(null);
-                  setStageEditOpen(false);
-                }}
-                onEditStage={() => {
-                  if (panelStage) {
-                    setStageEditOpen(true);
-                  }
-                }}
-                onDeleteStage={requestDeleteStage}
-                onPoiRowClick={requestFocusPlanPoi}
-                onEditPoi={(poi) => {
-                  setStageEditOpen(false);
-                  setPoiEditSnap(poi);
-                }}
-                onDeletePoi={handleDeletePlanPoi}
-              />
+                      )}
+                      trackPoints={route?.track_points ?? []}
+                      planPois={planPois}
+                      onClose={() => {
+                        setPanelStageId(null);
+                        setStageEditOpen(false);
+                      }}
+                      onEditStage={() => {
+                        setStageEditOpen(true);
+                      }}
+                      onDeleteStage={requestDeleteStage}
+                      onPoiRowClick={requestFocusPlanPoi}
+                      onEditPoi={(poi) => {
+                        setStageEditOpen(false);
+                        setPoiEditSnap(poi);
+                      }}
+                      onDeletePoi={handleDeletePlanPoi}
+                    />
+                  </motion.div>
+                ) : null}
+              </div>
           </>
         )}
       </aside>

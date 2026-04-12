@@ -70,19 +70,7 @@ export function StageDetailPanel({
 		return maxElevationInStageRange(trackPoints, stage.startDistanceKm, stage.endDistanceKm);
 	}, [trackPoints, stage]);
 
-	if (!stage) {
-		return (
-			<div className="flex w-80 shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-				<div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6 text-center">
-					<p className="text-sm text-zinc-500 dark:text-zinc-400">
-						스테이지를 선택하면
-						<br />
-						상세 정보가 표시됩니다.
-					</p>
-				</div>
-			</div>
-		);
-	}
+	if (!stage) return null;
 
 	const color = getStageColor(stage.dayNumber);
 	const routeLine =
@@ -91,7 +79,7 @@ export function StageDetailPanel({
 			: null;
 
 	return (
-		<div className="flex w-80 shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+		<div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-white dark:bg-zinc-900">
 			<div className="shrink-0 border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
 				<div className="flex items-start justify-between gap-2">
 					<div className="min-w-0 flex-1">
