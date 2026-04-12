@@ -12,8 +12,9 @@ import { stageDayLabel } from "./PlanStagesPane";
 import { MemoReviewPane } from "./MemoReviewPane";
 import { RouteSummaryBlock } from "./RouteSummaryBlock";
 import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
+import { MobileSharedPlanLayout } from "./MobileSharedPlanLayout";
 
-type PublicPlanResponse = {
+export type PublicPlanResponse = {
   plan: {
     id: string;
     name: string;
@@ -27,6 +28,8 @@ type PublicPlanResponse = {
     total_distance: number | null;
     elevation_gain: number | null;
     elevation_loss: number | null;
+    cover_image_hero_url: string | null;
+    cover_image_og_url: string | null;
   };
   stages: {
     id: string;
@@ -82,7 +85,6 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   const [publicPlan, setPublicPlan] = useState<PublicPlanResponse | null>(null);
   const [planPois, setPlanPois] = useState<PlanPoiRow[]>([]);
   const [officialSummits, setOfficialSummits] = useState<SummitCatalogRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [positionIndex, setPositionIndex] = useState<number | null>(null);
@@ -91,12 +93,21 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     null,
   );
   const [isMemoReviewOpen, setIsMemoReviewOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
-      setLoading(true);
+    const loadPublic = async () => {
+      setRoute(null);
       setError(null);
 
       try {
@@ -106,8 +117,27 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         if (cancelled) return;
         setPublicPlan(publicJson);
         setPlanPois(publicJson.plan_pois ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "오류가 발생했습니다.");
+      }
+    };
 
-        const rwgpsMatch = publicJson.route.rwgps_url.match(/\/routes\/(\d+)/);
+    void loadPublic();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!publicPlan || isDesktop !== true || route) return;
+
+    let cancelled = false;
+
+    const loadRoute = async () => {
+      setError(null);
+      try {
+        const rwgpsMatch = publicPlan.route.rwgps_url.match(/\/routes\/(\d+)/);
         const rwgpsId = rwgpsMatch?.[1];
         if (!rwgpsId) throw new Error("경로 정보를 해석할 수 없습니다.");
 
@@ -119,16 +149,14 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "오류가 발생했습니다.");
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     };
 
-    void load();
+    void loadRoute();
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [publicPlan, isDesktop, route]);
 
   useEffect(() => {
     const query = summitQueryStringForRoute(route);
@@ -213,6 +241,20 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     };
   }, [publicPlan, route]);
 
+  const mobileStats = useMemo(() => {
+    if (!publicPlan) return null;
+    const distanceM = route?.distance ?? publicPlan.route.total_distance ?? 0;
+    const gain = route
+      ? Number(route.elevation_gain) || 0
+      : Number(publicPlan.route.elevation_gain) || 0;
+    return {
+      totalDistanceKm: distanceM / 1000,
+      totalElevationGainM: gain,
+      totalDays: stages.length,
+      createdByLabel: publicPlan.author?.nickname?.trim() || "작성자",
+    };
+  }, [publicPlan, route, stages.length]);
+
   const cpMarkers = useMemo(
     () =>
       route
@@ -237,7 +279,18 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     setIsPinned(false);
   };
 
-  if (loading) {
+  const awaitingPublic = !error && !publicPlan;
+  const awaitingViewport = !error && publicPlan != null && isDesktop === null;
+  const awaitingRoute =
+    !error &&
+    publicPlan != null &&
+    isDesktop === true &&
+    route === null;
+
+  if (awaitingPublic || awaitingViewport || awaitingRoute) {
+    const loaderLabel = awaitingRoute
+      ? "경로 지도 불러오는 중..."
+      : "공유 플랜 불러오는 중...";
     return (
       <div className="flex h-full items-center justify-center bg-zinc-100 dark:bg-zinc-800">
         <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-3 shadow-lg dark:bg-zinc-800">
@@ -262,20 +315,36 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             />
           </svg>
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            공유 플랜 불러오는 중...
+            {loaderLabel}
           </span>
         </div>
       </div>
     );
   }
 
-  if (error || !publicPlan) {
+  if (error || !publicPlan || !mobileStats) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-100 p-6 dark:bg-zinc-800">
         <div className="rounded-lg border border-red-200 bg-white p-4 text-sm text-red-600 dark:border-red-800 dark:bg-zinc-900 dark:text-red-400">
           {error ?? "공유 플랜을 찾을 수 없습니다."}
         </div>
       </div>
+    );
+  }
+
+  if (isDesktop === false) {
+    return (
+      <MobileSharedPlanLayout
+        token={token}
+        routeName={publicPlan.route.name}
+        planName={publicPlan.plan.name}
+        createdByLabel={mobileStats.createdByLabel}
+        totalDistanceKm={mobileStats.totalDistanceKm}
+        totalElevationGainM={mobileStats.totalElevationGainM}
+        totalDays={mobileStats.totalDays}
+        heroImageUrl={publicPlan.route.cover_image_hero_url}
+        heroImageFallbackUrl={publicPlan.route.cover_image_og_url}
+      />
     );
   }
 

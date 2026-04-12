@@ -71,7 +71,7 @@ export default async function SharePage({ params }: SharePageProps) {
 
 	return (
 		<div className="flex h-screen flex-col overflow-hidden">
-			<header className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+			<header className="hidden shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 lg:flex">
 				<div className="flex items-center gap-4">
 					<Link
 						href="/"
@@ -88,7 +88,9 @@ export default async function SharePage({ params }: SharePageProps) {
 					<HeaderAuth />
 				</div>
 			</header>
-			<PublicPlanViewer token={token} />
+			<div className="flex min-h-0 flex-1 flex-col">
+				<PublicPlanViewer token={token} />
+			</div>
 		</div>
 	);
 }
