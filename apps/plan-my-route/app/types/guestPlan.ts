@@ -10,6 +10,8 @@ export type GuestStage = {
   elevation_gain: number;
   elevation_loss: number;
   memo: string | null;
+  start_name?: string | null;
+  end_name?: string | null;
 };
 
 export type GuestPlan = {
@@ -67,6 +69,8 @@ export type PublicPlanSnapshot = {
     elevation_gain: number | null;
     elevation_loss: number | null;
     memo: string | null;
+    start_name?: string | null;
+    end_name?: string | null;
   }[];
   plan_pois: PlanPoiRow[];
 };

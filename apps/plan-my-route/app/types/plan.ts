@@ -29,6 +29,10 @@ export interface Stage {
 	elevationLoss: number; // 하강고도(m) — 자동 계산
 	isLastStage: boolean; // "목적지까지"로 생성된 Stage
 	memo?: string;
+	/** 출발 지역명 (표시·편집용, optional) */
+	startName?: string;
+	/** 도착 지역명 (표시·편집용, optional) */
+	endName?: string;
 	/** 스테이지 제목(공유 뷰 요약 등 표시용) */
 	title?: string | null;
 }

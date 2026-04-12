@@ -48,6 +48,8 @@ const sortStages = (stages: PublicPlanSnapshot["stages"]): GuestStage[] =>
       elevation_gain: Number(stage.elevation_gain) || 0,
       elevation_loss: Number(stage.elevation_loss) || 0,
       memo: stage.memo ?? null,
+      start_name: stage.start_name ?? null,
+      end_name: stage.end_name ?? null,
     }));
 
 const clonePlanPois = (

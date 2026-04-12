@@ -717,11 +717,48 @@ export function usePlanStages(
 
 	const cancelDeleteConfirmation = () => setDeleteConfirmation(null);
 
-	const updateStageMemo = useCallback((stageId: string, memo: string) => {
-		setStages((prev) =>
-			prev.map((s) => (s.id === stageId ? { ...s, memo: memo || undefined } : s)),
-		);
-	}, []);
+	const updateStageMeta = useCallback(
+		(
+			stageId: string,
+			patch: {
+				memo?: string;
+				startName?: string;
+				endName?: string;
+			},
+		) => {
+			setStages((prev) =>
+				prev.map((s) => {
+					if (s.id !== stageId) return s;
+					return {
+						...s,
+						...(patch.memo !== undefined
+							? { memo: patch.memo.trim() ? patch.memo : undefined }
+							: {}),
+						...(patch.startName !== undefined
+							? {
+									startName: patch.startName.trim()
+										? patch.startName
+										: undefined,
+								}
+							: {}),
+						...(patch.endName !== undefined
+							? {
+									endName: patch.endName.trim() ? patch.endName : undefined,
+								}
+							: {}),
+					};
+				}),
+			);
+		},
+		[],
+	);
+
+	const updateStageMemo = useCallback(
+		(stageId: string, memo: string) => {
+			updateStageMeta(stageId, { memo });
+		},
+		[updateStageMeta],
+	);
 
 	return {
 		stages,
@@ -752,5 +789,6 @@ export function usePlanStages(
 		cancelDeleteConfirmation,
 
 		updateStageMemo,
+		updateStageMeta,
 	};
 }

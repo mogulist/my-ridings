@@ -138,6 +138,7 @@ interface KakaoMarker {
 	getPosition: () => unknown;
 	setMap?: (map: unknown) => void;
 	setZIndex?: (zIndex: number) => void;
+	setOpacity?: (opacity: number) => void;
 }
 
 interface KakaoInfoWindow {
@@ -724,6 +725,9 @@ interface KakaoMapProps {
 	onDeletePlanPoi?: (poiId: string) => Promise<boolean>;
 	/** 공유 뷰 등: 주변 검색·북마크·POI 추가 비활성 */
 	readOnly?: boolean;
+	/** 디테일 패널 등에서 특정 플랜 POI로 줌·인포윈도우 */
+	focusPlanPoiRequest?: { poiId: string; nonce: number } | null;
+	onFocusPlanPoiConsumed?: () => void;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -773,9 +777,12 @@ export default function KakaoMap({
 	onUpdatePlanPoi,
 	onDeletePlanPoi,
 	readOnly = false,
+	focusPlanPoiRequest = null,
+	onFocusPlanPoiConsumed,
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
+	const focusPlanPoiAnchorRef = useRef<KakaoMarker | null>(null);
 	const mapInstanceRef = useRef<unknown>(null);
 	const lastRouteIdRef = useRef<number | null>(null);
 	const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
@@ -1810,6 +1817,48 @@ export default function KakaoMap({
 		showPoiOnMap,
 		readOnly,
 		renderMergedPoiMarkers,
+	]);
+
+	useEffect(() => {
+		if (!focusPlanPoiRequest || !mapReady || !route) return;
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		const maps = window.kakao?.maps;
+		if (!map || !maps) return;
+		const row = planPois.find((p) => p.id === focusPlanPoiRequest.poiId);
+		if (!row) {
+			onFocusPlanPoiConsumed?.();
+			return;
+		}
+		const pos = new maps.LatLng(row.lat, row.lng);
+		map.setCenter?.(pos);
+		map.setLevel?.(ZOOM_LEVEL_ON_MARKER);
+		focusPlanPoiAnchorRef.current?.setMap?.(null);
+		const anchor = new maps.Marker({
+			map: map as never,
+			position: pos,
+		});
+		anchor.setOpacity?.(0);
+		anchor.setZIndex?.(POI_MERGED_MARKER_Z_INDEX - 1);
+		focusPlanPoiAnchorRef.current = anchor;
+		if (openInfoWindowRef.current) openInfoWindowRef.current.close();
+		const infoWindow = new maps.InfoWindow({
+			content: buildPlanPoiInfoWindowHtml(
+				row,
+				!readOnlyRef.current && Boolean(activePlanIdRef.current),
+			),
+			removable: true,
+			zIndex: INFO_WINDOW_Z_INDEX,
+		});
+		infoWindow.open(map, anchor);
+		openInfoWindowRef.current = infoWindow;
+		onFocusPlanPoiConsumed?.();
+	}, [
+		focusPlanPoiRequest?.poiId,
+		focusPlanPoiRequest?.nonce,
+		mapReady,
+		route,
+		planPois,
+		onFocusPlanPoiConsumed,
 	]);
 
 	useEffect(() => {

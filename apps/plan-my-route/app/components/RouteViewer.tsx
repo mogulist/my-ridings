@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useTransition,
 } from "react";
@@ -22,8 +21,10 @@ import { usePlanStages } from "../hooks/usePlanStages";
 import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import { PlanListPane } from "./PlanListPane";
 import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
-import { MemoPane } from "./MemoPane";
-import { MemoReviewPane } from "./MemoReviewPane";
+import { StageDetailPanel } from "./StageDetailPanel";
+import { StageEditDialog } from "./StageEditDialog";
+import { PoiEditDialog } from "./PoiEditDialog";
+import type { SnappedPlanPoi } from "./MobileSharedPlanStagesTab";
 import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,
@@ -45,6 +46,8 @@ type DbStage = {
   elevation_gain: number | string | null;
   elevation_loss: number | string | null;
   memo?: string | null;
+  start_name?: string | null;
+  end_name?: string | null;
 };
 
 type DbPlanSnapshot = {
@@ -70,6 +73,8 @@ function normalizeDbStages(rawStages: DbStage[]): Stage[] {
     elevationLoss: Number(s.elevation_loss) || 0,
     isLastStage: false,
     memo: s.memo ?? undefined,
+    startName: s.start_name?.trim() ? s.start_name : undefined,
+    endName: s.end_name?.trim() ? s.end_name : undefined,
   }));
 }
 
@@ -81,6 +86,8 @@ function serializeStagesForPlanCache(stages: Stage[]): DbStage[] {
     elevation_gain: stage.elevationGain,
     elevation_loss: stage.elevationLoss,
     memo: stage.memo ?? null,
+    start_name: stage.startName?.trim() ? stage.startName : null,
+    end_name: stage.endName?.trim() ? stage.endName : null,
   }));
 }
 
@@ -95,7 +102,9 @@ function isSamePlanStages(a: DbStage[] | undefined, b: DbStage[]): boolean {
       stage.end_distance === next.end_distance &&
       Number(stage.elevation_gain ?? 0) === Number(next.elevation_gain ?? 0) &&
       Number(stage.elevation_loss ?? 0) === Number(next.elevation_loss ?? 0) &&
-      (stage.memo ?? null) === (next.memo ?? null)
+      (stage.memo ?? null) === (next.memo ?? null) &&
+      (stage.start_name ?? null) === (next.start_name ?? null) &&
+      (stage.end_name ?? null) === (next.end_name ?? null)
     );
   });
 }
@@ -211,12 +220,13 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     null,
   );
   const [planListCollapsed, setPlanListCollapsed] = useState(false);
-  const [memoPaneStageId, setMemoPaneStageId] = useState<string | null>(null);
-  const [memoExpandedStageIds, setMemoExpandedStageIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [isMemoReviewOpen, setIsMemoReviewOpen] = useState(false);
-  const planListCollapsedBeforeMemo = useRef(false);
+  const [panelStageId, setPanelStageId] = useState<string | null>(null);
+  const [focusPlanPoiRequest, setFocusPlanPoiRequest] = useState<{
+    poiId: string;
+    nonce: number;
+  } | null>(null);
+  const [stageEditOpen, setStageEditOpen] = useState(false);
+  const [poiEditSnap, setPoiEditSnap] = useState<SnappedPlanPoi | null>(null);
   const [isReorderingPlans, setIsReorderingPlans] = useState(false);
   const [planActionInProgress, setPlanActionInProgress] = useState<
     null | "create" | "update" | "duplicate" | "delete" | "share"
@@ -237,6 +247,8 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
       elevation_gain: Number(stage.elevation_gain) || 0,
       elevation_loss: Number(stage.elevation_loss) || 0,
       memo: stage.memo ?? null,
+      start_name: stage.start_name ?? null,
+      end_name: stage.end_name ?? null,
     }));
     return {
       id: plan.id,
@@ -473,7 +485,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     executeDeleteStage,
     cancelDeleteConfirmation,
 
-    updateStageMemo,
+    updateStageMeta,
   } = usePlanStages(
     route?.track_points ?? [],
     route?.elevation_gain ?? 0,
@@ -813,47 +825,87 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     )?.start_date ?? null;
   const effectivePlanStartDate = activePlanStartDate ?? routeStartDate;
 
-  const handleOpenMemo = useCallback(
+  const handleStageCardSelect = useCallback((stageId: string) => {
+    setStageEditOpen(false);
+    setPoiEditSnap(null);
+    setPanelStageId(stageId);
+    setActiveStageId(stageId);
+  }, [setActiveStageId]);
+
+  const handleEditStageFromCard = useCallback(
     (stageId: string) => {
-      planListCollapsedBeforeMemo.current = planListCollapsed;
-      setMemoPaneStageId(stageId);
-      setPlanListCollapsed(true);
+      setPoiEditSnap(null);
+      setPanelStageId(stageId);
+      setActiveStageId(stageId);
+      setStageEditOpen(true);
     },
-    [planListCollapsed],
+    [setActiveStageId],
   );
 
-  const handleCloseMemo = useCallback(() => {
-    setMemoPaneStageId(null);
-    setPlanListCollapsed(planListCollapsedBeforeMemo.current);
+  const handleFocusPlanPoiConsumed = useCallback(() => {
+    setFocusPlanPoiRequest(null);
   }, []);
 
-  const handleSaveMemo = useCallback(
-    (stageId: string, memo: string) => {
-      updateStageMemo(stageId, memo);
+  const requestFocusPlanPoi = useCallback((poiId: string) => {
+    setFocusPlanPoiRequest((prev) => ({
+      poiId,
+      nonce: (prev?.nonce ?? 0) + 1,
+    }));
+  }, []);
+
+  const persistStageMeta = useCallback(
+    async (
+      stageId: string,
+      payload: { startName: string; endName: string; memo: string },
+    ) => {
+      if (isGuestMode) {
+        updateStageMeta(stageId, {
+          startName: payload.startName,
+          endName: payload.endName,
+          memo: payload.memo,
+        });
+        return;
+      }
+      const res = await fetch(`/api/stages/${stageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memo: payload.memo || null,
+          start_name: payload.startName || null,
+          end_name: payload.endName || null,
+        }),
+      });
+      if (!res.ok) {
+        alert("스테이지 저장에 실패했습니다.");
+        return;
+      }
+      updateStageMeta(stageId, {
+        startName: payload.startName,
+        endName: payload.endName,
+        memo: payload.memo,
+      });
     },
-    [updateStageMemo],
+    [isGuestMode, updateStageMeta],
   );
 
-  const toggleMemoExpand = useCallback((stageId: string) => {
-    setMemoExpandedStageIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(stageId)) next.delete(stageId);
-      else next.add(stageId);
-      return next;
-    });
-  }, []);
+  const panelStage = useMemo(
+    () => stages.find((s) => s.id === panelStageId) ?? null,
+    [stages, panelStageId],
+  );
 
-  const expandAllMemos = useCallback(() => {
-    setMemoExpandedStageIds(new Set(stages.map((s) => s.id)));
-  }, [stages]);
-
-  const collapseAllMemos = useCallback(() => {
-    setMemoExpandedStageIds(new Set());
-  }, []);
-
-  const handleMemoReviewClose = useCallback(() => {
-    setIsMemoReviewOpen(false);
-  }, []);
+  const handleSavePoiFromDialog = useCallback(
+    async (payload: { name: string; memo: string }) => {
+      if (!poiEditSnap) return;
+      const row = planPois.find((p) => p.id === poiEditSnap.id);
+      if (!row) return;
+      await handleUpdatePlanPoi(poiEditSnap.id, {
+        name: payload.name,
+        poi_type: row.poi_type,
+        memo: payload.memo || null,
+      });
+    },
+    [poiEditSnap, planPois, handleUpdatePlanPoi],
+  );
 
   const handlePlanSelect = useCallback(
     (planId: string) => {
@@ -862,8 +914,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
         setPlanPois(guestRoute?.plan_pois_by_plan_id?.[planId] ?? []);
       }
       setActivePlanId(planId);
-      setMemoPaneStageId(null);
-      setIsMemoReviewOpen(false);
+      setPanelStageId(null);
+      setStageEditOpen(false);
+      setPoiEditSnap(null);
       const plan = dbRoute?.plans?.find((p: any) => p.id === planId);
       if (plan) {
         startStagesTransition(() => {
@@ -1276,57 +1329,53 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
               isCollapsed={planListCollapsed}
               onToggleCollapse={() => setPlanListCollapsed((c) => !c)}
             />
-            {isMemoReviewOpen ? (
-              <MemoReviewPane
-                stages={stages}
+              <PlanStagesPane
+                planName={activePlanName}
+                planId={activePlanId}
                 planStartDate={effectivePlanStartDate}
-                onClose={handleMemoReviewClose}
-                onSaveMemo={handleSaveMemo}
+                stages={stages}
+                activeStageId={activeStageId}
+                setActiveStageId={setActiveStageId}
+                panelStageId={panelStageId}
+                onStageSelect={handleStageCardSelect}
+                onEditStage={handleEditStageFromCard}
+                totalRouteDistanceKm={totalRouteDistanceKm}
+                unplannedDistanceKm={unplannedDistanceKm}
+                updateStageDistance={updateStageDistance}
+                requestDeleteStage={requestDeleteStage}
+                addStage={addStage}
+                addLastStage={addLastStage}
+                isPending={isStagesPending}
               />
-            ) : (
-              <>
-                <PlanStagesPane
-                  planName={activePlanName}
-                  planId={activePlanId}
-                  planStartDate={effectivePlanStartDate}
-                  stages={stages}
-                  activeStageId={activeStageId}
-                  setActiveStageId={setActiveStageId}
-                  totalRouteDistanceKm={totalRouteDistanceKm}
-                  unplannedDistanceKm={unplannedDistanceKm}
-                  updateStageDistance={updateStageDistance}
-                  requestDeleteStage={requestDeleteStage}
-                  addStage={addStage}
-                  addLastStage={addLastStage}
-                  isPending={isStagesPending}
-                  onMemoClick={handleOpenMemo}
-                  memoExpandedStageIds={memoExpandedStageIds}
-                  onToggleMemoExpand={toggleMemoExpand}
-                  onExpandAllMemos={expandAllMemos}
-                  onCollapseAllMemos={collapseAllMemos}
-                  onSaveMemo={handleSaveMemo}
-                  onMemoReviewClick={() => setIsMemoReviewOpen(true)}
-                />
-                {memoPaneStageId &&
-                  (() => {
-                    const memoStage = stages.find(
-                      (s) => s.id === memoPaneStageId,
-                    );
-                    return memoStage ? (
-                      <MemoPane
-                        key={memoPaneStageId}
-                        stage={memoStage}
-                        dateLabel={stageDayLabel(
-                          memoStage.dayNumber,
-                          effectivePlanStartDate,
-                        )}
-                        onClose={handleCloseMemo}
-                        onSave={handleSaveMemo}
-                      />
-                    ) : null;
-                  })()}
-              </>
-            )}
+              <StageDetailPanel
+                stage={panelStage}
+                dateLabel={
+                  panelStage
+                    ? stageDayLabel(
+                        panelStage.dayNumber,
+                        effectivePlanStartDate,
+                      )
+                    : ""
+                }
+                trackPoints={route?.track_points ?? []}
+                planPois={planPois}
+                onClose={() => {
+                  setPanelStageId(null);
+                  setStageEditOpen(false);
+                }}
+                onEditStage={() => {
+                  if (panelStage) {
+                    setStageEditOpen(true);
+                  }
+                }}
+                onDeleteStage={requestDeleteStage}
+                onPoiRowClick={requestFocusPlanPoi}
+                onEditPoi={(poi) => {
+                  setStageEditOpen(false);
+                  setPoiEditSnap(poi);
+                }}
+                onDeletePoi={handleDeletePlanPoi}
+              />
           </>
         )}
       </aside>
@@ -1392,6 +1441,8 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
               onCreatePlanPoi={handleCreatePlanPoi}
               onUpdatePlanPoi={handleUpdatePlanPoi}
               onDeletePlanPoi={handleDeletePlanPoi}
+              focusPlanPoiRequest={focusPlanPoiRequest}
+              onFocusPlanPoiConsumed={handleFocusPlanPoiConsumed}
             />
           )}
         </section>
@@ -1454,6 +1505,25 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
           onCancel={cancelDeleteConfirmation}
         />
       )}
+
+      <StageEditDialog
+        open={stageEditOpen && panelStage != null}
+        stage={panelStage}
+        onOpenChange={setStageEditOpen}
+        onSave={async (payload) => {
+          if (!panelStage) return;
+          await persistStageMeta(panelStage.id, payload);
+        }}
+      />
+
+      <PoiEditDialog
+        open={poiEditSnap != null}
+        poi={poiEditSnap}
+        onOpenChange={(open) => {
+          if (!open) setPoiEditSnap(null);
+        }}
+        onSave={handleSavePoiFromDialog}
+      />
     </>
   );
 }

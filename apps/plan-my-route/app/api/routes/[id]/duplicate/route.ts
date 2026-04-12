@@ -9,6 +9,9 @@ type DbStage = {
 	end_distance: number;
 	elevation_gain: number | null;
 	elevation_loss: number | null;
+	memo: string | null;
+	start_name: string | null;
+	end_name: string | null;
 };
 
 type DbPlan = {
@@ -62,7 +65,10 @@ export async function POST(
 						start_distance,
 						end_distance,
 						elevation_gain,
-						elevation_loss
+						elevation_loss,
+						memo,
+						start_name,
+						end_name
 					)
 				)
 			`)
@@ -132,6 +138,9 @@ export async function POST(
 				end_distance: stage.end_distance,
 				elevation_gain: stage.elevation_gain,
 				elevation_loss: stage.elevation_loss,
+				memo: stage.memo,
+				start_name: stage.start_name,
+				end_name: stage.end_name,
 			}));
 
 			if (stagesToInsert.length === 0) continue;
