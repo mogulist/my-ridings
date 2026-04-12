@@ -32,7 +32,10 @@ import type {
   SummitOnRoute,
   TrackPoint,
 } from "./ElevationProfile";
-import { ElevationProfile } from "./ElevationProfile";
+import {
+  computeRawGainBetweenKm,
+  ElevationProfile,
+} from "./ElevationProfile";
 import { stageDayLabel } from "./PlanStagesPane";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
@@ -140,8 +143,14 @@ export type StageScheduleMarkerKind = "cp" | "summit" | "plan_poi";
 export type StageScheduleWaypoint = {
   rowKey: string;
   name: string;
-  distanceKm: number;
-  elevation: number;
+  /** 경로 전체 기준 누적 거리(km) — 정렬·누적상승 계산용 */
+  distanceAlongRouteKm: number;
+  /** 해당 일차 시작점부터의 거리(km) — 표시용 */
+  distanceFromStageStartKm: number;
+  /** 해당 지점 해발 고도(m) — 트랙/스냅 또는 정상 카탈로그 */
+  elevationM: number;
+  /** 일차 시작 지점부터 이 지점까지 구간 누적 상승고도(m) */
+  elevationGainFromStageStartM: number;
   categoryLabel: string;
   memo: string | null;
   markerKind: StageScheduleMarkerKind;
@@ -149,49 +158,93 @@ export type StageScheduleWaypoint = {
   planPoiType?: string;
 };
 
+function waypointRowForAbsoluteKm(
+  stage: Stage,
+  trackPoints: TrackPoint[],
+  absoluteKm: number,
+  elevationM: number,
+  rest: {
+    rowKey: string;
+    name: string;
+    categoryLabel: string;
+    memo: string | null;
+    markerKind: StageScheduleMarkerKind;
+    planPoiType?: string;
+  },
+): StageScheduleWaypoint {
+  const distanceFromStageStartKm =
+    Math.round(Math.max(0, absoluteKm - stage.startDistanceKm) * 100) / 100;
+  const elevationGainFromStageStartM =
+    trackPoints.length === 0
+      ? 0
+      : computeRawGainBetweenKm(
+          trackPoints,
+          stage.startDistanceKm,
+          absoluteKm,
+        );
+  return {
+    ...rest,
+    distanceAlongRouteKm: absoluteKm,
+    distanceFromStageStartKm,
+    elevationM,
+    elevationGainFromStageStartM,
+  };
+}
+
 export function stageScheduleWaypoints(
   stage: Stage,
   snappedPois: SnappedPlanPoi[],
   cpMarkers: CPOnRoute[],
   summitMarkers: SummitOnRoute[],
+  trackPoints: TrackPoint[],
 ): StageScheduleWaypoint[] {
   const fromPois: StageScheduleWaypoint[] = itemsInStage(snappedPois, stage).map(
-    (p) => ({
-      rowKey: `plan-poi:${p.id}`,
-      name: p.name,
-      distanceKm: p.distanceKm,
-      elevation: p.elevation,
-      categoryLabel: planPoiTypeLabelKo(p.poiType),
-      memo: p.memo,
-      markerKind: "plan_poi",
-      planPoiType: p.poiType,
-    }),
+    (p) =>
+      waypointRowForAbsoluteKm(stage, trackPoints, p.distanceKm, p.elevation, {
+        rowKey: `plan-poi:${p.id}`,
+        name: p.name,
+        categoryLabel: planPoiTypeLabelKo(p.poiType),
+        memo: p.memo,
+        markerKind: "plan_poi",
+        planPoiType: p.poiType,
+      }),
   );
   const fromCp: StageScheduleWaypoint[] = itemsInStage(cpMarkers, stage).map(
-    (c) => ({
-      rowKey: `cp:${c.id}`,
-      name: c.name,
-      distanceKm: c.distanceKm,
-      elevation: Math.round(c.elevation),
-      categoryLabel: CP_LABEL_KO,
-      memo: null,
-      markerKind: "cp",
-    }),
+    (c) =>
+      waypointRowForAbsoluteKm(
+        stage,
+        trackPoints,
+        c.distanceKm,
+        Math.round(c.elevation),
+        {
+          rowKey: `cp:${c.id}`,
+          name: c.name,
+          categoryLabel: CP_LABEL_KO,
+          memo: null,
+          markerKind: "cp",
+        },
+      ),
   );
   const fromSummit: StageScheduleWaypoint[] = itemsInStage(
     summitMarkers,
     stage,
-  ).map((s) => ({
-    rowKey: `summit:${s.id}`,
-    name: s.name,
-    distanceKm: s.distanceKm,
-    elevation: Math.round(s.elevation),
-    categoryLabel: SUMMIT_LABEL_KO,
-    memo: null,
-    markerKind: "summit",
-  }));
+  ).map((s) =>
+    waypointRowForAbsoluteKm(
+      stage,
+      trackPoints,
+      s.distanceKm,
+      Math.round(s.elevation),
+      {
+        rowKey: `summit:${s.id}`,
+        name: s.name,
+        categoryLabel: SUMMIT_LABEL_KO,
+        memo: null,
+        markerKind: "summit",
+      },
+    ),
+  );
   return [...fromPois, ...fromCp, ...fromSummit].sort(
-    (a, b) => a.distanceKm - b.distanceKm,
+    (a, b) => a.distanceAlongRouteKm - b.distanceAlongRouteKm,
   );
 }
 
@@ -387,8 +440,15 @@ export function InlineStageCard({
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="font-medium text-foreground">{row.name}</span>
-                          <span className="tabular-nums text-muted-foreground">
-                            {row.distanceKm.toFixed(1)}km · {row.elevation}m
+                          <span
+                            className="tabular-nums text-muted-foreground"
+                            title="구간 거리 · 해발 고도 · 일차 시작~지점 누적 상승"
+                          >
+                            {row.distanceFromStageStartKm.toFixed(1)}km · {row.elevationM}m
+                            {" · "}
+                            <span className="text-muted-foreground/70">
+                              +{row.elevationGainFromStageStartM.toLocaleString()}m
+                            </span>
                           </span>
                           <span className="text-[10px] text-muted-foreground">
                             {row.categoryLabel}
@@ -446,11 +506,17 @@ export function StagesTab({
     for (const stage of stages) {
       m.set(
         stage.dayNumber,
-        stageScheduleWaypoints(stage, snappedPois, cpMarkers, summitMarkers),
+        stageScheduleWaypoints(
+          stage,
+          snappedPois,
+          cpMarkers,
+          summitMarkers,
+          trackPoints,
+        ),
       );
     }
     return m;
-  }, [stages, snappedPois, cpMarkers, summitMarkers]);
+  }, [stages, snappedPois, cpMarkers, summitMarkers, trackPoints]);
 
   const maxElevByDay = useMemo(() => {
     const m = new Map<number, number | null>();

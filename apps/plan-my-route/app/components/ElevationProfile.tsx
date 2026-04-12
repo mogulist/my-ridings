@@ -398,7 +398,8 @@ function findNextCPInContext(
 	return null;
 }
 
-function computeRawGainBetweenKm(
+/** 트랙 상에서 fromKm~toKm 구간의 단순 누적 상승고도(m). 고도 프로필 비스무딩 경로와 동일한 원시 합산. */
+export function computeRawGainBetweenKm(
 	points: TrackPoint[],
 	fromKm: number,
 	toKm: number,
