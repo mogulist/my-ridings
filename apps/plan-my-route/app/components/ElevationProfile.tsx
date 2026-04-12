@@ -89,6 +89,14 @@ interface ElevationProfileProps {
 	cpMarkers?: CPOnRoute[];
 	/** 경로상 Summit 리스트 — 거리순 정렬 */
 	summitMarkers?: SummitOnRoute[];
+	/** 모바일 일정 탭: 가로 스크롤 pill 칩 + 전체 버튼 */
+	alwaysShowChips?: boolean;
+	/** 고정 차트 높이(px). 미지정 시 부모 flex 높이 100% */
+	chartHeightPx?: number;
+	/** Y축 폭·라벨 간소화 */
+	compactYAxis?: boolean;
+	/** 핀/호버 스크럽/세로 마커 비활성화 (공유 일정 탭) */
+	disablePinAndHoverScrub?: boolean;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -627,6 +635,10 @@ export function ElevationProfile({
 	elevationCalibratedThreshold,
 	cpMarkers = [],
 	summitMarkers = [],
+	alwaysShowChips = false,
+	chartHeightPx,
+	compactYAxis = false,
+	disablePinAndHoverScrub = false,
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -703,12 +715,13 @@ export function ElevationProfile({
 
 	const handleMouseMove = useCallback(
 		(state: TooltipState) => {
+			if (disablePinAndHoverScrub) return;
 			const index = getChartDataIndexAtTooltip(state);
 			if (index == null) return;
 			lastHoverIndexRef.current = index;
 			if (!isPinned && onPositionChange) onPositionChange(index);
 		},
-		[getChartDataIndexAtTooltip, onPositionChange, isPinned],
+		[getChartDataIndexAtTooltip, onPositionChange, isPinned, disablePinAndHoverScrub],
 	);
 
 	const handleMouseLeave = useCallback(() => {
@@ -718,13 +731,14 @@ export function ElevationProfile({
 	const lastHoverIndexRef = useRef<number | null>(null);
 
 	const handleChartClick = useCallback(() => {
+		if (disablePinAndHoverScrub) return;
 		if (isPinned && onUnpin) {
 			onUnpin();
 			return;
 		}
 		if (!onPin || lastHoverIndexRef.current == null) return;
 		onPin(lastHoverIndexRef.current);
-	}, [isPinned, onPin, onUnpin]);
+	}, [isPinned, onPin, onUnpin, disablePinAndHoverScrub]);
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
@@ -785,6 +799,64 @@ export function ElevationProfile({
 	}, [positionIndex, rawChartData]);
 
 	if (rawChartData.length === 0) {
+		const chipRow =
+			alwaysShowChips && hasStages ? (
+				<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+					<button
+						type="button"
+						onClick={() => onSelectedDayChange?.(null)}
+						className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+							selectedDayNumber == null
+								? "bg-orange-500 text-white"
+								: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+						}`}
+					>
+						전체
+					</button>
+					{stages.map((s) => {
+						const color = getStageColor(s.dayNumber);
+						const isSel = selectedDayNumber === s.dayNumber;
+						return (
+							<button
+								key={s.id}
+								type="button"
+								onClick={() => onSelectedDayChange?.(s.dayNumber)}
+								className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+									isSel
+										? "text-white"
+										: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+								}`}
+								style={
+									isSel
+										? { backgroundColor: color.stroke }
+										: undefined
+								}
+							>
+								{s.dayNumber}일
+							</button>
+						);
+					})}
+				</div>
+			) : null;
+
+		const emptyChart = (
+			<div
+				className="flex w-full items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/40"
+				style={{ minHeight: chartHeightPx ?? 88 }}
+			>
+				<p className="text-xs text-zinc-400">고도 데이터가 없습니다</p>
+			</div>
+		);
+
+		if (alwaysShowChips && hasStages) {
+			return (
+				<div className="flex w-full flex-col gap-1 px-1 pt-1">
+					{chipRow}
+					{emptyChart}
+				</div>
+			);
+		}
+
 		return (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-xs text-zinc-400">고도 데이터가 없습니다</p>
@@ -833,78 +905,138 @@ export function ElevationProfile({
 	const tooltipCpAnchorMaxKm = selectedStage?.endDistanceKm ?? totalKm;
 	const tooltipAnchorDayNumber = selectedStage?.dayNumber ?? null;
 
+	const tightFixedHeightChart =
+		typeof chartHeightPx === "number" && chartHeightPx > 0 && compactYAxis;
+
+	const pillChipRow =
+		alwaysShowChips && hasStages ? (
+			<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				<button
+					type="button"
+					onClick={() => onSelectedDayChange?.(null)}
+					className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+						selectedDayNumber == null
+							? "bg-orange-500 text-white"
+							: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+					}`}
+				>
+					전체
+				</button>
+				{stages.map((s) => {
+					const color = getStageColor(s.dayNumber);
+					const isSel = selectedDayNumber === s.dayNumber;
+					return (
+						<button
+							key={s.id}
+							type="button"
+							onClick={() => onSelectedDayChange?.(s.dayNumber)}
+							className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+								isSel
+									? "text-white"
+									: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+							}`}
+							style={isSel ? { backgroundColor: color.stroke } : undefined}
+						>
+							{s.dayNumber}일
+						</button>
+					);
+				})}
+			</div>
+		) : null;
+
 	return (
-		<div className="flex h-full w-full flex-col gap-1 px-2 pt-2">
-			{/* 범례 헤더 */}
-			<div className="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-				<div className="flex items-center gap-3 min-w-0">
-					<span className="font-medium text-zinc-700 dark:text-zinc-300 shrink-0">
-						고도 프로필
-					</span>
-					<span className="shrink-0">총 {totalKm.toFixed(0)} km</span>
-					{hasStages && (
-						<div className="flex items-center gap-1">
-							{stages.map((s) => {
-								const color = getStageColor(s.dayNumber);
-								const isSelected = selectedDayNumber === s.dayNumber;
-								const isActive = activeStageId === s.id;
-								return (
-									<button
-										key={s.id}
-										type="button"
-										onClick={() =>
-											onSelectedDayChange?.(isSelected ? null : s.dayNumber)
-										}
-										className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors shrink-0 ${
-											isSelected
-												? "bg-zinc-200 dark:bg-zinc-600 font-semibold"
-												: "hover:bg-zinc-100 dark:hover:bg-zinc-700"
-										} ${isActive ? "ring-1 ring-offset-1 ring-zinc-400" : ""}`}
-									>
-										<span
-											className="inline-block h-2 w-2 shrink-0 rounded-full"
-											style={{ backgroundColor: color.stroke }}
-										/>
-										{s.dayNumber}일
-									</button>
-								);
-							})}
+		<div
+			className={
+				chartHeightPx != null
+					? tightFixedHeightChart
+						? "flex w-full flex-col gap-1 pl-1 pr-2 pt-1.5"
+						: "flex w-full flex-col gap-1 px-2 pt-2"
+					: "flex h-full w-full flex-col gap-1 px-2 pt-2"
+			}
+		>
+			{alwaysShowChips && hasStages ? (
+				pillChipRow
+			) : (
+				<div className="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+					<div className="flex min-w-0 items-center gap-3">
+						<span className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">
+							고도 프로필
+						</span>
+						<span className="shrink-0">총 {totalKm.toFixed(0)} km</span>
+						{hasStages && (
+							<div className="flex items-center gap-1">
+								{stages.map((s) => {
+									const color = getStageColor(s.dayNumber);
+									const isSelected = selectedDayNumber === s.dayNumber;
+									const isActive = activeStageId === s.id;
+									return (
+										<button
+											key={s.id}
+											type="button"
+											onClick={() =>
+												onSelectedDayChange?.(isSelected ? null : s.dayNumber)
+											}
+											className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors ${
+												isSelected
+													? "bg-zinc-200 font-semibold dark:bg-zinc-600"
+													: "hover:bg-zinc-100 dark:hover:bg-zinc-700"
+											} ${isActive ? "ring-1 ring-zinc-400 ring-offset-1" : ""}`}
+										>
+											<span
+												className="inline-block h-2 w-2 shrink-0 rounded-full"
+												style={{ backgroundColor: color.stroke }}
+											/>
+											{s.dayNumber}일
+										</button>
+									);
+								})}
+							</div>
+						)}
+					</div>
+					{pendingStageEdit != null && (
+						<div className="flex shrink-0 items-center gap-1">
+							<button
+								type="button"
+								onClick={onDiscardPreview}
+								className="rounded px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-600"
+							>
+								취소
+							</button>
+							<button
+								type="button"
+								onClick={onCommitPreview}
+								className="rounded bg-orange-500 px-2 py-1 text-xs font-medium text-white hover:bg-orange-600"
+							>
+								적용
+							</button>
 						</div>
 					)}
 				</div>
-				{pendingStageEdit != null && (
-					<div className="flex items-center gap-1 shrink-0">
-						<button
-							type="button"
-							onClick={onDiscardPreview}
-							className="rounded px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-600"
-						>
-							취소
-						</button>
-						<button
-							type="button"
-							onClick={onCommitPreview}
-							className="rounded px-2 py-1 text-xs font-medium bg-orange-500 text-white hover:bg-orange-600"
-						>
-							적용
-						</button>
-					</div>
-				)}
-			</div>
+			)}
 
 			{/* 차트 */}
 			<div
 				ref={chartContainerRef}
-				className="relative flex-1 min-h-0"
+				className={chartHeightPx != null ? "relative w-full shrink-0" : "relative min-h-0 flex-1"}
+				style={chartHeightPx != null ? { height: chartHeightPx } : undefined}
 			>
-				<ResponsiveContainer width="100%" height="100%">
+				<ResponsiveContainer width="100%" height={chartHeightPx != null ? chartHeightPx : "100%"}>
 					<AreaChart
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						data={chartData as any}
-						margin={{ top: 20, right: 8, left: 0, bottom: 4 }}
-						onMouseMove={handleMouseMove}
-						onMouseLeave={handleMouseLeave}
-						onMouseDown={handleChartClick}
+						margin={
+							tightFixedHeightChart
+								? { top: 6, right: 4, left: 0, bottom: 0 }
+								: {
+										top: 20,
+										right: 8,
+										left: 0,
+										bottom: 4,
+									}
+						}
+						onMouseMove={disablePinAndHoverScrub ? undefined : handleMouseMove}
+						onMouseLeave={disablePinAndHoverScrub ? undefined : handleMouseLeave}
+						onMouseDown={disablePinAndHoverScrub ? undefined : handleChartClick}
 					>
 						<defs>
 							{/* 기본 그라디언트 (Stage 없을 때) */}
@@ -999,6 +1131,7 @@ export function ElevationProfile({
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
 							axisLine={false}
+							tickMargin={tightFixedHeightChart ? 2 : 6}
 						/>
 
 						<YAxis
@@ -1013,13 +1146,19 @@ export function ElevationProfile({
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
 							axisLine={false}
-							width={38}
-							label={{
-								value: "m",
-								angle: -90,
-								position: "insideLeft",
-								style: { fill: "#9ca3af", fontSize: 10 },
-							}}
+							width={
+								tightFixedHeightChart ? 36 : compactYAxis ? 40 : 38
+							}
+							label={
+								compactYAxis
+									? undefined
+									: {
+											value: "m",
+											angle: -90,
+											position: "insideLeft",
+											style: { fill: "#9ca3af", fontSize: 10 },
+										}
+							}
 						/>
 
 						<Tooltip
@@ -1170,7 +1309,7 @@ export function ElevationProfile({
 						))}
 
 						{/* 외부 제어 마커 */}
-						{currentChartDatum != null && (
+						{!disablePinAndHoverScrub && currentChartDatum != null && (
 							<>
 								<ReferenceLine
 									x={currentChartDatum.distanceKm}
@@ -1191,7 +1330,10 @@ export function ElevationProfile({
 					</AreaChart>
 				</ResponsiveContainer>
 				{/* 핀 고정 툴팁 */}
-				{isPinned && currentChartDatum != null && (() => {
+				{!disablePinAndHoverScrub &&
+					isPinned &&
+					currentChartDatum != null &&
+					(() => {
 					const span = visibleEnd - visibleStart;
 					const leftPct = span > 0
 						? ((currentChartDatum.distanceKm - visibleStart) / span) * 100
@@ -1263,7 +1405,8 @@ export function ElevationProfile({
 					);
 				})()}
 				{/* CP 세로선 클릭 → trackPointIndex 핀 (차트 mousedown과 분리) */}
-				{onPin != null &&
+				{!disablePinAndHoverScrub &&
+					onPin != null &&
 					visibleCPs.map((cp) => {
 						const span = visibleEnd - visibleStart;
 						const leftPct =

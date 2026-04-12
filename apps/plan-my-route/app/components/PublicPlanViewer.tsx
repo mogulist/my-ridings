@@ -361,6 +361,8 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         summaryTrackPoints={route?.track_points ?? []}
         summaryRouteDescription={sharedSummaryRouteDescription}
         summaryMaxElevationM={sharedSummaryMaxElevationM}
+        planStartDate={publicPlan.plan.start_date}
+        stagesPlanPois={planPois}
       />
     );
   }

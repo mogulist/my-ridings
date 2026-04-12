@@ -18,16 +18,19 @@ import {
 } from "lucide-react";
 import { Badge, Button, cn } from "@my-ridings/ui";
 import type { TrackPoint } from "./ElevationProfile";
+import {
+  MOBILE_PLAN_TAB_BAR_HEIGHT_PX,
+} from "./mobileSharedPlanConstants";
 import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
 import { SharedPlanSummaryElevationMini } from "./SharedPlanSummaryElevationMini";
+import { StagesTab } from "./MobileSharedPlanStagesTab";
+import type { PlanPoiRow } from "../types/planPoi";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 
-const TAB_BAR_H = 68;
+const TAB_BAR_H = MOBILE_PLAN_TAB_BAR_HEIGHT_PX;
 
 type TabId = "summary" | "map" | "stages";
-
-const STAGE_PLACEHOLDER_COLORS = ["#3B82F6", "#8B5CF6"] as const;
 
 type MobileSharedPlanLayoutProps = {
   token: string;
@@ -43,6 +46,8 @@ type MobileSharedPlanLayoutProps = {
   summaryTrackPoints: TrackPoint[];
   summaryRouteDescription: string;
   summaryMaxElevationM: number | null;
+  planStartDate: string | null;
+  stagesPlanPois: PlanPoiRow[];
 };
 
 type SummaryTabProps = {
@@ -288,39 +293,6 @@ function MapTabPlaceholder() {
   );
 }
 
-function StagesTabPlaceholder({ dayCount }: { dayCount: number }) {
-  return (
-    <div className="space-y-3 p-4 pb-8">
-      {Array.from({ length: dayCount }).map((_, i) => (
-        <div
-          key={i}
-          className="overflow-hidden rounded-xl border border-border border-l-4 bg-card shadow-sm"
-          style={{
-            borderLeftColor: STAGE_PLACEHOLDER_COLORS[i % 2],
-          }}
-        >
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <Badge
-                className="text-white"
-                style={{
-                  backgroundColor: STAGE_PLACEHOLDER_COLORS[i % 2],
-                }}
-              >
-                Day {i + 1}
-              </Badge>
-              <div className="mt-1 text-sm text-muted-foreground">
-                일정 카드 플레이스홀더
-              </div>
-            </div>
-            <ChevronDown className="size-4 text-muted-foreground/50" aria-hidden />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function MobileSharedPlanLayout({
   token,
   routeName,
@@ -335,6 +307,8 @@ export function MobileSharedPlanLayout({
   summaryTrackPoints,
   summaryRouteDescription,
   summaryMaxElevationM,
+  planStartDate,
+  stagesPlanPois,
 }: MobileSharedPlanLayoutProps) {
   const [tab, setTab] = useState<TabId>("summary");
   const [scrollY, setScrollY] = useState(0);
@@ -575,7 +549,13 @@ export function MobileSharedPlanLayout({
             />
           )}
           {tab === "stages" && (
-            <StagesTabPlaceholder dayCount={Math.max(1, totalDays)} />
+            <StagesTab
+              scrollRef={scrollRef}
+              stages={summaryStages}
+              trackPoints={summaryTrackPoints}
+              planStartDate={planStartDate}
+              planPois={stagesPlanPois}
+            />
           )}
         </div>
       ) : (
