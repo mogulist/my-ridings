@@ -300,6 +300,11 @@ export function InlineStageCard({
   const hasExpandableBody =
     Boolean(stage.memo?.trim()) || stageWaypoints.length > 0;
 
+  const startLabel = stage.startName?.trim();
+  const endLabel = stage.endName?.trim();
+  const regionRouteLabel =
+    startLabel && endLabel ? `${startLabel} -> ${endLabel}` : null;
+
   return (
     <PlainCollapsible
       open={expanded}
@@ -340,6 +345,15 @@ export function InlineStageCard({
                   </Badge>
                 ) : null}
               </div>
+
+              {regionRouteLabel ? (
+                <p
+                  className="mt-1 truncate text-xs text-muted-foreground"
+                  title={regionRouteLabel}
+                >
+                  {regionRouteLabel}
+                </p>
+              ) : null}
 
               <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-0.5 tabular-nums">
