@@ -10,6 +10,7 @@ import {
   Calendar,
   ChevronDown,
   Flame,
+  Loader2,
   Map as MapIcon,
   MapPin,
   Mountain,
@@ -23,6 +24,7 @@ import {
 } from "./mobileSharedPlanConstants";
 import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
 import { SharedPlanSummaryElevationMini } from "./SharedPlanSummaryElevationMini";
+import { RollingDeciK, RollingNumber } from "./RollingNumber";
 import { StagesTab } from "./MobileSharedPlanStagesTab";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { Stage } from "../types/plan";
@@ -50,6 +52,8 @@ type MobileSharedPlanLayoutProps = {
   stagesPlanPois: PlanPoiRow[];
   stagesCpMarkers?: CPOnRoute[];
   stagesSummitMarkers?: SummitOnRoute[];
+  /** RWGPS 경로 로딩 중이면 거리·획득고도 카드에 스피너만 표시 */
+  isHeroDistanceElevPending?: boolean;
 };
 
 type SummaryTabProps = {
@@ -313,6 +317,7 @@ export function MobileSharedPlanLayout({
   stagesPlanPois,
   stagesCpMarkers = [],
   stagesSummitMarkers = [],
+  isHeroDistanceElevPending = false,
 }: MobileSharedPlanLayoutProps) {
   const [tab, setTab] = useState<TabId>("summary");
   const [scrollY, setScrollY] = useState(0);
@@ -365,10 +370,9 @@ export function MobileSharedPlanLayout({
   };
 
   const distanceRounded = Math.round(totalDistanceKm);
-  const elevK =
-    totalElevationGainM >= 1000
-      ? `+${(totalElevationGainM / 1000).toFixed(1)}k`
-      : `+${Math.round(totalElevationGainM)}`;
+  const heroRollDigitClass =
+    "text-lg font-semibold tabular-nums text-white leading-none";
+  const heroRollLinePx = 24;
 
   const tabs: { key: TabId; label: string; icon: ReactNode }[] = [
     {
@@ -469,19 +473,56 @@ export function MobileSharedPlanLayout({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
           >
-            {[
-              { val: distanceRounded.toLocaleString(), unit: "km 거리" },
-              { val: elevK, unit: "m 획득" },
-              { val: String(totalDays), unit: "일 계획" },
-            ].map((item) => (
-              <div
-                key={item.unit}
-                className="rounded-xl border border-white/15 bg-white/10 py-2.5 text-center backdrop-blur-sm"
-              >
-                <div className="text-lg font-semibold text-white">{item.val}</div>
-                <div className="mt-0.5 text-xs text-zinc-400">{item.unit}</div>
+            <div className="rounded-xl border border-white/15 bg-white/10 py-2.5 text-center backdrop-blur-sm">
+              <div className="flex min-h-[28px] items-center justify-center text-white">
+                {isHeroDistanceElevPending ? (
+                  <Loader2
+                    className="size-5 shrink-0 animate-spin text-white/90"
+                    aria-label="거리 불러오는 중"
+                  />
+                ) : (
+                  <RollingNumber
+                    value={distanceRounded}
+                    minDigitColumns={3}
+                    groupSeparator=","
+                    digitClassName={heroRollDigitClass}
+                    lineHeightPx={heroRollLinePx}
+                  />
+                )}
               </div>
-            ))}
+              <div className="mt-0.5 text-xs text-zinc-400">km 거리</div>
+            </div>
+            <div className="rounded-xl border border-white/15 bg-white/10 py-2.5 text-center backdrop-blur-sm">
+              <div className="flex min-h-[28px] items-center justify-center text-white">
+                {isHeroDistanceElevPending ? (
+                  <Loader2
+                    className="size-5 shrink-0 animate-spin text-white/90"
+                    aria-label="획득 고도 불러오는 중"
+                  />
+                ) : totalElevationGainM >= 1000 ? (
+                  <RollingDeciK
+                    deciK={Math.round(totalElevationGainM / 100)}
+                    digitClassName={heroRollDigitClass}
+                    lineHeightPx={heroRollLinePx}
+                  />
+                ) : (
+                  <RollingNumber
+                    value={Math.round(totalElevationGainM)}
+                    minDigitColumns={3}
+                    prefix="+"
+                    digitClassName={heroRollDigitClass}
+                    lineHeightPx={heroRollLinePx}
+                  />
+                )}
+              </div>
+              <div className="mt-0.5 text-xs text-zinc-400">m 획득</div>
+            </div>
+            <div className="rounded-xl border border-white/15 bg-white/10 py-2.5 text-center backdrop-blur-sm">
+              <div className="text-lg font-semibold text-white">
+                {String(totalDays)}
+              </div>
+              <div className="mt-0.5 text-xs text-zinc-400">일 계획</div>
+            </div>
           </motion.div>
 
           <motion.div

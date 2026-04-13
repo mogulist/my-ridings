@@ -409,6 +409,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         stagesPlanPois={planPois}
         stagesCpMarkers={cpMarkers}
         stagesSummitMarkers={summitMarkers}
+        isHeroDistanceElevPending={route === null}
       />
     );
   }
