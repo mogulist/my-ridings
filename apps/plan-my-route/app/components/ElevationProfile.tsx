@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@my-ridings/ui";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
 	Area,
@@ -601,6 +602,40 @@ function PlanPoiMarkerLabel({
 	);
 }
 
+/** 호버 툴팁(CustomTooltip)과 모바일 일정 선택 km·고도 오버레이에 공통 적용.
+ * `backdrop-blur`는 sticky 부모 등과 겹칠 때 샘플링이 깨져 불투명하게 보일 수 있어 제외하고, 알파 배경만으로 비침을 낸다. */
+const ELEVATION_CHART_TOOLTIP_PANEL_CLASS =
+	"rounded-lg border border-white/15 bg-zinc-950/50 text-zinc-100 shadow-md";
+
+type ScheduleSelectionKmEleTooltipProps = {
+	km: number;
+	ele: number;
+	compactTooltip: boolean;
+	style: CSSProperties;
+};
+
+function ScheduleSelectionKmEleTooltip({
+	km,
+	ele,
+	compactTooltip,
+	style,
+}: ScheduleSelectionKmEleTooltipProps) {
+	return (
+		<div
+			className={cn(
+				"pointer-events-none absolute z-20 box-border w-max max-w-[min(280px,calc(100%-12px))] shrink-0",
+				ELEVATION_CHART_TOOLTIP_PANEL_CLASS,
+				compactTooltip ? "px-2 py-1.5 text-[10px] leading-snug" : "px-3 py-2 text-xs",
+			)}
+			style={style}
+		>
+			<div className="font-medium tabular-nums">
+				{km.toFixed(1)} km · △ {ele} m
+			</div>
+		</div>
+	);
+}
+
 // ── 커스텀 툴팁 ───────────────────────────────────────────────────
 function CustomTooltip({
 	active,
@@ -665,27 +700,20 @@ function CustomTooltip({
 	return (
 		<div
 			className={cn(
-				"rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-800",
+				ELEVATION_CHART_TOOLTIP_PANEL_CLASS,
 				compactTooltip
 					? "min-w-[168px] max-w-[min(100%,280px)] px-2 py-1.5 text-[10px] leading-snug"
 					: "min-w-[200px] px-3 py-2 text-xs",
 			)}
 		>
-			<div
-				className={cn(
-					"flex justify-between font-semibold text-zinc-800 dark:text-zinc-100",
-					rowGap,
-				)}
-			>
+			<div className={cn("flex justify-between font-semibold text-zinc-100", rowGap)}>
 				<span>전체</span>
 				<span>
 					{km.toFixed(1)} km · △ {d.ele} m
 				</span>
 			</div>
 			{hasStageStats && (
-				<div
-					className={cn("flex justify-between text-zinc-500 dark:text-zinc-400", blockY, rowGap)}
-				>
+				<div className={cn("flex justify-between text-zinc-300", blockY, rowGap)}>
 					<span>스테이지</span>
 					<span>
 						+{Number(d.distanceFromStageStartKm).toFixed(1)} km · ▲ {d.elevationGainFromStageStart}{" "}
@@ -694,21 +722,15 @@ function CustomTooltip({
 				</div>
 			)}
 			{cpMarkers.length > 0 && (
-				<div
-					className={cn("space-y-0.5 border-t border-zinc-200 dark:border-zinc-600", blockY, cpTop)}
-				>
-					<div
-						className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}
-					>
+				<div className={cn("space-y-0.5 border-t border-white/10", blockY, cpTop)}>
+					<div className={cn("flex justify-between text-emerald-400", rowGap)}>
 						<span>{cpSegLabel}</span>
 						<span>
 							+{segDist.toFixed(1)} km · ▲ {segGain} m
 						</span>
 					</div>
 					{nextTargetLabel != null && remainKm != null && remainGain != null && (
-						<div
-							className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}
-						>
+						<div className={cn("flex justify-between text-emerald-400", rowGap)}>
 							<span>{nextTargetLabel}</span>
 							<span>
 								{remainKm.toFixed(1)} km · ▲ {remainGain} m
@@ -1279,24 +1301,26 @@ export function ElevationProfile({
 							}
 						/>
 
-						<Tooltip
-							cursor={{
-								stroke: "#f97316",
-								strokeWidth: 1,
-								strokeDasharray: "4 2",
-							}}
-							content={
-								<CustomTooltip
-									trackPoints={trackPoints}
-									cpMarkers={cpMarkers}
-									elevationCalibratedThreshold={elevationCalibratedThreshold}
-									cpAnchorMinKm={tooltipCpAnchorKm}
-									cpAnchorMaxKm={tooltipCpAnchorMaxKm}
-									anchorFallbackDayNumber={tooltipAnchorDayNumber}
-									compactTooltip={compactTooltip}
-								/>
-							}
-						/>
+						{!disablePinAndHoverScrub ? (
+							<Tooltip
+								cursor={{
+									stroke: "#f97316",
+									strokeWidth: 1,
+									strokeDasharray: "4 2",
+								}}
+								content={
+									<CustomTooltip
+										trackPoints={trackPoints}
+										cpMarkers={cpMarkers}
+										elevationCalibratedThreshold={elevationCalibratedThreshold}
+										cpAnchorMinKm={tooltipCpAnchorKm}
+										cpAnchorMaxKm={tooltipCpAnchorMaxKm}
+										anchorFallbackDayNumber={tooltipAnchorDayNumber}
+										compactTooltip={compactTooltip}
+									/>
+								}
+							/>
+						) : null}
 
 						{/* Stage가 없는 경우: 기본 Area */}
 						{!hasStages && (
@@ -1458,23 +1482,16 @@ export function ElevationProfile({
 					</AreaChart>
 				</ResponsiveContainer>
 				{scheduleSelectionOverlay != null && scheduleTooltipStyle != null ? (
-					<div
-						className={cn(
-							"pointer-events-none absolute z-20 box-border w-max max-w-[min(280px,calc(100%-12px))] shrink-0 rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-800",
-							compactTooltip
-								? "px-2 py-1.5 text-[10px] leading-snug"
-								: "px-3 py-2 text-xs",
-						)}
+					<ScheduleSelectionKmEleTooltip
+						km={scheduleSelectionOverlay.km}
+						ele={scheduleSelectionOverlay.ele}
+						compactTooltip={compactTooltip}
 						style={{
 							left: scheduleTooltipStyle.left,
 							top: scheduleTooltipStyle.top,
 							transform: scheduleTooltipStyle.transform,
 						}}
-					>
-						<div className="font-medium tabular-nums text-zinc-800 dark:text-zinc-100">
-							{scheduleSelectionOverlay.km.toFixed(1)} km · △ {scheduleSelectionOverlay.ele} m
-						</div>
-					</div>
+					/>
 				) : null}
 				{/* 핀 고정 툴팁 */}
 				{!disablePinAndHoverScrub &&
@@ -1571,7 +1588,7 @@ export function ElevationProfile({
 										)}
 									</div>
 								)}
-								<p className="mt-1 text-zinc-400 dark:text-zinc-500 text-center">클릭하여 해제</p>
+								<p className="mt-1 text-center text-zinc-400 dark:text-zinc-500">클릭하여 해제</p>
 							</div>
 						);
 					})()}
