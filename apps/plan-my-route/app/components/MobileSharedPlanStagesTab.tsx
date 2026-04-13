@@ -594,6 +594,7 @@ export function StagesTab({
           chartHeightPx={135}
           compactYAxis
           disablePinAndHoverScrub
+          compactTooltip
           cpMarkers={cpMarkers}
           summitMarkers={summitMarkers}
         />

@@ -12,6 +12,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
+import { cn } from "@my-ridings/ui";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
@@ -98,6 +99,8 @@ interface ElevationProfileProps {
 	compactYAxis?: boolean;
 	/** 핀/호버 스크럽/세로 마커 비활성화 (공유 일정 탭) */
 	disablePinAndHoverScrub?: boolean;
+	/** 모바일 공유 일정 탭: 축 라벨에 맞춘 작은 툴팁 */
+	compactTooltip?: boolean;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -529,6 +532,7 @@ function CustomTooltip({
 	cpAnchorMinKm,
 	cpAnchorMaxKm,
 	anchorFallbackDayNumber,
+	compactTooltip = false,
 }: {
 	active?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -541,6 +545,7 @@ function CustomTooltip({
 	/** 스테이지 종료 km — 이보다 뒤의 CP는 다음 CP로 쓰지 않음 */
 	cpAnchorMaxKm: number;
 	anchorFallbackDayNumber: number | null;
+	compactTooltip?: boolean;
 }) {
 	if (!active || !payload?.length) return null;
 	const d = payload[0].payload;
@@ -585,26 +590,54 @@ function CustomTooltip({
 				)
 			: null;
 
+	const rowGap = compactTooltip ? "gap-3" : "gap-4";
+	const blockY = compactTooltip ? "mt-0.5" : "mt-1";
+	const cpTop = compactTooltip ? "pt-0.5" : "pt-1";
+
 	return (
-		<div className="min-w-[200px] rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-md text-xs dark:border-zinc-700 dark:bg-zinc-800">
-			<div className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
+		<div
+			className={cn(
+				"rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-800",
+				compactTooltip
+					? "min-w-[168px] max-w-[min(100%,280px)] px-2 py-1.5 text-[10px] leading-snug"
+					: "min-w-[200px] px-3 py-2 text-xs",
+			)}
+		>
+			<div
+				className={cn(
+					"flex justify-between font-semibold text-zinc-800 dark:text-zinc-100",
+					rowGap,
+				)}
+			>
 				<span>전체</span>
 				<span>{km.toFixed(1)} km · △ {d.ele} m</span>
 			</div>
 			{hasStageStats && (
-				<div className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
+				<div
+					className={cn(
+						"flex justify-between text-zinc-500 dark:text-zinc-400",
+						blockY,
+						rowGap,
+					)}
+				>
 					<span>스테이지</span>
 					<span>+{Number(d.distanceFromStageStartKm).toFixed(1)} km · ▲ {d.elevationGainFromStageStart} m</span>
 				</div>
 			)}
 			{cpMarkers.length > 0 && (
-				<div className="mt-1 space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
-					<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+				<div
+					className={cn(
+						"space-y-0.5 border-t border-zinc-200 dark:border-zinc-600",
+						blockY,
+						cpTop,
+					)}
+				>
+					<div className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}>
 						<span>{cpSegLabel}</span>
 						<span>+{segDist.toFixed(1)} km · ▲ {segGain} m</span>
 					</div>
 					{nextTargetLabel != null && remainKm != null && remainGain != null && (
-						<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+						<div className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}>
 							<span>{nextTargetLabel}</span>
 							<span>{remainKm.toFixed(1)} km · ▲ {remainGain} m</span>
 						</div>
@@ -640,6 +673,7 @@ export function ElevationProfile({
 	chartHeightPx,
 	compactYAxis = false,
 	disablePinAndHoverScrub = false,
+	compactTooltip = false,
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -1188,6 +1222,7 @@ export function ElevationProfile({
 									cpAnchorMinKm={tooltipCpAnchorKm}
 									cpAnchorMaxKm={tooltipCpAnchorMaxKm}
 									anchorFallbackDayNumber={tooltipAnchorDayNumber}
+									compactTooltip={compactTooltip}
 								/>
 							}
 						/>
