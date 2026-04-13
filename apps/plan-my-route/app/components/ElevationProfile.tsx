@@ -909,6 +909,20 @@ export function ElevationProfile({
 	const tightFixedHeightChart =
 		typeof chartHeightPx === "number" && chartHeightPx > 0 && compactYAxis;
 
+	/** 고정 높이+컴팩트 축: 일차 선택 시 CP/정상 이름이 위로 잘리지 않도록 플롯 상단 여백 확보 */
+	const tightChartMargin = tightFixedHeightChart
+		? {
+				top:
+					showCPNames &&
+					(visibleCPs.length > 0 || visibleSummits.length > 0)
+						? 16
+						: 6,
+				right: 4,
+				left: 0,
+				bottom: 2,
+			}
+		: null;
+
 	const pillChipRow =
 		alwaysShowChips && hasStages ? (
 			<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1026,14 +1040,12 @@ export function ElevationProfile({
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						data={chartData as any}
 						margin={
-							tightFixedHeightChart
-								? { top: 6, right: 4, left: 0, bottom: 0 }
-								: {
-										top: 20,
-										right: 8,
-										left: 0,
-										bottom: 4,
-									}
+							tightChartMargin ?? {
+								top: 20,
+								right: 8,
+								left: 0,
+								bottom: 4,
+							}
 						}
 						onMouseMove={disablePinAndHoverScrub ? undefined : handleMouseMove}
 						onMouseLeave={disablePinAndHoverScrub ? undefined : handleMouseLeave}
