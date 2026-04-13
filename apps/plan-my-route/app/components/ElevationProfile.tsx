@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@my-ridings/ui";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
 	Area,
 	AreaChart,
@@ -12,15 +13,14 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { cn } from "@my-ridings/ui";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
-import type { Stage } from "../types/plan";
-import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 import {
-	type PendingStageEdit,
 	computeElevationGainCurve,
 	computeTrackElevationGainLoss,
+	type PendingStageEdit,
 } from "../hooks/usePlanStages";
+import type { Stage } from "../types/plan";
+import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 
 // ── 타입 ─────────────────────────────────────────────────────────
 export interface TrackPoint {
@@ -45,6 +45,19 @@ export type SummitOnRoute = {
 	elevation: number;
 	trackPointIndex: number;
 };
+
+/** 모바일 공유 일정: 고도 차트에 표시할 단일 경유 포인트 포커스 */
+export type ElevationScheduleMarkerFocus =
+	| { kind: "cp"; id: number }
+	| { kind: "summit"; id: string }
+	| {
+			kind: "plan_poi";
+			id: string;
+			distanceKm: number;
+			name: string;
+			elevationM: number;
+			categoryLabel: string;
+	  };
 
 interface ChartDatum {
 	distanceKm: number;
@@ -101,6 +114,10 @@ interface ElevationProfileProps {
 	disablePinAndHoverScrub?: boolean;
 	/** 모바일 공유 일정 탭: 축 라벨에 맞춘 작은 툴팁 */
 	compactTooltip?: boolean;
+	/** 공유 일정: CP/정상/경유지 이름을 한 곳만 표시 */
+	singleScheduleMarkerLabel?: boolean;
+	/** `singleScheduleMarkerLabel`일 때 강조할 마커 */
+	scheduleMarkerFocus?: ElevationScheduleMarkerFocus | null;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -188,10 +205,7 @@ function buildChartData(
 		const distanceKm = Math.round(rawDistanceKm * 100) / 100;
 		let stageIndex: number | null = null;
 		for (let i = 0; i < stages.length; i++) {
-			if (
-				rawDistanceKm >= stages[i].startDistanceKm &&
-				rawDistanceKm <= stages[i].endDistanceKm
-			) {
+			if (rawDistanceKm >= stages[i].startDistanceKm && rawDistanceKm <= stages[i].endDistanceKm) {
 				stageIndex = i;
 				break;
 			}
@@ -216,9 +230,7 @@ function buildChartData(
 			} else {
 				const startIdx = stageStartIndices[stageIndex];
 				datum.elevationGainFromStageStart = Math.round(
-					startIdx < withEleIndex
-						? cumulativeGain[withEleIndex] - cumulativeGain[startIdx]
-						: 0,
+					startIdx < withEleIndex ? cumulativeGain[withEleIndex] - cumulativeGain[startIdx] : 0,
 				);
 			}
 		}
@@ -237,8 +249,7 @@ function computeVisibleRange(
 	if (stageIdx === -1) return { startKm: 0, endKm: totalKm };
 	const stage = stages[stageIdx];
 	const prevStage = stageIdx > 0 ? stages[stageIdx - 1] : null;
-	const nextStage =
-		stageIdx < stages.length - 1 ? stages[stageIdx + 1] : null;
+	const nextStage = stageIdx < stages.length - 1 ? stages[stageIdx + 1] : null;
 
 	const prevPadding = prevStage ? prevStage.distanceKm * 0.15 : 0;
 	const nextPadding = nextStage ? nextStage.distanceKm * 0.15 : 0;
@@ -301,8 +312,7 @@ function BoundaryHandle({
 	onMouseDown: (e: React.MouseEvent) => void;
 }) {
 	const span = visibleEnd - visibleStart;
-	const leftPct =
-		span > 0 ? ((boundaryKm - visibleStart) / span) * 100 : 0;
+	const leftPct = span > 0 ? ((boundaryKm - visibleStart) / span) * 100 : 0;
 	return (
 		<button
 			type="button"
@@ -333,16 +343,12 @@ function BoundaryTooltip({
 	previewStats: PreviewStageStats | null;
 	leftPct: number;
 }) {
-	const distDelta = previewStats
-		? previewStats.distanceKm - stage.distanceKm
-		: 0;
+	const distDelta = previewStats ? previewStats.distanceKm - stage.distanceKm : 0;
 	const gainDelta = previewStats ? previewStats.elevationGain - stage.elevationGain : 0;
 	const lossDelta = previewStats ? previewStats.elevationLoss - stage.elevationLoss : 0;
 
-	const formatDelta = (v: number) =>
-		v >= 0 ? `+${v}` : `${v}`;
-	const formatDeltaKm = (v: number) =>
-		v >= 0 ? `+${v.toFixed(1)}` : `${v.toFixed(1)}`;
+	const formatDelta = (v: number) => (v >= 0 ? `+${v}` : `${v}`);
+	const formatDeltaKm = (v: number) => (v >= 0 ? `+${v.toFixed(1)}` : `${v.toFixed(1)}`);
 
 	return (
 		<div
@@ -354,9 +360,7 @@ function BoundaryTooltip({
 				transform: leftPct > 25 ? "translateX(calc(-100% - 32px))" : "translateX(32px)",
 			}}
 		>
-			<p className="font-semibold text-zinc-800 dark:text-zinc-100">
-				{stage.dayNumber}일 경계
-			</p>
+			<p className="font-semibold text-zinc-800 dark:text-zinc-100">{stage.dayNumber}일 경계</p>
 			<div className="mt-1.5 space-y-0.5">
 				<p className="text-zinc-500 dark:text-zinc-400">
 					원본: {stage.distanceKm.toFixed(1)} km · +{stage.elevationGain}m / -{stage.elevationLoss}m
@@ -364,10 +368,12 @@ function BoundaryTooltip({
 				{previewStats && (
 					<>
 						<p className="text-zinc-800 dark:text-zinc-200">
-							새값: {previewStats.distanceKm.toFixed(1)} km · +{previewStats.elevationGain}m / -{previewStats.elevationLoss}m
+							새값: {previewStats.distanceKm.toFixed(1)} km · +{previewStats.elevationGain}m / -
+							{previewStats.elevationLoss}m
 						</p>
 						<p className="text-orange-600 dark:text-orange-400 font-medium">
-							증감: {formatDeltaKm(distDelta)} km · {formatDelta(gainDelta)}m / {formatDelta(lossDelta)}m
+							증감: {formatDeltaKm(distDelta)} km · {formatDelta(gainDelta)}m /{" "}
+							{formatDelta(lossDelta)}m
 						</p>
 					</>
 				)}
@@ -434,17 +440,77 @@ function computeSegmentGainBetweenKm(
 ): number {
 	if (toKm <= fromKm) return 0;
 	const useSmooth =
-		typeof elevationCalibratedThreshold === "number" &&
-		elevationCalibratedThreshold >= 0;
+		typeof elevationCalibratedThreshold === "number" && elevationCalibratedThreshold >= 0;
 	if (useSmooth) {
-		return computeTrackElevationGainLoss(
-			points,
-			fromKm,
-			toKm,
-			elevationCalibratedThreshold,
-		).gain;
+		return computeTrackElevationGainLoss(points, fromKm, toKm, elevationCalibratedThreshold).gain;
 	}
 	return computeRawGainBetweenKm(points, fromKm, toKm);
+}
+
+type ChartMarginBox = { top: number; right: number; left: number; bottom: number };
+
+/** `tightChartMargin` 미사용 시 AreaChart·스케줄 툴팁 앵커 계산에 동일하게 사용 */
+const DEFAULT_AREA_CHART_MARGIN: ChartMarginBox = {
+	top: 20,
+	right: 8,
+	left: 0,
+	bottom: 4,
+};
+
+/** 선 오른쪽에 둘 때(툴팁 왼쪽 끝 = 앵커 + gap) */
+const SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX = 10;
+/** 선 왼쪽에 둘 때(툴팁 오른쪽 끝 = 앵커 - gap) */
+const SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX = 5;
+/** 플롯 내 앵커가 차트 박스 가로 중심보다 왼쪽이면 툴팁을 선 오른쪽에 둔다 */
+const SCHEDULE_SELECTION_TOOLTIP_RIGHT_PLACEMENT_MAX_CENTER_FR = 0.5;
+
+/** AreaChart margin + YAxis width와 동일하게, 플롯 X 구간에 맞춘 앵커(px) */
+function elevationYAxisReservedWidth(tightFixedHeightChart: boolean, compactYAxis: boolean): number {
+	return tightFixedHeightChart ? 36 : compactYAxis ? 40 : 38;
+}
+
+/**
+ * Recharts AreaChart와 동일한 좌표계: margin.left + Y축 폭 + 가시 거리 비율로 앵커 X(px).
+ * 툴팁은 선과 겹치지 않게 가로 절반 기준으로 선 오른쪽 또는 왼쪽에 배치한다.
+ */
+function scheduleSelectionTooltipPlotStyle(params: {
+	km: number;
+	visibleStart: number;
+	visibleEnd: number;
+	chartBoxWidth: number;
+	margin: ChartMarginBox;
+	yAxisWidth: number;
+}): { left: number; top: string; transform: string } {
+	const { km, visibleStart, visibleEnd, chartBoxWidth, margin, yAxisWidth } = params;
+	const span = visibleEnd - visibleStart;
+	const plotLeft = margin.left + yAxisWidth;
+	const plotRight = chartBoxWidth - margin.right;
+	const plotW = Math.max(1, plotRight - plotLeft);
+	const t = span > 0 ? (km - visibleStart) / span : 0.5;
+	const anchorX = plotLeft + t * plotW;
+	const placeTooltipRightOfLine =
+		anchorX < chartBoxWidth * SCHEDULE_SELECTION_TOOLTIP_RIGHT_PLACEMENT_MAX_CENTER_FR;
+	const translateX = placeTooltipRightOfLine
+		? `translateX(${SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX}px)`
+		: `translateX(calc(-100% - ${SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX}px))`;
+	return {
+		left: anchorX,
+		top: "50%",
+		transform: `${translateX} translateY(-50%)`,
+	};
+}
+
+function nearestChartRowEleByKm(
+	chartRows: Array<{ distanceKm: number; ele?: number | null }>,
+	km: number,
+): { distanceKm: number; ele: number } | null {
+	let best: { distanceKm: number; ele: number } | null = null;
+	for (const row of chartRows) {
+		if (row.ele == null || Number.isNaN(Number(row.ele))) continue;
+		const d = { distanceKm: row.distanceKm, ele: Number(row.ele) };
+		if (!best || Math.abs(d.distanceKm - km) < Math.abs(best.distanceKm - km)) best = d;
+	}
+	return best;
 }
 
 // ── CP 마커 라벨 (Recharts ReferenceLine label) ──────────────────
@@ -467,19 +533,9 @@ function CPMarkerLabel({
 	const triH = 6;
 	return (
 		<g>
-			<polygon
-				points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`}
-				fill={CP_COLOR}
-			/>
+			<polygon points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`} fill={CP_COLOR} />
 			{showName && (
-				<text
-					x={x}
-					y={y - 4}
-					textAnchor="middle"
-					fill="#71717a"
-					fontSize={11}
-					fontWeight={500}
-				>
+				<text x={x} y={y - 4} textAnchor="middle" fill="#71717a" fontSize={11} fontWeight={500}>
 					{name}
 				</text>
 			)}
@@ -507,14 +563,37 @@ function SummitMarkerLabel({
 				fill={SUMMIT_COLOR}
 			/>
 			{showName && (
-				<text
-					x={x}
-					y={y - 4}
-					textAnchor="middle"
-					fill="#71717a"
-					fontSize={11}
-					fontWeight={500}
-				>
+				<text x={x} y={y - 4} textAnchor="middle" fill="#71717a" fontSize={11} fontWeight={500}>
+					{name}
+				</text>
+			)}
+		</g>
+	);
+}
+
+const PLAN_POI_MARKER_COLOR = "#2563eb";
+
+function PlanPoiMarkerLabel({
+	viewBox,
+	showName,
+	name,
+}: {
+	viewBox?: { x?: number; y?: number };
+	showName: boolean;
+	name: string;
+}) {
+	if (viewBox?.x == null || viewBox?.y == null) return null;
+	const { x, y } = viewBox;
+	const triW = 4;
+	const triH = 6;
+	return (
+		<g>
+			<polygon
+				points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`}
+				fill={PLAN_POI_MARKER_COLOR}
+			/>
+			{showName && (
+				<text x={x} y={y - 4} textAnchor="middle" fill="#71717a" fontSize={11} fontWeight={500}>
 					{name}
 				</text>
 			)}
@@ -558,12 +637,7 @@ function CustomTooltip({
 	const segDist = Math.round((km - segFromKm) * 10) / 10;
 	const segGain =
 		cpMarkers.length > 0 && trackPoints.length > 0
-			? computeSegmentGainBetweenKm(
-					trackPoints,
-					segFromKm,
-					km,
-					elevationCalibratedThreshold,
-				)
+			? computeSegmentGainBetweenKm(trackPoints, segFromKm, km, elevationCalibratedThreshold)
 			: 0;
 	const cpSegLabel = prevCp
 		? "이전 CP부터"
@@ -578,16 +652,10 @@ function CustomTooltip({
 		: hasStageStats && anchorFallbackDayNumber != null
 			? `${anchorFallbackDayNumber}일 종료까지`
 			: null;
-	const remainKm =
-		nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
+	const remainKm = nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
 	const remainGain =
 		nextTargetKm != null && trackPoints.length > 0
-			? computeSegmentGainBetweenKm(
-					trackPoints,
-					km,
-					nextTargetKm,
-					elevationCalibratedThreshold,
-				)
+			? computeSegmentGainBetweenKm(trackPoints, km, nextTargetKm, elevationCalibratedThreshold)
 			: null;
 
 	const rowGap = compactTooltip ? "gap-3" : "gap-4";
@@ -610,36 +678,41 @@ function CustomTooltip({
 				)}
 			>
 				<span>전체</span>
-				<span>{km.toFixed(1)} km · △ {d.ele} m</span>
+				<span>
+					{km.toFixed(1)} km · △ {d.ele} m
+				</span>
 			</div>
 			{hasStageStats && (
 				<div
-					className={cn(
-						"flex justify-between text-zinc-500 dark:text-zinc-400",
-						blockY,
-						rowGap,
-					)}
+					className={cn("flex justify-between text-zinc-500 dark:text-zinc-400", blockY, rowGap)}
 				>
 					<span>스테이지</span>
-					<span>+{Number(d.distanceFromStageStartKm).toFixed(1)} km · ▲ {d.elevationGainFromStageStart} m</span>
+					<span>
+						+{Number(d.distanceFromStageStartKm).toFixed(1)} km · ▲ {d.elevationGainFromStageStart}{" "}
+						m
+					</span>
 				</div>
 			)}
 			{cpMarkers.length > 0 && (
 				<div
-					className={cn(
-						"space-y-0.5 border-t border-zinc-200 dark:border-zinc-600",
-						blockY,
-						cpTop,
-					)}
+					className={cn("space-y-0.5 border-t border-zinc-200 dark:border-zinc-600", blockY, cpTop)}
 				>
-					<div className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}>
+					<div
+						className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}
+					>
 						<span>{cpSegLabel}</span>
-						<span>+{segDist.toFixed(1)} km · ▲ {segGain} m</span>
+						<span>
+							+{segDist.toFixed(1)} km · ▲ {segGain} m
+						</span>
 					</div>
 					{nextTargetLabel != null && remainKm != null && remainGain != null && (
-						<div className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}>
+						<div
+							className={cn("flex justify-between text-emerald-700 dark:text-emerald-400", rowGap)}
+						>
 							<span>{nextTargetLabel}</span>
-							<span>{remainKm.toFixed(1)} km · ▲ {remainGain} m</span>
+							<span>
+								{remainKm.toFixed(1)} km · ▲ {remainGain} m
+							</span>
 						</div>
 					)}
 				</div>
@@ -674,30 +747,34 @@ export function ElevationProfile({
 	compactYAxis = false,
 	disablePinAndHoverScrub = false,
 	compactTooltip = false,
+	singleScheduleMarkerLabel = false,
+	scheduleMarkerFocus = null,
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
+	const [chartBoxWidth, setChartBoxWidth] = useState(0);
 	const [isDragging, setIsDragging] = useState(false);
 	const frozenVisibleRangeRef = useRef<{ startKm: number; endKm: number } | null>(null);
 
+	useLayoutEffect(() => {
+		const root = chartContainerRef.current;
+		if (!root) return;
+		const measure = () => setChartBoxWidth(root.clientWidth);
+		measure();
+		const ro = new ResizeObserver(measure);
+		ro.observe(root);
+		return () => ro.disconnect();
+	}, []);
+
 	const rawChartData = useMemo(
-		() =>
-			buildChartData(
-				trackPoints,
-				stages,
-				elevationCalibratedThreshold,
-			),
+		() => buildChartData(trackPoints, stages, elevationCalibratedThreshold),
 		[trackPoints, stages, elevationCalibratedThreshold],
 	);
 
 	const hasStages = stages.length > 0;
-	const totalKm =
-		rawChartData.length > 0
-			? rawChartData[rawChartData.length - 1].distanceKm
-			: 0;
+	const totalKm = rawChartData.length > 0 ? rawChartData[rawChartData.length - 1].distanceKm : 0;
 
 	const computedVisibleRange = useMemo(() => {
-		if (!hasStages || selectedDayNumber == null)
-			return { startKm: 0, endKm: totalKm };
+		if (!hasStages || selectedDayNumber == null) return { startKm: 0, endKm: totalKm };
 		return computeVisibleRange(stages, selectedDayNumber, totalKm);
 	}, [hasStages, selectedDayNumber, stages, totalKm]);
 
@@ -717,9 +794,7 @@ export function ElevationProfile({
 
 	const clippedChartData = useMemo(() => {
 		if (selectedDayNumber == null) return rawChartData;
-		return rawChartData.filter(
-			(d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd,
-		);
+		return rawChartData.filter((d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd);
 	}, [rawChartData, selectedDayNumber, visibleStart, visibleEnd]);
 
 	const { data: multiStageData, keys: stageKeys } = useMemo(
@@ -728,6 +803,43 @@ export function ElevationProfile({
 	);
 
 	const chartData = hasStages ? multiStageData : clippedChartData;
+
+	const scheduleSelectionOverlay = useMemo(() => {
+		if (!disablePinAndHoverScrub || !singleScheduleMarkerLabel || !scheduleMarkerFocus) return null;
+		let km: number;
+		let fallbackEle: number;
+		const f = scheduleMarkerFocus;
+		if (f.kind === "cp") {
+			const cp = cpMarkers.find((c) => c.id === f.id);
+			if (!cp) return null;
+			km = cp.distanceKm;
+			fallbackEle = Math.round(cp.elevation);
+		} else if (f.kind === "summit") {
+			const s = summitMarkers.find((x) => x.id === f.id);
+			if (!s) return null;
+			km = s.distanceKm;
+			fallbackEle = Math.round(s.elevation);
+		} else {
+			km = f.distanceKm;
+			fallbackEle = f.elevationM;
+		}
+		if (km < visibleStart || km > visibleEnd) return null;
+		const best = nearestChartRowEleByKm(
+			chartData as Array<{ distanceKm: number; ele?: number | null }>,
+			km,
+		);
+		const ele = best?.ele ?? fallbackEle;
+		return { km, ele };
+	}, [
+		disablePinAndHoverScrub,
+		singleScheduleMarkerLabel,
+		scheduleMarkerFocus,
+		cpMarkers,
+		summitMarkers,
+		visibleStart,
+		visibleEnd,
+		chartData,
+	]);
 
 	type TooltipState = {
 		activeTooltipIndex?: number | string | null;
@@ -738,9 +850,7 @@ export function ElevationProfile({
 			const tooltipIndex = state.activeTooltipIndex;
 			if (tooltipIndex == null) return null;
 			const normalizedTooltipIndex =
-				typeof tooltipIndex === "string"
-					? Number(tooltipIndex)
-					: tooltipIndex;
+				typeof tooltipIndex === "string" ? Number(tooltipIndex) : tooltipIndex;
 			if (!Number.isInteger(normalizedTooltipIndex)) return null;
 			const row = chartData[normalizedTooltipIndex] as { index?: number } | undefined;
 			return typeof row?.index === "number" ? row.index : null;
@@ -777,30 +887,21 @@ export function ElevationProfile({
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
-			? stages.find((s) => s.dayNumber === selectedDayNumber) ?? null
+			? (stages.find((s) => s.dayNumber === selectedDayNumber) ?? null)
 			: null;
 	const selectedStageIdx =
-		selectedStage != null
-			? stages.findIndex((s) => s.id === selectedStage.id)
-			: -1;
-	const isLastStage =
-		selectedStageIdx >= 0 && selectedStageIdx === stages.length - 1;
+		selectedStage != null ? stages.findIndex((s) => s.id === selectedStage.id) : -1;
+	const isLastStage = selectedStageIdx >= 0 && selectedStageIdx === stages.length - 1;
 	const canDragBoundary =
-		selectedStage != null &&
-		!isLastStage &&
-		onStartBoundaryDrag != null &&
-		onPreviewMove != null;
+		selectedStage != null && !isLastStage && onStartBoundaryDrag != null && onPreviewMove != null;
 
 	const handleBoundaryDrag = useCallback(
 		(clientX: number) => {
-			if (!chartContainerRef.current || !selectedStage || !onPreviewMove)
-				return;
+			if (!chartContainerRef.current || !selectedStage || !onPreviewMove) return;
 			const rect = chartContainerRef.current.getBoundingClientRect();
 			const span = visibleEnd - visibleStart;
 			if (span <= 0) return;
-			const km =
-				visibleStart +
-				((clientX - rect.left) / rect.width) * span;
+			const km = visibleStart + ((clientX - rect.left) / rect.width) * span;
 			onPreviewMove(selectedStage.id, Math.round(km * 10) / 10);
 		},
 		[selectedStage, visibleStart, visibleEnd, onPreviewMove],
@@ -826,10 +927,7 @@ export function ElevationProfile({
 		if (positionIndex == null || rawChartData.length === 0) return null;
 		return rawChartData.reduce<ChartDatum | null>((best, d) => {
 			if (!best) return d;
-			return Math.abs(d.index - positionIndex) <
-				Math.abs(best.index - positionIndex)
-				? d
-				: best;
+			return Math.abs(d.index - positionIndex) < Math.abs(best.index - positionIndex) ? d : best;
 		}, null);
 	}, [positionIndex, rawChartData]);
 
@@ -861,11 +959,7 @@ export function ElevationProfile({
 										? "text-white"
 										: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
 								}`}
-								style={
-									isSel
-										? { backgroundColor: color.stroke }
-										: undefined
-								}
+								style={isSel ? { backgroundColor: color.stroke } : undefined}
 							>
 								{s.dayNumber}일
 							</button>
@@ -900,11 +994,11 @@ export function ElevationProfile({
 	}
 
 	const pendingStage = pendingStageEdit
-		? stages.find((s) => s.id === pendingStageEdit.stageId) ?? null
+		? (stages.find((s) => s.id === pendingStageEdit.stageId) ?? null)
 		: null;
 	const boundaryKmForHandle = pendingStageEdit
 		? pendingStageEdit.previewEndKm
-		: selectedStage?.endDistanceKm ?? 0;
+		: (selectedStage?.endDistanceKm ?? 0);
 
 	// Stage 경계선: 표시 구간 내의 것만. pending인 경계는 별도 처리 (점선+실선)
 	const stageBoundaries = stages
@@ -919,14 +1013,10 @@ export function ElevationProfile({
 	const visibleCPs = cpMarkers.filter(
 		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
 	);
-	const showCPNames = selectedDayNumber != null;
-	const showSummits = selectedDayNumber != null;
-	const visibleSummits = showSummits
+	const showStageMarkerNames = selectedDayNumber != null;
+	const visibleSummits = showStageMarkerNames
 		? summitMarkers
-				.filter(
-					(summit) =>
-						summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd,
-				)
+				.filter((summit) => summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd)
 				.filter(
 					(summit) =>
 						!visibleCPs.some(
@@ -936,6 +1026,27 @@ export function ElevationProfile({
 						),
 				)
 		: [];
+	const useSingleScheduleLabel =
+		Boolean(singleScheduleMarkerLabel) && showStageMarkerNames && scheduleMarkerFocus != null;
+
+	const cpNameVisible = (cp: CPOnRoute) => {
+		if (!useSingleScheduleLabel) return showStageMarkerNames;
+		const f = scheduleMarkerFocus;
+		return f?.kind === "cp" && f.id === cp.id;
+	};
+
+	const summitNameVisible = (summit: SummitOnRoute) => {
+		if (!useSingleScheduleLabel) return showStageMarkerNames;
+		const f = scheduleMarkerFocus;
+		return f?.kind === "summit" && f.id === summit.id;
+	};
+
+	const planPoiFocusInView =
+		useSingleScheduleLabel &&
+		scheduleMarkerFocus?.kind === "plan_poi" &&
+		scheduleMarkerFocus.distanceKm >= visibleStart &&
+		scheduleMarkerFocus.distanceKm <= visibleEnd;
+
 	const tooltipCpAnchorKm = selectedStage?.startDistanceKm ?? 0;
 	const tooltipCpAnchorMaxKm = selectedStage?.endDistanceKm ?? totalKm;
 	const tooltipAnchorDayNumber = selectedStage?.dayNumber ?? null;
@@ -947,8 +1058,8 @@ export function ElevationProfile({
 	const tightChartMargin = tightFixedHeightChart
 		? {
 				top:
-					showCPNames &&
-					(visibleCPs.length > 0 || visibleSummits.length > 0)
+					showStageMarkerNames &&
+					(visibleCPs.length > 0 || visibleSummits.length > 0 || planPoiFocusInView)
 						? 16
 						: 6,
 				right: 4,
@@ -993,6 +1104,23 @@ export function ElevationProfile({
 			</div>
 		) : null;
 
+	const marginForScheduleTooltip = tightChartMargin ?? DEFAULT_AREA_CHART_MARGIN;
+	const yAxisWidthForScheduleTooltip = elevationYAxisReservedWidth(
+		tightFixedHeightChart,
+		compactYAxis,
+	);
+	const scheduleTooltipStyle =
+		scheduleSelectionOverlay != null && chartBoxWidth > 0
+			? scheduleSelectionTooltipPlotStyle({
+					km: scheduleSelectionOverlay.km,
+					visibleStart,
+					visibleEnd,
+					chartBoxWidth,
+					margin: marginForScheduleTooltip,
+					yAxisWidth: yAxisWidthForScheduleTooltip,
+				})
+			: null;
+
 	return (
 		<div
 			className={
@@ -1022,9 +1150,7 @@ export function ElevationProfile({
 										<button
 											key={s.id}
 											type="button"
-											onClick={() =>
-												onSelectedDayChange?.(isSelected ? null : s.dayNumber)
-											}
+											onClick={() => onSelectedDayChange?.(isSelected ? null : s.dayNumber)}
 											className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors ${
 												isSelected
 													? "bg-zinc-200 font-semibold dark:bg-zinc-600"
@@ -1066,113 +1192,60 @@ export function ElevationProfile({
 			{/* 차트 */}
 			<div
 				ref={chartContainerRef}
-				className={chartHeightPx != null ? "relative w-full shrink-0" : "relative min-h-0 flex-1"}
+				className={
+					chartHeightPx != null
+						? "relative w-full shrink-0 overflow-visible"
+						: "relative min-h-0 flex-1 overflow-visible"
+				}
 				style={chartHeightPx != null ? { height: chartHeightPx } : undefined}
 			>
 				<ResponsiveContainer width="100%" height={chartHeightPx != null ? chartHeightPx : "100%"}>
 					<AreaChart
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						data={chartData as any}
-						margin={
-							tightChartMargin ?? {
-								top: 20,
-								right: 8,
-								left: 0,
-								bottom: 4,
-							}
-						}
+						margin={tightChartMargin ?? DEFAULT_AREA_CHART_MARGIN}
 						onMouseMove={disablePinAndHoverScrub ? undefined : handleMouseMove}
 						onMouseLeave={disablePinAndHoverScrub ? undefined : handleMouseLeave}
 						onMouseDown={disablePinAndHoverScrub ? undefined : handleChartClick}
 					>
 						<defs>
 							{/* 기본 그라디언트 (Stage 없을 때) */}
-							<linearGradient
-								id="eleGradient"
-								x1="0"
-								y1="0"
-								x2="0"
-								y2="1"
-							>
-								<stop
-									offset="5%"
-									stopColor="#f97316"
-									stopOpacity={0.4}
-								/>
-								<stop
-									offset="95%"
-									stopColor="#f97316"
-									stopOpacity={0.05}
-								/>
+							<linearGradient id="eleGradient" x1="0" y1="0" x2="0" y2="1">
+								<stop offset="5%" stopColor="#f97316" stopOpacity={0.4} />
+								<stop offset="95%" stopColor="#f97316" stopOpacity={0.05} />
 							</linearGradient>
 							{/* Stage별 그라디언트 */}
 							{stages.map((s, i) => {
 								const color = getStageColor(s.dayNumber);
 								return (
-									<linearGradient
-										key={s.id}
-										id={`stageGradient_${i}`}
-										x1="0"
-										y1="0"
-										x2="0"
-										y2="1"
-									>
+									<linearGradient key={s.id} id={`stageGradient_${i}`} x1="0" y1="0" x2="0" y2="1">
 										<stop
 											offset="5%"
 											stopColor={color.stroke}
-											stopOpacity={
-												activeStageId === s.id
-													? 0.6
-													: 0.35
-											}
+											stopOpacity={activeStageId === s.id ? 0.6 : 0.35}
 										/>
-										<stop
-											offset="95%"
-											stopColor={color.stroke}
-											stopOpacity={0.05}
-										/>
+										<stop offset="95%" stopColor={color.stroke} stopOpacity={0.05} />
 									</linearGradient>
 								);
 							})}
 							{/* 미계획 그라디언트 */}
-							<linearGradient
-								id="unplannedGradient"
-								x1="0"
-								y1="0"
-								x2="0"
-								y2="1"
-							>
-								<stop
-									offset="5%"
-									stopColor={UNPLANNED_COLOR.stroke}
-									stopOpacity={0.2}
-								/>
-								<stop
-									offset="95%"
-									stopColor={UNPLANNED_COLOR.stroke}
-									stopOpacity={0.02}
-								/>
+							<linearGradient id="unplannedGradient" x1="0" y1="0" x2="0" y2="1">
+								<stop offset="5%" stopColor={UNPLANNED_COLOR.stroke} stopOpacity={0.2} />
+								<stop offset="95%" stopColor={UNPLANNED_COLOR.stroke} stopOpacity={0.02} />
 							</linearGradient>
 						</defs>
 
-						<CartesianGrid
-							strokeDasharray="3 3"
-							stroke="rgba(0,0,0,0.07)"
-						/>
+						<CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.07)" />
 
 						<XAxis
 							dataKey="distanceKm"
 							type="number"
 							domain={
-								selectedDayNumber != null
-									? [visibleStart, visibleEnd]
-									: ["dataMin", "dataMax"]
+								selectedDayNumber != null ? [visibleStart, visibleEnd] : ["dataMin", "dataMax"]
 							}
 							tickFormatter={(v: number) => {
 								const rounded = Math.round(v * 10) / 10;
-								return Number.isInteger(rounded)
-									? `${rounded} km`
-									: `${rounded.toFixed(1)} km`;
+								return Number.isInteger(rounded) ? `${rounded} km` : `${rounded.toFixed(1)} km`;
 							}}
 							fontSize={10}
 							tick={{ fill: "#9ca3af" }}
@@ -1193,9 +1266,7 @@ export function ElevationProfile({
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
 							axisLine={false}
-							width={
-								tightFixedHeightChart ? 36 : compactYAxis ? 40 : 38
-							}
+							width={elevationYAxisReservedWidth(tightFixedHeightChart, compactYAxis)}
 							label={
 								compactYAxis
 									? undefined
@@ -1315,11 +1386,7 @@ export function ElevationProfile({
 									strokeWidth={1.5}
 									strokeDasharray="4 4"
 								/>
-								<ReferenceLine
-									x={pendingStageEdit.previewEndKm}
-									stroke="#3b82f6"
-									strokeWidth={2}
-								/>
+								<ReferenceLine x={pendingStageEdit.previewEndKm} stroke="#3b82f6" strokeWidth={2} />
 							</>
 						)}
 
@@ -1331,12 +1398,7 @@ export function ElevationProfile({
 								stroke={CP_COLOR}
 								strokeWidth={0.5}
 								strokeDasharray="2 3"
-								label={
-									<CPMarkerLabel
-										showName={showCPNames}
-										name={cp.name}
-									/>
-								}
+								label={<CPMarkerLabel showName={cpNameVisible(cp)} name={cp.name} />}
 							/>
 						))}
 						{/* Summit 마커 (스테이지 선택 시에만, CP 겹침은 제외) */}
@@ -1348,13 +1410,31 @@ export function ElevationProfile({
 								strokeWidth={0.5}
 								strokeDasharray="2 3"
 								label={
-									<SummitMarkerLabel
-										showName={showSummits}
-										name={summit.name}
-									/>
+									<SummitMarkerLabel showName={summitNameVisible(summit)} name={summit.name} />
 								}
 							/>
 						))}
+						{planPoiFocusInView && scheduleMarkerFocus?.kind === "plan_poi" ? (
+							<ReferenceLine
+								key="plan-poi-schedule-focus"
+								x={scheduleMarkerFocus.distanceKm}
+								stroke={PLAN_POI_MARKER_COLOR}
+								strokeWidth={0.5}
+								strokeDasharray="2 3"
+								label={<PlanPoiMarkerLabel showName name={scheduleMarkerFocus.name} />}
+							/>
+						) : null}
+
+						{scheduleSelectionOverlay != null ? (
+							<ReferenceDot
+								x={scheduleSelectionOverlay.km}
+								y={scheduleSelectionOverlay.ele}
+								r={5}
+								fill={PLAN_POI_MARKER_COLOR}
+								stroke="#fff"
+								strokeWidth={2}
+							/>
+						) : null}
 
 						{/* 외부 제어 마커 */}
 						{!disablePinAndHoverScrub && currentChartDatum != null && (
@@ -1377,90 +1457,130 @@ export function ElevationProfile({
 						)}
 					</AreaChart>
 				</ResponsiveContainer>
+				{scheduleSelectionOverlay != null && scheduleTooltipStyle != null ? (
+					<div
+						className={cn(
+							"pointer-events-none absolute z-20 box-border w-max max-w-[min(280px,calc(100%-12px))] shrink-0 rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-800",
+							compactTooltip
+								? "px-2 py-1.5 text-[10px] leading-snug"
+								: "px-3 py-2 text-xs",
+						)}
+						style={{
+							left: scheduleTooltipStyle.left,
+							top: scheduleTooltipStyle.top,
+							transform: scheduleTooltipStyle.transform,
+						}}
+					>
+						<div className="font-medium tabular-nums text-zinc-800 dark:text-zinc-100">
+							{scheduleSelectionOverlay.km.toFixed(1)} km · △ {scheduleSelectionOverlay.ele} m
+						</div>
+					</div>
+				) : null}
 				{/* 핀 고정 툴팁 */}
 				{!disablePinAndHoverScrub &&
 					isPinned &&
 					currentChartDatum != null &&
 					(() => {
-					const span = visibleEnd - visibleStart;
-					const leftPct = span > 0
-						? ((currentChartDatum.distanceKm - visibleStart) / span) * 100
-						: 50;
-					const km = currentChartDatum.distanceKm;
-					const ele = currentChartDatum.ele;
-					const hasStageStats =
-						typeof currentChartDatum.distanceFromStageStartKm === "number" &&
-						typeof currentChartDatum.elevationGainFromStageStart === "number";
-					const prevCp = findPrevCPInContext(cpMarkers, km, tooltipCpAnchorKm);
-					const segFromKm = prevCp?.distanceKm ?? tooltipCpAnchorKm;
-					const segDist = Math.round((km - segFromKm) * 10) / 10;
-					const segGain =
-						cpMarkers.length > 0 && trackPoints.length > 0
-							? computeSegmentGainBetweenKm(trackPoints, segFromKm, km, elevationCalibratedThreshold)
-							: 0;
-					const cpSegLabel = prevCp
-						? "이전 CP부터"
-						: tooltipAnchorDayNumber != null
-							? `${tooltipAnchorDayNumber}일 출발부터`
-							: "출발부터";
-					const nextCp = findNextCPInContext(cpMarkers, km, tooltipCpAnchorMaxKm);
-					const nextTargetKm = nextCp?.distanceKm ?? (hasStageStats ? tooltipCpAnchorMaxKm : null);
-					const nextTargetLabel = nextCp
-						? "다음 CP까지"
-						: hasStageStats && tooltipAnchorDayNumber != null
-							? `${tooltipAnchorDayNumber}일 종료까지`
-							: null;
-					const remainKm = nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
-					const remainGain = nextTargetKm != null && trackPoints.length > 0
-						? computeSegmentGainBetweenKm(trackPoints, km, nextTargetKm, elevationCalibratedThreshold)
-						: null;
-					return (
-						<div
-							className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs shadow-lg dark:border-orange-600 dark:bg-zinc-800"
-							style={{
-								left: `${Math.max(4, Math.min(96, leftPct))}%`,
-								top: 4,
-								transform: leftPct > 60 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
-							}}
-							onClick={(e) => { e.stopPropagation(); onUnpin?.(); }}
-						>
-							<div className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
-								<span>📌 전체</span>
-								<span>{km.toFixed(1)} km · △ {ele} m</span>
-							</div>
-							{hasStageStats && (
-								<div className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
-									<span>스테이지</span>
-									<span>+{Number(currentChartDatum.distanceFromStageStartKm).toFixed(1)} km · ▲ {currentChartDatum.elevationGainFromStageStart} m</span>
+						const span = visibleEnd - visibleStart;
+						const leftPct =
+							span > 0 ? ((currentChartDatum.distanceKm - visibleStart) / span) * 100 : 50;
+						const km = currentChartDatum.distanceKm;
+						const ele = currentChartDatum.ele;
+						const hasStageStats =
+							typeof currentChartDatum.distanceFromStageStartKm === "number" &&
+							typeof currentChartDatum.elevationGainFromStageStart === "number";
+						const prevCp = findPrevCPInContext(cpMarkers, km, tooltipCpAnchorKm);
+						const segFromKm = prevCp?.distanceKm ?? tooltipCpAnchorKm;
+						const segDist = Math.round((km - segFromKm) * 10) / 10;
+						const segGain =
+							cpMarkers.length > 0 && trackPoints.length > 0
+								? computeSegmentGainBetweenKm(
+										trackPoints,
+										segFromKm,
+										km,
+										elevationCalibratedThreshold,
+									)
+								: 0;
+						const cpSegLabel = prevCp
+							? "이전 CP부터"
+							: tooltipAnchorDayNumber != null
+								? `${tooltipAnchorDayNumber}일 출발부터`
+								: "출발부터";
+						const nextCp = findNextCPInContext(cpMarkers, km, tooltipCpAnchorMaxKm);
+						const nextTargetKm =
+							nextCp?.distanceKm ?? (hasStageStats ? tooltipCpAnchorMaxKm : null);
+						const nextTargetLabel = nextCp
+							? "다음 CP까지"
+							: hasStageStats && tooltipAnchorDayNumber != null
+								? `${tooltipAnchorDayNumber}일 종료까지`
+								: null;
+						const remainKm =
+							nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
+						const remainGain =
+							nextTargetKm != null && trackPoints.length > 0
+								? computeSegmentGainBetweenKm(
+										trackPoints,
+										km,
+										nextTargetKm,
+										elevationCalibratedThreshold,
+									)
+								: null;
+						return (
+							<div
+								className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs shadow-lg dark:border-orange-600 dark:bg-zinc-800"
+								style={{
+									left: `${Math.max(4, Math.min(96, leftPct))}%`,
+									top: 4,
+									transform: leftPct > 60 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+								}}
+								onClick={(e) => {
+									e.stopPropagation();
+									onUnpin?.();
+								}}
+							>
+								<div className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
+									<span>📌 전체</span>
+									<span>
+										{km.toFixed(1)} km · △ {ele} m
+									</span>
 								</div>
-							)}
-							{cpMarkers.length > 0 && (
-								<div className="mt-1 space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
-									<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
-										<span>{cpSegLabel}</span>
-										<span>+{segDist.toFixed(1)} km · ▲ {segGain} m</span>
+								{hasStageStats && (
+									<div className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
+										<span>스테이지</span>
+										<span>
+											+{Number(currentChartDatum.distanceFromStageStartKm).toFixed(1)} km · ▲{" "}
+											{currentChartDatum.elevationGainFromStageStart} m
+										</span>
 									</div>
-									{nextTargetLabel != null && remainKm != null && remainGain != null && (
+								)}
+								{cpMarkers.length > 0 && (
+									<div className="mt-1 space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
 										<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
-											<span>{nextTargetLabel}</span>
-											<span>{remainKm.toFixed(1)} km · ▲ {remainGain} m</span>
+											<span>{cpSegLabel}</span>
+											<span>
+												+{segDist.toFixed(1)} km · ▲ {segGain} m
+											</span>
 										</div>
-									)}
-								</div>
-							)}
-							<p className="mt-1 text-zinc-400 dark:text-zinc-500 text-center">클릭하여 해제</p>
-						</div>
-					);
-				})()}
+										{nextTargetLabel != null && remainKm != null && remainGain != null && (
+											<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+												<span>{nextTargetLabel}</span>
+												<span>
+													{remainKm.toFixed(1)} km · ▲ {remainGain} m
+												</span>
+											</div>
+										)}
+									</div>
+								)}
+								<p className="mt-1 text-zinc-400 dark:text-zinc-500 text-center">클릭하여 해제</p>
+							</div>
+						);
+					})()}
 				{/* CP 세로선 클릭 → trackPointIndex 핀 (차트 mousedown과 분리) */}
 				{!disablePinAndHoverScrub &&
 					onPin != null &&
 					visibleCPs.map((cp) => {
 						const span = visibleEnd - visibleStart;
-						const leftPct =
-							span > 0
-								? ((cp.distanceKm - visibleStart) / span) * 100
-								: 0;
+						const leftPct = span > 0 ? ((cp.distanceKm - visibleStart) / span) * 100 : 0;
 						return (
 							<button
 								key={`cp-hit-${cp.id}`}

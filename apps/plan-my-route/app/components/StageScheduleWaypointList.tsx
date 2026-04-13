@@ -61,6 +61,10 @@ export type StageScheduleWaypointListProps = {
 	showHeading?: boolean;
 	/** `comfortable`: 데스크탑 패널용 — 본문 `text-sm`, 행 간격 넓힘 */
 	density?: StageScheduleWaypointListDensity;
+	/** 설정 시 모든 행이 클릭 가능하며 `onPlanPoiRowClick`보다 우선 */
+	onWaypointRowClick?: (row: StageScheduleWaypoint) => void;
+	/** `onWaypointRowClick`과 함께 사용 — 선택된 행 강조 */
+	selectedRowKey?: string;
 	onPlanPoiRowClick?: (poiId: string) => void;
 	renderRowEnd?: (row: StageScheduleWaypoint) => ReactNode;
 };
@@ -125,6 +129,8 @@ export function StageScheduleWaypointList({
 	headingClassName,
 	showHeading = true,
 	density = "compact",
+	onWaypointRowClick,
+	selectedRowKey,
 	onPlanPoiRowClick,
 	renderRowEnd,
 }: StageScheduleWaypointListProps) {
@@ -135,6 +141,7 @@ export function StageScheduleWaypointList({
 	const listGap = comfortable ? "space-y-4" : "space-y-2";
 	const rowText = comfortable ? "text-sm" : "text-xs";
 	const buttonHover = comfortable ? "hover:bg-muted/50 py-1" : "hover:bg-muted/50";
+	const useWaypointRowButtons = onWaypointRowClick != null;
 
 	return (
 		<div className={cn(comfortable ? "space-y-3" : "space-y-2", className)}>
@@ -151,12 +158,29 @@ export function StageScheduleWaypointList({
 			<ul className={listGap}>
 				{rows.map((row) => {
 					const isClickablePoi =
-						row.markerKind === "plan_poi" && row.planPoiId != null && onPlanPoiRowClick != null;
+						!useWaypointRowButtons &&
+						row.markerKind === "plan_poi" &&
+						row.planPoiId != null &&
+						onPlanPoiRowClick != null;
+					const isRowSelected = selectedRowKey != null && row.rowKey === selectedRowKey;
 					const end = renderRowEnd?.(row);
 
 					return (
 						<li key={row.rowKey} className={cn("flex items-start", rowGap, rowText)}>
-							{isClickablePoi ? (
+							{useWaypointRowButtons ? (
+								<button
+									type="button"
+									className={cn(
+										"flex min-w-0 flex-1 items-start rounded-md border border-transparent px-1 text-left -mx-0.5",
+										rowGap,
+										buttonHover,
+										isRowSelected && "border-primary/35 bg-primary/[0.06] dark:bg-primary/10",
+									)}
+									onClick={() => onWaypointRowClick(row)}
+								>
+									<WaypointRowMain row={row} density={density} />
+								</button>
+							) : isClickablePoi ? (
 								<button
 									type="button"
 									className={cn(
