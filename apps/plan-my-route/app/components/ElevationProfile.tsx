@@ -119,6 +119,12 @@ interface ElevationProfileProps {
 	singleScheduleMarkerLabel?: boolean;
 	/** `singleScheduleMarkerLabel`일 때 강조할 마커 */
 	scheduleMarkerFocus?: ElevationScheduleMarkerFocus | null;
+	/** 종료 지점 단축 메뉴「수정」— 맵을 해당 누적 거리(km)로 센터·줌 + 고도 종료 변경 모드 */
+	onStageEndBoundaryEditMapCenter?: (distanceKm: number) => void;
+	/** 고도 차트 종료 지점 변경 모드(±5km 줌, 단축 메뉴 비표시) */
+	stageEndBoundaryChartEditMode?: boolean;
+	/** Esc 등으로 종료 지점 변경 모드 해제 */
+	onExitStageEndBoundaryChartEditMode?: () => void;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -304,14 +310,14 @@ function BoundaryHandle({
 	boundaryKm,
 	visibleStart,
 	visibleEnd,
-	onMouseDown,
+	onPointerDown,
 	onHoverChange,
 }: {
 	boundaryKm: number;
 	visibleStart: number;
 	visibleEnd: number;
 	isDragging: boolean;
-	onMouseDown: (e: React.MouseEvent) => void;
+	onPointerDown: (e: React.PointerEvent) => void;
 	onHoverChange?: (isHovered: boolean) => void;
 }) {
 	const span = visibleEnd - visibleStart;
@@ -320,7 +326,7 @@ function BoundaryHandle({
 		<button
 			type="button"
 			aria-label="경계 이동"
-			onMouseDown={onMouseDown}
+			onPointerDown={onPointerDown}
 			onMouseEnter={() => onHoverChange?.(true)}
 			onMouseLeave={() => onHoverChange?.(false)}
 			className="absolute top-0 left-0 z-10 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full border-2 border-zinc-400 bg-white shadow-sm transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-zinc-500 dark:bg-zinc-800"
@@ -468,6 +474,8 @@ const STAGE_END_BOUNDARY_HIT_STRIP_PX = 24;
 const STAGE_END_BOUNDARY_MENU_W_PX = 232;
 /** 메뉴 오른쪽 끝과 클릭 앵커 사이 간격(앵커는 커서 쪽, 메뉴는 왼편으로 펼침) */
 const STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX = 8;
+/** 종료 지점 변경 모드: X축 가시 구간 반폭(km) — 중앙에 경계, 좌우 각 5km */
+const CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM = 5;
 
 /** 선 오른쪽에 둘 때(툴팁 왼쪽 끝 = 앵커 + gap) */
 const SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX = 10;
@@ -782,7 +790,11 @@ export function ElevationProfile({
 	compactTooltip = false,
 	singleScheduleMarkerLabel = false,
 	scheduleMarkerFocus = null,
+	onStageEndBoundaryEditMapCenter,
+	stageEndBoundaryChartEditMode = false,
+	onExitStageEndBoundaryChartEditMode,
 }: ElevationProfileProps) {
+	const chartInteractionDisabled = disablePinAndHoverScrub || stageEndBoundaryChartEditMode;
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const stageEndBoundaryHitStripRef = useRef<HTMLButtonElement>(null);
 	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
@@ -822,19 +834,45 @@ export function ElevationProfile({
 		return computeVisibleRange(stages, selectedDayNumber, totalKm);
 	}, [hasStages, selectedDayNumber, stages, totalKm]);
 
+	const boundaryKmForVisibleZoom = useMemo(() => {
+		if (pendingStageEdit) return pendingStageEdit.previewEndKm;
+		if (hasStages && selectedDayNumber != null) {
+			const stage = stages.find((s) => s.dayNumber === selectedDayNumber);
+			return stage?.endDistanceKm ?? 0;
+		}
+		return 0;
+	}, [pendingStageEdit, hasStages, selectedDayNumber, stages]);
+
 	const { startKm: visibleStart, endKm: visibleEnd } = useMemo(() => {
 		if (!pendingStageEdit) {
 			frozenVisibleRangeRef.current = null;
+			if (stageEndBoundaryChartEditMode && totalKm > 0) {
+				const center = boundaryKmForVisibleZoom;
+				return {
+					startKm: Math.max(0, center - CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM),
+					endKm: Math.min(totalKm, center + CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM),
+				};
+			}
 			return computedVisibleRange;
 		}
 		if (!frozenVisibleRangeRef.current) {
-			frozenVisibleRangeRef.current = {
-				startKm: computedVisibleRange.startKm,
-				endKm: computedVisibleRange.endKm,
-			};
+			const base =
+				stageEndBoundaryChartEditMode && totalKm > 0
+					? {
+							startKm: Math.max(0, boundaryKmForVisibleZoom - CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM),
+							endKm: Math.min(totalKm, boundaryKmForVisibleZoom + CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM),
+						}
+					: computedVisibleRange;
+			frozenVisibleRangeRef.current = base;
 		}
 		return frozenVisibleRangeRef.current;
-	}, [pendingStageEdit, computedVisibleRange]);
+	}, [
+		pendingStageEdit,
+		computedVisibleRange,
+		stageEndBoundaryChartEditMode,
+		boundaryKmForVisibleZoom,
+		totalKm,
+	]);
 
 	const clippedChartData = useMemo(() => {
 		if (selectedDayNumber == null) return rawChartData;
@@ -904,13 +942,13 @@ export function ElevationProfile({
 
 	const handleMouseMove = useCallback(
 		(state: TooltipState) => {
-			if (disablePinAndHoverScrub) return;
+			if (chartInteractionDisabled) return;
 			const index = getChartDataIndexAtTooltip(state);
 			if (index == null) return;
 			lastHoverIndexRef.current = index;
 			if (!isPinned && onPositionChange) onPositionChange(index);
 		},
-		[getChartDataIndexAtTooltip, onPositionChange, isPinned, disablePinAndHoverScrub],
+		[getChartDataIndexAtTooltip, onPositionChange, isPinned, chartInteractionDisabled],
 	);
 
 	const handleMouseLeave = useCallback(() => {
@@ -920,14 +958,14 @@ export function ElevationProfile({
 	const lastHoverIndexRef = useRef<number | null>(null);
 
 	const handleChartClick = useCallback(() => {
-		if (disablePinAndHoverScrub) return;
+		if (chartInteractionDisabled) return;
 		if (isPinned && onUnpin) {
 			onUnpin();
 			return;
 		}
 		if (!onPin || lastHoverIndexRef.current == null) return;
 		onPin(lastHoverIndexRef.current);
-	}, [isPinned, onPin, onUnpin, disablePinAndHoverScrub]);
+	}, [isPinned, onPin, onUnpin, chartInteractionDisabled]);
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
@@ -951,45 +989,93 @@ export function ElevationProfile({
 		[selectedStage, visibleStart, visibleEnd, onPreviewMove],
 	);
 
+	const handleBoundaryDragRef = useRef(handleBoundaryDrag);
+	handleBoundaryDragRef.current = handleBoundaryDrag;
+
+	const boundaryDragWindowHandlersRef = useRef<{
+		move: (ev: PointerEvent) => void;
+		up: (ev: PointerEvent) => void;
+	} | null>(null);
+
+	const endBoundaryWindowDrag = useCallback(() => {
+		const h = boundaryDragWindowHandlersRef.current;
+		if (h) {
+			window.removeEventListener("pointermove", h.move);
+			window.removeEventListener("pointerup", h.up);
+			window.removeEventListener("pointercancel", h.up);
+			boundaryDragWindowHandlersRef.current = null;
+		}
+		setIsDragging(false);
+	}, []);
+
+	const beginBoundaryWindowDrag = useCallback(
+		(clientX: number, pointerId: number) => {
+			if (boundaryDragWindowHandlersRef.current != null) return;
+			const move = (ev: PointerEvent) => {
+				if (ev.pointerId !== pointerId) return;
+				ev.preventDefault();
+				handleBoundaryDragRef.current(ev.clientX);
+			};
+			const up = (ev: PointerEvent) => {
+				if (ev.pointerId !== pointerId) return;
+				endBoundaryWindowDrag();
+			};
+			boundaryDragWindowHandlersRef.current = { move, up };
+			window.addEventListener("pointermove", move, { passive: false });
+			window.addEventListener("pointerup", up);
+			window.addEventListener("pointercancel", up);
+			setIsDragging(true);
+			handleBoundaryDragRef.current(clientX);
+		},
+		[endBoundaryWindowDrag],
+	);
+
+	useEffect(() => {
+		return () => {
+			endBoundaryWindowDrag();
+		};
+	}, [endBoundaryWindowDrag]);
+
 	useEffect(() => {
 		setIsHoveringStageEndBoundary(false);
 		setStageEndBoundaryMenuAnchor(null);
-	}, [selectedDayNumber, pendingStageEdit?.stageId, pendingStageEdit == null]);
+		endBoundaryWindowDrag();
+	}, [selectedDayNumber, pendingStageEdit?.stageId, pendingStageEdit == null, endBoundaryWindowDrag]);
 
 	useEffect(() => {
-		if (stageEndBoundaryMenuAnchor == null) return;
+		if (stageEndBoundaryMenuAnchor == null && !stageEndBoundaryChartEditMode) return;
 		const onPointerDown = (e: PointerEvent) => {
+			if (stageEndBoundaryMenuAnchor == null) return;
 			const t = e.target as Node;
 			if (stageEndBoundaryMenuRef.current?.contains(t)) return;
 			if (stageEndBoundaryHitStripRef.current?.contains(t)) return;
 			setStageEndBoundaryMenuAnchor(null);
 		};
 		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setStageEndBoundaryMenuAnchor(null);
+			if (e.key !== "Escape") return;
+			if (stageEndBoundaryMenuAnchor != null) {
+				setStageEndBoundaryMenuAnchor(null);
+				return;
+			}
+			if (stageEndBoundaryChartEditMode) onExitStageEndBoundaryChartEditMode?.();
 		};
-		document.addEventListener("pointerdown", onPointerDown);
+		if (stageEndBoundaryMenuAnchor != null) {
+			document.addEventListener("pointerdown", onPointerDown);
+		}
 		document.addEventListener("keydown", onKeyDown);
 		return () => {
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("keydown", onKeyDown);
 		};
-	}, [stageEndBoundaryMenuAnchor]);
+	}, [
+		stageEndBoundaryMenuAnchor,
+		stageEndBoundaryChartEditMode,
+		onExitStageEndBoundaryChartEditMode,
+	]);
 
 	useEffect(() => {
-		if (!isDragging) return;
-		const onMove = (e: MouseEvent) => handleBoundaryDrag(e.clientX);
-		const onUp = () => setIsDragging(false);
-		document.addEventListener("mousemove", onMove);
-		document.addEventListener("mouseup", onUp);
-		return () => {
-			document.removeEventListener("mousemove", onMove);
-			document.removeEventListener("mouseup", onUp);
-		};
-	}, [isDragging, handleBoundaryDrag]);
-
-	useEffect(() => {
-		if (!pendingStageEdit) setIsDragging(false);
-	}, [pendingStageEdit]);
+		if (!pendingStageEdit) endBoundaryWindowDrag();
+	}, [pendingStageEdit, endBoundaryWindowDrag]);
 
 	const currentChartDatum = useMemo(() => {
 		if (positionIndex == null || rawChartData.length === 0) return null;
@@ -1257,8 +1343,22 @@ export function ElevationProfile({
 							</div>
 						)}
 					</div>
-					{pendingStageEdit != null && (
-						<div className="flex shrink-0 items-center gap-1">
+				</div>
+			)}
+
+			{/* 차트 */}
+			<div
+				ref={chartContainerRef}
+				className={
+					chartHeightPx != null
+						? "relative w-full shrink-0 overflow-visible"
+						: "relative min-h-0 flex-1 overflow-visible"
+				}
+				style={chartHeightPx != null ? { height: chartHeightPx } : undefined}
+			>
+				{pendingStageEdit != null && (
+					<div className="pointer-events-none absolute inset-0 z-30">
+						<div className="pointer-events-auto absolute top-2 right-2 flex shrink-0 items-center gap-1 rounded-md border border-zinc-200 bg-white/95 p-0.5 shadow-sm backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95">
 							<button
 								type="button"
 								onClick={onDiscardPreview}
@@ -1274,28 +1374,16 @@ export function ElevationProfile({
 								적용
 							</button>
 						</div>
-					)}
-				</div>
-			)}
-
-			{/* 차트 */}
-			<div
-				ref={chartContainerRef}
-				className={
-					chartHeightPx != null
-						? "relative w-full shrink-0 overflow-visible"
-						: "relative min-h-0 flex-1 overflow-visible"
-				}
-				style={chartHeightPx != null ? { height: chartHeightPx } : undefined}
-			>
+					</div>
+				)}
 				<ResponsiveContainer width="100%" height={chartHeightPx != null ? chartHeightPx : "100%"}>
 					<AreaChart
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						data={chartData as any}
 						margin={tightChartMargin ?? DEFAULT_AREA_CHART_MARGIN}
-						onMouseMove={disablePinAndHoverScrub ? undefined : handleMouseMove}
-						onMouseLeave={disablePinAndHoverScrub ? undefined : handleMouseLeave}
-						onMouseDown={disablePinAndHoverScrub ? undefined : handleChartClick}
+						onMouseMove={chartInteractionDisabled ? undefined : handleMouseMove}
+						onMouseLeave={chartInteractionDisabled ? undefined : handleMouseLeave}
+						onMouseDown={chartInteractionDisabled ? undefined : handleChartClick}
 					>
 						<defs>
 							{/* 기본 그라디언트 (Stage 없을 때) */}
@@ -1368,7 +1456,7 @@ export function ElevationProfile({
 							}
 						/>
 
-						{!disablePinAndHoverScrub ? (
+						{!chartInteractionDisabled ? (
 							<Tooltip
 								cursor={{
 									stroke: "#f97316",
@@ -1538,7 +1626,7 @@ export function ElevationProfile({
 						) : null}
 
 						{/* 외부 제어 마커 */}
-						{!disablePinAndHoverScrub && currentChartDatum != null && (
+						{!chartInteractionDisabled && currentChartDatum != null && (
 							<>
 								<ReferenceLine
 									x={currentChartDatum.distanceKm}
@@ -1571,7 +1659,7 @@ export function ElevationProfile({
 					/>
 				) : null}
 				{/* 핀 고정 툴팁 */}
-				{!disablePinAndHoverScrub &&
+				{!chartInteractionDisabled &&
 					isPinned &&
 					currentChartDatum != null &&
 					(() => {
@@ -1670,7 +1758,7 @@ export function ElevationProfile({
 						);
 					})()}
 				{/* CP 세로선 클릭 → trackPointIndex 핀 (차트 mousedown과 분리) */}
-				{!disablePinAndHoverScrub &&
+				{!chartInteractionDisabled &&
 					onPin != null &&
 					visibleCPs.map((cp) => {
 						const span = visibleEnd - visibleStart;
@@ -1698,9 +1786,13 @@ export function ElevationProfile({
 						<button
 							ref={stageEndBoundaryHitStripRef}
 							type="button"
-							aria-label="스테이지 종료 지점 메뉴 열기"
-							aria-expanded={stageEndBoundaryMenuAnchor != null}
-							aria-haspopup="dialog"
+							aria-label={
+								stageEndBoundaryChartEditMode
+									? "스테이지 종료 지점"
+									: "스테이지 종료 지점 메뉴 열기"
+							}
+							aria-expanded={!stageEndBoundaryChartEditMode && stageEndBoundaryMenuAnchor != null}
+							aria-haspopup={stageEndBoundaryChartEditMode ? undefined : "dialog"}
 							className="absolute inset-y-0 z-9 -translate-x-1/2 cursor-ew-resize border-0 bg-transparent p-0"
 							style={{
 								left: `${stageEndBoundaryHitLeftPct}%`,
@@ -1712,6 +1804,18 @@ export function ElevationProfile({
 								if (e.button !== 0) return;
 								e.preventDefault();
 								e.stopPropagation();
+								if (stageEndBoundaryChartEditMode) {
+									if (!pendingStageEdit) {
+										onStartBoundaryDrag?.(selectedStage.id, selectedStage.endDistanceKm);
+									}
+									try {
+										(e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+									} catch {
+										/* noop */
+									}
+									beginBoundaryWindowDrag(e.clientX, e.pointerId);
+									return;
+								}
 								if (stageEndBoundaryMenuAnchor != null) {
 									setStageEndBoundaryMenuAnchor(null);
 									return;
@@ -1755,7 +1859,11 @@ export function ElevationProfile({
 									<button
 										type="button"
 										className="rounded bg-orange-500 px-2 py-1 font-medium text-white hover:bg-orange-600"
-										onClick={() => setStageEndBoundaryMenuAnchor(null)}
+										onClick={() => {
+											onStartBoundaryDrag?.(selectedStage.id, selectedStage.endDistanceKm);
+											onStageEndBoundaryEditMapCenter?.(boundaryKmForHandle);
+											setStageEndBoundaryMenuAnchor(null);
+										}}
 									>
 										수정
 									</button>
@@ -1767,10 +1875,16 @@ export function ElevationProfile({
 							visibleStart={visibleStart}
 							visibleEnd={visibleEnd}
 							isDragging={isDragging}
-							onMouseDown={(e) => {
+							onPointerDown={(e) => {
+								if (e.button !== 0) return;
 								e.preventDefault();
 								onStartBoundaryDrag?.(selectedStage.id, selectedStage.endDistanceKm);
-								setIsDragging(true);
+								try {
+									(e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+								} catch {
+									/* noop */
+								}
+								beginBoundaryWindowDrag(e.clientX, e.pointerId);
 							}}
 							onHoverChange={setIsHoveringStageEndBoundary}
 						/>

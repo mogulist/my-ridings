@@ -728,6 +728,13 @@ interface KakaoMapProps {
 	/** 디테일 패널 등에서 특정 플랜 POI로 줌·인포윈도우 */
 	focusPlanPoiRequest?: { poiId: string; nonce: number } | null;
 	onFocusPlanPoiConsumed?: () => void;
+	/** 경로 누적 거리(km) 지점으로 맵 중앙·줌(고도 종료 지점 등, 일회) */
+	mapCenterOnRouteKmRequest?: { distanceKm: number; nonce: number } | null;
+	onMapCenterOnRouteKmConsumed?: () => void;
+	/** 종료 지점 변경 모드: 맵은 고정, 이 누적 거리(km)에 해당하는 경로 위치만 별도 마커로 표시 */
+	boundaryPreviewEndKm?: number | null;
+	/** true면 지도 mousemove·클릭으로 고도 프로필 위치/핀을 바꾸지 않음 */
+	suspendPlanMapElevationSync?: boolean;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -779,6 +786,10 @@ export default function KakaoMap({
 	readOnly = false,
 	focusPlanPoiRequest = null,
 	onFocusPlanPoiConsumed,
+	mapCenterOnRouteKmRequest = null,
+	onMapCenterOnRouteKmConsumed,
+	boundaryPreviewEndKm = null,
+	suspendPlanMapElevationSync = false,
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
@@ -786,6 +797,7 @@ export default function KakaoMap({
 	const mapInstanceRef = useRef<unknown>(null);
 	const lastRouteIdRef = useRef<number | null>(null);
 	const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
+	const boundaryPreviewOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const onPositionChangeRef = useRef(onPositionChange);
 	const isPinnedRef = useRef(isPinned);
 	const onPinRef = useRef(onPin);
@@ -850,6 +862,8 @@ export default function KakaoMap({
 	onDeleteOfficialSummitRef.current = onDeleteOfficialSummit;
 	const isSummitAddModeRef = useRef(isSummitAddMode);
 	isSummitAddModeRef.current = isSummitAddMode;
+	const suspendPlanMapElevationSyncRef = useRef(false);
+	suspendPlanMapElevationSyncRef.current = Boolean(suspendPlanMapElevationSync);
 
 	const tooltipAddPoiOptions = useMemo(
 		() => ({ showAddPoiButton: !readOnly && Boolean(activePlanId) }),
@@ -1071,6 +1085,7 @@ export default function KakaoMap({
 			if (points.length > 0) {
 				const cb = (e?: unknown) => {
 					if (isPinnedRef.current) return;
+					if (suspendPlanMapElevationSyncRef.current) return;
 					const ev = e as { latLng?: { getLat: () => number; getLng: () => number } } | undefined;
 					if (!ev?.latLng) return;
 					const lat = ev.latLng.getLat();
@@ -1084,6 +1099,7 @@ export default function KakaoMap({
 			// 지도 클릭 → 마커 고정
 			if (points.length > 0 && onPinRef.current) {
 				const clickCb = (e?: unknown) => {
+					if (suspendPlanMapElevationSyncRef.current) return;
 					const ev = e as { latLng?: { getLat: () => number; getLng: () => number } } | undefined;
 					if (!ev?.latLng) return;
 					const lat = ev.latLng.getLat();
@@ -1862,6 +1878,28 @@ export default function KakaoMap({
 	]);
 
 	useEffect(() => {
+		if (!mapCenterOnRouteKmRequest || !mapReady) return;
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		const maps = window.kakao?.maps;
+		if (!map?.setCenter || !map.setLevel || !maps) return;
+		const pts = trackPoints.filter((p): p is TrackPoint & { d: number } => p.d != null);
+		const pt = interpolateBoundaryPoint(pts, mapCenterOnRouteKmRequest.distanceKm * 1000);
+		if (!pt) {
+			onMapCenterOnRouteKmConsumed?.();
+			return;
+		}
+		map.setCenter(new maps.LatLng(pt.y, pt.x));
+		map.setLevel(ZOOM_LEVEL_ON_MARKER);
+		onMapCenterOnRouteKmConsumed?.();
+	}, [
+		mapCenterOnRouteKmRequest?.distanceKm,
+		mapCenterOnRouteKmRequest?.nonce,
+		mapReady,
+		trackPoints,
+		onMapCenterOnRouteKmConsumed,
+	]);
+
+	useEffect(() => {
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
 		const maps = window.kakao?.maps;
 		if (!map || !maps) return;
@@ -2105,6 +2143,50 @@ export default function KakaoMap({
 			});
 		}
 	}, [highlightPosition, summitModeHighlightElevationLabel]);
+
+	useEffect(() => {
+		const map = mapInstanceRef.current as { getDiv?: () => HTMLElement } | null;
+		const maps = window.kakao?.maps;
+		if (!map || !maps) return;
+
+		const overlay = boundaryPreviewOverlayRef.current;
+		if (boundaryPreviewEndKm == null) {
+			overlay?.setVisible(false);
+			return;
+		}
+
+		const pts = trackPoints.filter((p): p is TrackPoint & { d: number } => p.d != null);
+		const pt = interpolateBoundaryPoint(pts, boundaryPreviewEndKm * 1000);
+		if (!pt) {
+			overlay?.setVisible(false);
+			return;
+		}
+
+		const nextPosition = new maps.LatLng(pt.y, pt.x);
+		const content = highlightCircleMarkerHtml(HIGHLIGHT_MARKER_SIZE, false, null);
+
+		if (overlay) {
+			const overlayWithContent = overlay as KakaoCustomOverlay & {
+				setContent?: (content: string) => void;
+			};
+			overlay.setMap(map);
+			overlay.setPosition(nextPosition);
+			overlayWithContent.setContent?.(content);
+			overlay.setVisible(true);
+			return;
+		}
+
+		const newOverlay = new maps.CustomOverlay({
+			map: map as never,
+			position: nextPosition,
+			content,
+			yAnchor: 0.5,
+			xAnchor: 0.5,
+			zIndex: 12,
+			clickable: false,
+		}) as KakaoCustomOverlay;
+		boundaryPreviewOverlayRef.current = newOverlay;
+	}, [boundaryPreviewEndKm, trackPoints, mapReady]);
 
 	const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 	if (!appKey) {

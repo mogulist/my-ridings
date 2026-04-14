@@ -227,6 +227,11 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     poiId: string;
     nonce: number;
   } | null>(null);
+  const [mapCenterOnRouteKmRequest, setMapCenterOnRouteKmRequest] = useState<{
+    distanceKm: number;
+    nonce: number;
+  } | null>(null);
+  const [stageEndBoundaryChartEditMode, setStageEndBoundaryChartEditMode] = useState(false);
   const [stageEditOpen, setStageEditOpen] = useState(false);
   const [poiEditSnap, setPoiEditSnap] = useState<SnappedPlanPoi | null>(null);
   const [isReorderingPlans, setIsReorderingPlans] = useState(false);
@@ -308,6 +313,10 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 
   const handleUnpin = useCallback(() => {
     setIsPinned(false);
+  }, []);
+
+  const handleMapCenterOnRouteKmConsumed = useCallback(() => {
+    setMapCenterOnRouteKmRequest(null);
   }, []);
 
   const cpMarkers = useMemo(
@@ -495,6 +504,29 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     isGuestMode ? null : activePlanId, // Guest mode는 API sync를 사용하지 않음
   );
 
+  const commitPreviewAndExitBoundaryChartEdit = useCallback(() => {
+    setStageEndBoundaryChartEditMode(false);
+    commitPreview();
+  }, [commitPreview]);
+
+  const discardPreviewAndExitBoundaryChartEdit = useCallback(() => {
+    setStageEndBoundaryChartEditMode(false);
+    discardPreview();
+  }, [discardPreview]);
+
+  const handleStageEndBoundaryEditMapCenter = useCallback((distanceKm: number) => {
+    setMapCenterOnRouteKmRequest((prev) => ({
+      distanceKm,
+      nonce: (prev?.nonce ?? 0) + 1,
+    }));
+    setStageEndBoundaryChartEditMode(true);
+  }, []);
+
+  const handleExitStageEndBoundaryChartEditMode = useCallback(() => {
+    setStageEndBoundaryChartEditMode(false);
+    discardPreview();
+  }, [discardPreview]);
+
   useEffect(() => {
     if (!activePlanId) return;
     const nextStages = serializeStagesForPlanCache(stages);
@@ -522,6 +554,10 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
         : stages.length > 0
           ? 1
           : null;
+
+  useEffect(() => {
+    setStageEndBoundaryChartEditMode(false);
+  }, [effectiveSelectedDay]);
 
   const reviewContext = useMemo(
     () => ({
@@ -1438,12 +1474,14 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
               activeStageId={activeStageId}
               onStageHover={setActiveStageId}
               highlightPosition={
-                positionIndex != null && route?.track_points?.[positionIndex]
-                  ? [
-                      route.track_points[positionIndex].y,
-                      route.track_points[positionIndex].x,
-                    ]
-                  : null
+                stageEndBoundaryChartEditMode
+                  ? null
+                  : positionIndex != null && route?.track_points?.[positionIndex]
+                    ? [
+                        route.track_points[positionIndex].y,
+                        route.track_points[positionIndex].x,
+                      ]
+                    : null
               }
               onPositionChange={setPositionIndex}
               trackPoints={route?.track_points ?? []}
@@ -1461,6 +1499,14 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
               onDeletePlanPoi={handleDeletePlanPoi}
               focusPlanPoiRequest={focusPlanPoiRequest}
               onFocusPlanPoiConsumed={handleFocusPlanPoiConsumed}
+              mapCenterOnRouteKmRequest={mapCenterOnRouteKmRequest}
+              onMapCenterOnRouteKmConsumed={handleMapCenterOnRouteKmConsumed}
+              boundaryPreviewEndKm={
+                stageEndBoundaryChartEditMode && pendingStageEdit
+                  ? pendingStageEdit.previewEndKm
+                  : null
+              }
+              suspendPlanMapElevationSync={stageEndBoundaryChartEditMode}
             />
           )}
         </section>
@@ -1481,14 +1527,17 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
             onPreviewMove={(_, previewEndKm) =>
               updatePreviewEndKm(previewEndKm)
             }
-            onCommitPreview={commitPreview}
-            onDiscardPreview={discardPreview}
+            onCommitPreview={commitPreviewAndExitBoundaryChartEdit}
+            onDiscardPreview={discardPreviewAndExitBoundaryChartEdit}
             isPinned={isPinned}
             onPin={handlePin}
             onUnpin={handleUnpin}
             elevationCalibratedThreshold={calibratedThreshold}
             cpMarkers={cpMarkers}
             summitMarkers={summitMarkers}
+            onStageEndBoundaryEditMapCenter={handleStageEndBoundaryEditMapCenter}
+            stageEndBoundaryChartEditMode={stageEndBoundaryChartEditMode}
+            onExitStageEndBoundaryChartEditMode={handleExitStageEndBoundaryChartEditMode}
           />
         </section>
       </div>
