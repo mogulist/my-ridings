@@ -305,12 +305,14 @@ function BoundaryHandle({
 	visibleStart,
 	visibleEnd,
 	onMouseDown,
+	onHoverChange,
 }: {
 	boundaryKm: number;
 	visibleStart: number;
 	visibleEnd: number;
 	isDragging: boolean;
 	onMouseDown: (e: React.MouseEvent) => void;
+	onHoverChange?: (isHovered: boolean) => void;
 }) {
 	const span = visibleEnd - visibleStart;
 	const leftPct = span > 0 ? ((boundaryKm - visibleStart) / span) * 100 : 0;
@@ -319,6 +321,8 @@ function BoundaryHandle({
 			type="button"
 			aria-label="경계 이동"
 			onMouseDown={onMouseDown}
+			onMouseEnter={() => onHoverChange?.(true)}
+			onMouseLeave={() => onHoverChange?.(false)}
 			className="absolute top-0 left-0 z-10 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full border-2 border-zinc-400 bg-white shadow-sm transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-zinc-500 dark:bg-zinc-800"
 			style={{
 				width: 14,
@@ -457,6 +461,9 @@ const DEFAULT_AREA_CHART_MARGIN: ChartMarginBox = {
 	left: 0,
 	bottom: 4,
 };
+
+/** 스테이지 종료 경계 호버 히트 폭 (세로 점선 기준 좌우) */
+const STAGE_END_BOUNDARY_HIT_STRIP_PX = 24;
 
 /** 선 오른쪽에 둘 때(툴팁 왼쪽 끝 = 앵커 + gap) */
 const SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX = 10;
@@ -775,6 +782,7 @@ export function ElevationProfile({
 	const chartContainerRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
 	const [isDragging, setIsDragging] = useState(false);
+	const [isHoveringStageEndBoundary, setIsHoveringStageEndBoundary] = useState(false);
 	const frozenVisibleRangeRef = useRef<{ startKm: number; endKm: number } | null>(null);
 
 	useLayoutEffect(() => {
@@ -928,6 +936,10 @@ export function ElevationProfile({
 		},
 		[selectedStage, visibleStart, visibleEnd, onPreviewMove],
 	);
+
+	useEffect(() => {
+		setIsHoveringStageEndBoundary(false);
+	}, [selectedDayNumber, pendingStageEdit?.stageId, pendingStageEdit == null]);
 
 	useEffect(() => {
 		if (!isDragging) return;
@@ -1141,6 +1153,14 @@ export function ElevationProfile({
 					margin: marginForScheduleTooltip,
 					yAxisWidth: yAxisWidthForScheduleTooltip,
 				})
+			: null;
+
+	const stageEndBoundaryHitLeftPct =
+		canDragBoundary && visibleEnd > visibleStart
+			? Math.max(
+					0,
+					Math.min(100, ((boundaryKmForHandle - visibleStart) / (visibleEnd - visibleStart)) * 100),
+				)
 			: null;
 
 	return (
@@ -1392,15 +1412,21 @@ export function ElevationProfile({
 
 						{/* Stage 경계선 (pending 제외) */}
 						{hasStages &&
-							stageBoundaries.map((b, i) => (
-								<ReferenceLine
-									key={`boundary-${b.stageId}`}
-									x={b.distanceKm}
-									stroke="#a1a1aa"
-									strokeWidth={1}
-									strokeDasharray="3 3"
-								/>
-							))}
+							stageBoundaries.map((b) => {
+								const isHoveredBoundary =
+									isHoveringStageEndBoundary &&
+									selectedStage != null &&
+									b.stageId === selectedStage.id;
+								return (
+									<ReferenceLine
+										key={`boundary-${b.stageId}`}
+										x={b.distanceKm}
+										stroke={isHoveredBoundary ? "#3b82f6" : "#a1a1aa"}
+										strokeWidth={isHoveredBoundary ? 3 : 1}
+										strokeDasharray={isHoveredBoundary ? undefined : "3 3"}
+									/>
+								);
+							})}
 						{/* Pending: 원본 점선 + 미리보기 실선 */}
 						{pendingStageEdit && pendingStage && (
 							<>
@@ -1410,7 +1436,11 @@ export function ElevationProfile({
 									strokeWidth={1.5}
 									strokeDasharray="4 4"
 								/>
-								<ReferenceLine x={pendingStageEdit.previewEndKm} stroke="#3b82f6" strokeWidth={2} />
+								<ReferenceLine
+									x={pendingStageEdit.previewEndKm}
+									stroke={isHoveringStageEndBoundary ? "#60a5fa" : "#3b82f6"}
+									strokeWidth={isHoveringStageEndBoundary ? 3 : 2}
+								/>
 							</>
 						)}
 
@@ -1616,8 +1646,21 @@ export function ElevationProfile({
 						);
 					})}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
-				{canDragBoundary && selectedStage && (
+				{canDragBoundary && selectedStage && stageEndBoundaryHitLeftPct != null && (
 					<>
+						<div
+							role="presentation"
+							className="absolute inset-y-0 z-9 -translate-x-1/2 cursor-ew-resize bg-transparent"
+							style={{
+								left: `${stageEndBoundaryHitLeftPct}%`,
+								width: STAGE_END_BOUNDARY_HIT_STRIP_PX,
+							}}
+							onMouseEnter={() => setIsHoveringStageEndBoundary(true)}
+							onMouseLeave={() => setIsHoveringStageEndBoundary(false)}
+							onMouseDown={(e) => {
+								e.stopPropagation();
+							}}
+						/>
 						<BoundaryHandle
 							boundaryKm={boundaryKmForHandle}
 							visibleStart={visibleStart}
@@ -1628,6 +1671,7 @@ export function ElevationProfile({
 								onStartBoundaryDrag?.(selectedStage.id, selectedStage.endDistanceKm);
 								setIsDragging(true);
 							}}
+							onHoverChange={setIsHoveringStageEndBoundary}
 						/>
 						{pendingStageEdit && pendingStage && (
 							<BoundaryTooltip
