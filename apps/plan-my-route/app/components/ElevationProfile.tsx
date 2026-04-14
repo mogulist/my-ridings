@@ -464,6 +464,10 @@ const DEFAULT_AREA_CHART_MARGIN: ChartMarginBox = {
 
 /** 스테이지 종료 경계 호버 히트 폭 (세로 점선 기준 좌우) */
 const STAGE_END_BOUNDARY_HIT_STRIP_PX = 24;
+/** 종료 지점 단축 메뉴 대략 폭·높이(뷰포트 클램프용) */
+const STAGE_END_BOUNDARY_MENU_W_PX = 232;
+/** 메뉴 오른쪽 끝과 클릭 앵커 사이 간격(앵커는 커서 쪽, 메뉴는 왼편으로 펼침) */
+const STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX = 8;
 
 /** 선 오른쪽에 둘 때(툴팁 왼쪽 끝 = 앵커 + gap) */
 const SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX = 10;
@@ -780,15 +784,25 @@ export function ElevationProfile({
 	scheduleMarkerFocus = null,
 }: ElevationProfileProps) {
 	const chartContainerRef = useRef<HTMLDivElement>(null);
+	const stageEndBoundaryHitStripRef = useRef<HTMLButtonElement>(null);
+	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
+	const [chartBoxHeight, setChartBoxHeight] = useState(0);
 	const [isDragging, setIsDragging] = useState(false);
 	const [isHoveringStageEndBoundary, setIsHoveringStageEndBoundary] = useState(false);
+	const [stageEndBoundaryMenuAnchor, setStageEndBoundaryMenuAnchor] = useState<{
+		leftPx: number;
+		topPx: number;
+	} | null>(null);
 	const frozenVisibleRangeRef = useRef<{ startKm: number; endKm: number } | null>(null);
 
 	useLayoutEffect(() => {
 		const root = chartContainerRef.current;
 		if (!root) return;
-		const measure = () => setChartBoxWidth(root.clientWidth);
+		const measure = () => {
+			setChartBoxWidth(root.clientWidth);
+			setChartBoxHeight(root.clientHeight);
+		};
 		measure();
 		const ro = new ResizeObserver(measure);
 		ro.observe(root);
@@ -939,7 +953,27 @@ export function ElevationProfile({
 
 	useEffect(() => {
 		setIsHoveringStageEndBoundary(false);
+		setStageEndBoundaryMenuAnchor(null);
 	}, [selectedDayNumber, pendingStageEdit?.stageId, pendingStageEdit == null]);
+
+	useEffect(() => {
+		if (stageEndBoundaryMenuAnchor == null) return;
+		const onPointerDown = (e: PointerEvent) => {
+			const t = e.target as Node;
+			if (stageEndBoundaryMenuRef.current?.contains(t)) return;
+			if (stageEndBoundaryHitStripRef.current?.contains(t)) return;
+			setStageEndBoundaryMenuAnchor(null);
+		};
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setStageEndBoundaryMenuAnchor(null);
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		document.addEventListener("keydown", onKeyDown);
+		return () => {
+			document.removeEventListener("pointerdown", onPointerDown);
+			document.removeEventListener("keydown", onKeyDown);
+		};
+	}, [stageEndBoundaryMenuAnchor]);
 
 	useEffect(() => {
 		if (!isDragging) return;
@@ -964,6 +998,19 @@ export function ElevationProfile({
 			return Math.abs(d.index - positionIndex) < Math.abs(best.index - positionIndex) ? d : best;
 		}, null);
 	}, [positionIndex, rawChartData]);
+
+	const stageEndBoundaryMenuPosition = useMemo(() => {
+		if (stageEndBoundaryMenuAnchor == null) return null;
+		const { leftPx } = stageEndBoundaryMenuAnchor;
+		if (chartBoxWidth <= 0) return { left: Math.max(0, leftPx), top: "50%" as const };
+		const minAnchorX =
+			STAGE_END_BOUNDARY_MENU_W_PX + STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX + 8;
+		const anchorX = Math.max(minAnchorX, Math.min(leftPx, chartBoxWidth - 8));
+		return {
+			left: anchorX,
+			top: "50%" as const,
+		};
+	}, [stageEndBoundaryMenuAnchor, chartBoxWidth]);
 
 	if (rawChartData.length === 0) {
 		const chipRow =
@@ -1648,19 +1695,73 @@ export function ElevationProfile({
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
 				{canDragBoundary && selectedStage && stageEndBoundaryHitLeftPct != null && (
 					<>
-						<div
-							role="presentation"
-							className="absolute inset-y-0 z-9 -translate-x-1/2 cursor-ew-resize bg-transparent"
+						<button
+							ref={stageEndBoundaryHitStripRef}
+							type="button"
+							aria-label="스테이지 종료 지점 메뉴 열기"
+							aria-expanded={stageEndBoundaryMenuAnchor != null}
+							aria-haspopup="dialog"
+							className="absolute inset-y-0 z-9 -translate-x-1/2 cursor-ew-resize border-0 bg-transparent p-0"
 							style={{
 								left: `${stageEndBoundaryHitLeftPct}%`,
 								width: STAGE_END_BOUNDARY_HIT_STRIP_PX,
 							}}
 							onMouseEnter={() => setIsHoveringStageEndBoundary(true)}
 							onMouseLeave={() => setIsHoveringStageEndBoundary(false)}
-							onMouseDown={(e) => {
+							onPointerDown={(e) => {
+								if (e.button !== 0) return;
+								e.preventDefault();
 								e.stopPropagation();
+								if (stageEndBoundaryMenuAnchor != null) {
+									setStageEndBoundaryMenuAnchor(null);
+									return;
+								}
+								const root = chartContainerRef.current;
+								if (!root) return;
+								const r = root.getBoundingClientRect();
+								setStageEndBoundaryMenuAnchor({
+									leftPx: e.clientX - r.left,
+									topPx: e.clientY - r.top,
+								});
 							}}
 						/>
+						{stageEndBoundaryMenuPosition != null ? (
+							<div
+								ref={stageEndBoundaryMenuRef}
+								role="dialog"
+								aria-modal="true"
+								aria-labelledby="stage-end-boundary-menu-title"
+								className="absolute z-20 w-[232px] rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-lg dark:border-zinc-600 dark:bg-zinc-800"
+								style={{
+									left: stageEndBoundaryMenuPosition.left,
+									top: stageEndBoundaryMenuPosition.top,
+									transform: `translateX(calc(-100% - ${STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX}px)) translateY(-50%)`,
+								}}
+							>
+								<p
+									id="stage-end-boundary-menu-title"
+									className="font-medium text-zinc-800 dark:text-zinc-100"
+								>
+									종료 지점을 수정하시겠습니까?
+								</p>
+								<div className="mt-3 flex justify-end gap-2">
+									<button
+										type="button"
+										className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+										onClick={() => setStageEndBoundaryMenuAnchor(null)}
+									>
+										취소
+									</button>
+									<button
+										type="button"
+										className="rounded bg-orange-500 px-2 py-1 font-medium text-white hover:bg-orange-600"
+										onClick={() => setStageEndBoundaryMenuAnchor(null)}
+									>
+										수정
+									</button>
+								</div>
+							</div>
+						) : null}
 						<BoundaryHandle
 							boundaryKm={boundaryKmForHandle}
 							visibleStart={visibleStart}
