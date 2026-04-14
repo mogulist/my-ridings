@@ -305,41 +305,6 @@ function buildStageKeys(
 	return { data, keys };
 }
 
-// ── 경계 드래그 핸들 ──────────────────────────────────────────────
-function BoundaryHandle({
-	boundaryKm,
-	visibleStart,
-	visibleEnd,
-	onPointerDown,
-	onHoverChange,
-}: {
-	boundaryKm: number;
-	visibleStart: number;
-	visibleEnd: number;
-	isDragging: boolean;
-	onPointerDown: (e: React.PointerEvent) => void;
-	onHoverChange?: (isHovered: boolean) => void;
-}) {
-	const span = visibleEnd - visibleStart;
-	const leftPct = span > 0 ? ((boundaryKm - visibleStart) / span) * 100 : 0;
-	return (
-		<button
-			type="button"
-			aria-label="경계 이동"
-			onPointerDown={onPointerDown}
-			onMouseEnter={() => onHoverChange?.(true)}
-			onMouseLeave={() => onHoverChange?.(false)}
-			className="absolute top-0 left-0 z-10 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full border-2 border-zinc-400 bg-white shadow-sm transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-zinc-500 dark:bg-zinc-800"
-			style={{
-				width: 14,
-				height: 14,
-				left: `${Math.max(0, Math.min(100, leftPct))}%`,
-			}}
-			tabIndex={-1}
-		/>
-	);
-}
-
 // ── 드래그 중 툴팁 (원본 vs 새값 vs 증감) ──────────────────────────
 function BoundaryTooltip({
 	stage,
@@ -800,7 +765,6 @@ export function ElevationProfile({
 	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
 	const [chartBoxHeight, setChartBoxHeight] = useState(0);
-	const [isDragging, setIsDragging] = useState(false);
 	const [isHoveringStageEndBoundary, setIsHoveringStageEndBoundary] = useState(false);
 	const [stageEndBoundaryMenuAnchor, setStageEndBoundaryMenuAnchor] = useState<{
 		leftPx: number;
@@ -1005,7 +969,6 @@ export function ElevationProfile({
 			window.removeEventListener("pointercancel", h.up);
 			boundaryDragWindowHandlersRef.current = null;
 		}
-		setIsDragging(false);
 	}, []);
 
 	const beginBoundaryWindowDrag = useCallback(
@@ -1024,7 +987,6 @@ export function ElevationProfile({
 			window.addEventListener("pointermove", move, { passive: false });
 			window.addEventListener("pointerup", up);
 			window.addEventListener("pointercancel", up);
-			setIsDragging(true);
 			handleBoundaryDragRef.current(clientX);
 		},
 		[endBoundaryWindowDrag],
@@ -1870,24 +1832,6 @@ export function ElevationProfile({
 								</div>
 							</div>
 						) : null}
-						<BoundaryHandle
-							boundaryKm={boundaryKmForHandle}
-							visibleStart={visibleStart}
-							visibleEnd={visibleEnd}
-							isDragging={isDragging}
-							onPointerDown={(e) => {
-								if (e.button !== 0) return;
-								e.preventDefault();
-								onStartBoundaryDrag?.(selectedStage.id, selectedStage.endDistanceKm);
-								try {
-									(e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
-								} catch {
-									/* noop */
-								}
-								beginBoundaryWindowDrag(e.clientX, e.pointerId);
-							}}
-							onHoverChange={setIsHoveringStageEndBoundary}
-						/>
 						{pendingStageEdit && pendingStage && (
 							<BoundaryTooltip
 								stage={pendingStage}
