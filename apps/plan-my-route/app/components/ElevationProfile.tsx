@@ -1418,7 +1418,7 @@ export function ElevationProfile({
 							}
 						/>
 
-						{!chartInteractionDisabled ? (
+						{!chartInteractionDisabled && !isPinned ? (
 							<Tooltip
 								cursor={{
 									stroke: "#f97316",
