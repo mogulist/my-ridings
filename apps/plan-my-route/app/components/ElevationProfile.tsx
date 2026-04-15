@@ -454,18 +454,20 @@ function elevationYAxisReservedWidth(tightFixedHeightChart: boolean, compactYAxi
 	return tightFixedHeightChart ? 36 : compactYAxis ? 40 : 38;
 }
 
-/**
- * Recharts AreaChart와 동일한 좌표계: margin.left + Y축 폭 + 가시 거리 비율로 앵커 X(px).
- * 툴팁은 선과 겹치지 않게 가로 절반 기준으로 선 오른쪽 또는 왼쪽에 배치한다.
- */
-function scheduleSelectionTooltipPlotStyle(params: {
+/** Recharts 플롯과 동일한 X 앵커(px) + 세로선과 겹치지 않는 translateX — 스케줄·핀 오버레이 공통 */
+type ElevationChartTooltipLineOffsetStyle = {
+	left: number;
+	translateX: string;
+};
+
+function elevationChartTooltipLineOffsetStyle(params: {
 	km: number;
 	visibleStart: number;
 	visibleEnd: number;
 	chartBoxWidth: number;
 	margin: ChartMarginBox;
 	yAxisWidth: number;
-}): { left: number; top: string; transform: string } {
+}): ElevationChartTooltipLineOffsetStyle {
 	const { km, visibleStart, visibleEnd, chartBoxWidth, margin, yAxisWidth } = params;
 	const span = visibleEnd - visibleStart;
 	const plotLeft = margin.left + yAxisWidth;
@@ -478,8 +480,23 @@ function scheduleSelectionTooltipPlotStyle(params: {
 	const translateX = placeTooltipRightOfLine
 		? `translateX(${SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX}px)`
 		: `translateX(calc(-100% - ${SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX}px))`;
+	return { left: anchorX, translateX };
+}
+
+/**
+ * 스케줄 선택 km·고도 오버레이: 가로는 elevationChartTooltipLineOffsetStyle, 세로는 플롯 중앙.
+ */
+function scheduleSelectionTooltipPlotStyle(params: {
+	km: number;
+	visibleStart: number;
+	visibleEnd: number;
+	chartBoxWidth: number;
+	margin: ChartMarginBox;
+	yAxisWidth: number;
+}): { left: number; top: string; transform: string } {
+	const { left, translateX } = elevationChartTooltipLineOffsetStyle(params);
 	return {
-		left: anchorX,
+		left,
 		top: "50%",
 		transform: `${translateX} translateY(-50%)`,
 	};
@@ -1060,85 +1077,6 @@ export function ElevationProfile({
 		};
 	}, [stageEndBoundaryMenuAnchor, chartBoxWidth]);
 
-	if (rawChartData.length === 0) {
-		const chipRow =
-			alwaysShowChips && hasStages ? (
-				<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-					<button
-						type="button"
-						onClick={() => onSelectedDayChange?.(null)}
-						className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
-							selectedDayNumber == null
-								? "bg-orange-500 text-white"
-								: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-						}`}
-					>
-						전체
-					</button>
-					{stages.map((s) => {
-						const color = getStageColor(s.dayNumber);
-						const isSel = selectedDayNumber === s.dayNumber;
-						return (
-							<button
-								key={s.id}
-								type="button"
-								onClick={() => onSelectedDayChange?.(s.dayNumber)}
-								className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
-									isSel
-										? "text-white"
-										: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-								}`}
-								style={isSel ? { backgroundColor: color.stroke } : undefined}
-							>
-								{s.dayNumber}일
-							</button>
-						);
-					})}
-				</div>
-			) : null;
-
-		const emptyChart = (
-			<div
-				className="flex w-full items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/40"
-				style={{ minHeight: chartHeightPx ?? 88 }}
-			>
-				<p className="text-xs text-zinc-400">고도 데이터가 없습니다</p>
-			</div>
-		);
-
-		if (alwaysShowChips && hasStages) {
-			return (
-				<div className="flex w-full flex-col gap-1 px-1 pt-1">
-					{chipRow}
-					{emptyChart}
-				</div>
-			);
-		}
-
-		return (
-			<div className="flex h-full items-center justify-center">
-				<p className="text-xs text-zinc-400">고도 데이터가 없습니다</p>
-			</div>
-		);
-	}
-
-	const pendingStage = pendingStageEdit
-		? (stages.find((s) => s.id === pendingStageEdit.stageId) ?? null)
-		: null;
-	const boundaryKmForHandle = pendingStageEdit
-		? pendingStageEdit.previewEndKm
-		: (selectedStage?.endDistanceKm ?? 0);
-
-	// Stage 경계선: 표시 구간 내의 것만. pending인 경계는 별도 처리 (점선+실선)
-	const stageBoundaries = stages
-		.map((s) => ({ distanceKm: s.endDistanceKm, stageId: s.id, label: `Stage ${s.dayNumber}` }))
-		.filter(
-			(b) =>
-				b.distanceKm >= visibleStart &&
-				b.distanceKm <= visibleEnd &&
-				!(pendingStageEdit && b.stageId === pendingStageEdit.stageId),
-		);
-
 	const visibleCPs = cpMarkers.filter(
 		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
 	);
@@ -1249,6 +1187,118 @@ export function ElevationProfile({
 					yAxisWidth: yAxisWidthForScheduleTooltip,
 				})
 			: null;
+
+	const pinnedTooltipPlacementStyle = useMemo((): CSSProperties | null => {
+		if (!isPinned || currentChartDatum == null) return null;
+		if (chartBoxWidth <= 0) {
+			const span = visibleEnd - visibleStart;
+			const leftPct = span > 0 ? ((currentChartDatum.distanceKm - visibleStart) / span) * 100 : 50;
+			return {
+				left: `${Math.max(4, Math.min(96, leftPct))}%`,
+				top: 4,
+				transform:
+					leftPct > 60
+						? `translateX(calc(-100% - ${SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX}px))`
+						: `translateX(${SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX}px)`,
+			};
+		}
+		const { left, translateX } = elevationChartTooltipLineOffsetStyle({
+			km: currentChartDatum.distanceKm,
+			visibleStart,
+			visibleEnd,
+			chartBoxWidth,
+			margin: marginForScheduleTooltip,
+			yAxisWidth: yAxisWidthForScheduleTooltip,
+		});
+		return { left, top: 4, transform: translateX };
+	}, [
+		isPinned,
+		currentChartDatum,
+		chartBoxWidth,
+		visibleStart,
+		visibleEnd,
+		marginForScheduleTooltip,
+		yAxisWidthForScheduleTooltip,
+	]);
+
+	if (rawChartData.length === 0) {
+		const chipRow =
+			alwaysShowChips && hasStages ? (
+				<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+					<button
+						type="button"
+						onClick={() => onSelectedDayChange?.(null)}
+						className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+							selectedDayNumber == null
+								? "bg-orange-500 text-white"
+								: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+						}`}
+					>
+						전체
+					</button>
+					{stages.map((s) => {
+						const color = getStageColor(s.dayNumber);
+						const isSel = selectedDayNumber === s.dayNumber;
+						return (
+							<button
+								key={s.id}
+								type="button"
+								onClick={() => onSelectedDayChange?.(s.dayNumber)}
+								className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+									isSel
+										? "text-white"
+										: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+								}`}
+								style={isSel ? { backgroundColor: color.stroke } : undefined}
+							>
+								{s.dayNumber}일
+							</button>
+						);
+					})}
+				</div>
+			) : null;
+
+		const emptyChart = (
+			<div
+				className="flex w-full items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/40"
+				style={{ minHeight: chartHeightPx ?? 88 }}
+			>
+				<p className="text-xs text-zinc-400">고도 데이터가 없습니다</p>
+			</div>
+		);
+
+		if (alwaysShowChips && hasStages) {
+			return (
+				<div className="flex w-full flex-col gap-1 px-1 pt-1">
+					{chipRow}
+					{emptyChart}
+				</div>
+			);
+		}
+
+		return (
+			<div className="flex h-full items-center justify-center">
+				<p className="text-xs text-zinc-400">고도 데이터가 없습니다</p>
+			</div>
+		);
+	}
+
+	const pendingStage = pendingStageEdit
+		? (stages.find((s) => s.id === pendingStageEdit.stageId) ?? null)
+		: null;
+	const boundaryKmForHandle = pendingStageEdit
+		? pendingStageEdit.previewEndKm
+		: (selectedStage?.endDistanceKm ?? 0);
+
+	// Stage 경계선: 표시 구간 내의 것만. pending인 경계는 별도 처리 (점선+실선)
+	const stageBoundaries = stages
+		.map((s) => ({ distanceKm: s.endDistanceKm, stageId: s.id, label: `Stage ${s.dayNumber}` }))
+		.filter(
+			(b) =>
+				b.distanceKm >= visibleStart &&
+				b.distanceKm <= visibleEnd &&
+				!(pendingStageEdit && b.stageId === pendingStageEdit.stageId),
+		);
 
 	const stageEndBoundaryHitLeftPct =
 		canDragBoundary && visibleEnd > visibleStart
@@ -1620,14 +1670,12 @@ export function ElevationProfile({
 						}}
 					/>
 				) : null}
-				{/* 핀 고정 툴팁 */}
+				{/* 핀 고정 툴팁 — 가로 배치는 elevationChartTooltipLineOffsetStyle 공통 */}
 				{!chartInteractionDisabled &&
 					isPinned &&
 					currentChartDatum != null &&
+					pinnedTooltipPlacementStyle != null &&
 					(() => {
-						const span = visibleEnd - visibleStart;
-						const leftPct =
-							span > 0 ? ((currentChartDatum.distanceKm - visibleStart) / span) * 100 : 50;
 						const km = currentChartDatum.distanceKm;
 						const ele = currentChartDatum.ele;
 						const hasStageStats =
@@ -1672,11 +1720,7 @@ export function ElevationProfile({
 						return (
 							<div
 								className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs shadow-lg dark:border-orange-600 dark:bg-zinc-800"
-								style={{
-									left: `${Math.max(4, Math.min(96, leftPct))}%`,
-									top: 4,
-									transform: leftPct > 60 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
-								}}
+								style={pinnedTooltipPlacementStyle}
 								onClick={(e) => {
 									e.stopPropagation();
 									onUnpin?.();
