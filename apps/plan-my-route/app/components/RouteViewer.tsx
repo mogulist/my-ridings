@@ -863,22 +863,21 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     )?.start_date ?? null;
   const effectivePlanStartDate = activePlanStartDate ?? routeStartDate;
 
-  const handleStageCardSelect = useCallback((stageId: string) => {
+  const handleStageCardSelect = (stageId: string) => {
     setStageEditOpen(false);
     setPoiEditSnap(null);
     setPanelStageId(stageId);
     setActiveStageId(stageId);
-  }, [setActiveStageId]);
+    const stage = stages.find((s) => s.id === stageId);
+    if (stage) setSelectedDayNumber(stage.dayNumber);
+  };
 
-  const handleEditStageFromCard = useCallback(
-    (stageId: string) => {
-      setPoiEditSnap(null);
-      setPanelStageId(stageId);
-      setActiveStageId(stageId);
-      setStageEditOpen(true);
-    },
-    [setActiveStageId],
-  );
+  const handleEditStageFromCard = (stageId: string) => {
+    setPoiEditSnap(null);
+    setPanelStageId(stageId);
+    setActiveStageId(stageId);
+    setStageEditOpen(true);
+  };
 
   const handleFocusPlanPoiConsumed = useCallback(() => {
     setFocusPlanPoiRequest(null);

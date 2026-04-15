@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpenIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "@my-ridings/ui";
@@ -319,21 +319,23 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     [stages, panelStageId],
   );
 
-  const handleStageCardSelect = useCallback((stageId: string) => {
+  const handleStageCardSelect = (stageId: string) => {
     setPanelStageId(stageId);
     setActiveStageId(stageId);
-  }, []);
+    const stage = stages.find((s) => s.id === stageId);
+    if (stage) setSelectedDayNumber(stage.dayNumber);
+  };
 
-  const handleFocusPlanPoiConsumed = useCallback(() => {
+  const handleFocusPlanPoiConsumed = () => {
     setFocusPlanPoiRequest(null);
-  }, []);
+  };
 
-  const requestFocusPlanPoi = useCallback((poiId: string) => {
+  const requestFocusPlanPoi = (poiId: string) => {
     setFocusPlanPoiRequest((prev) => ({
       poiId,
       nonce: (prev?.nonce ?? 0) + 1,
     }));
-  }, []);
+  };
 
   const awaitingPublic = !error && !publicPlan;
   const awaitingViewport = !error && publicPlan != null && isDesktop === null;
