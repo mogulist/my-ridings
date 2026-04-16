@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
+import { normalizeScheduleMarkerMemos } from "@/app/types/scheduleMarkerMemos";
 
 export async function PUT(
 	request: Request,
@@ -15,7 +16,7 @@ export async function PUT(
 
 	try {
 		const json = await request.json();
-		const { name, start_date } = json;
+		const { name, start_date, schedule_marker_memos } = json;
 
 		const { data: planData, error: planError } = await supabaseAdmin
 			.from("plan")
@@ -35,6 +36,10 @@ export async function PUT(
 		};
 		if (name !== undefined) updatePayload.name = name;
 		if (start_date !== undefined) updatePayload.start_date = start_date === null || start_date === "" ? null : start_date;
+		if (schedule_marker_memos !== undefined) {
+			const normalized = normalizeScheduleMarkerMemos(schedule_marker_memos);
+			updatePayload.schedule_marker_memos = normalized ?? null;
+		}
 
 		const { data, error } = await supabaseAdmin
 			.from("plan")

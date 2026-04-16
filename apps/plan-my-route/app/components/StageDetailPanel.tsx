@@ -1,10 +1,12 @@
 "use client";
 
 import { PencilIcon, TrashIcon, XIcon } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
+import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
+import type { StageScheduleWaypoint } from "../types/stageScheduleWaypoint";
 import { DotsMenu } from "./DotsMenu";
 import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
 import {
@@ -13,6 +15,7 @@ import {
 	snapPlanPoisToTrack,
 	stageScheduleWaypoints,
 } from "./MobileSharedPlanStagesTab";
+import { ScheduleMarkerMemoDialog } from "./ScheduleMarkerMemoDialog";
 import { StageScheduleWaypointList } from "./StageScheduleWaypointList";
 
 type StageDetailPanelProps = {
@@ -24,6 +27,8 @@ type StageDetailPanelProps = {
 	planPois: PlanPoiRow[];
 	cpMarkers?: CPOnRoute[];
 	summitMarkers?: SummitOnRoute[];
+	scheduleMarkerMemos?: ScheduleMarkerMemos | null;
+	onScheduleMarkerMemoSave?: (rowKey: string, memoTrimmed: string) => Promise<void>;
 	onClose: () => void;
 	onEditStage: () => void;
 	onDeleteStage: (stageId: string) => void;
@@ -46,6 +51,8 @@ export function StageDetailPanel({
 	planPois,
 	cpMarkers = [],
 	summitMarkers = [],
+	scheduleMarkerMemos = null,
+	onScheduleMarkerMemoSave,
 	onClose,
 	onEditStage,
 	onDeleteStage,
@@ -54,6 +61,9 @@ export function StageDetailPanel({
 	onDeletePoi,
 	readOnly = false,
 }: StageDetailPanelProps) {
+	const [scheduleMemoEditRow, setScheduleMemoEditRow] =
+		useState<StageScheduleWaypoint | null>(null);
+
 	const snapped = useMemo(
 		() => snapPlanPoisToTrack(planPois, trackPoints),
 		[planPois, trackPoints],
@@ -68,8 +78,17 @@ export function StageDetailPanel({
 			summitMarkers,
 			trackPoints,
 			elevationCalibratedThreshold,
+			scheduleMarkerMemos,
 		);
-	}, [stage, snapped, cpMarkers, summitMarkers, trackPoints, elevationCalibratedThreshold]);
+	}, [
+		stage,
+		snapped,
+		cpMarkers,
+		summitMarkers,
+		trackPoints,
+		elevationCalibratedThreshold,
+		scheduleMarkerMemos,
+	]);
 
 	const maxElevationM = useMemo(() => {
 		if (!stage) return null;
@@ -191,41 +210,77 @@ export function StageDetailPanel({
 								readOnly
 									? undefined
 									: (row) => {
-											if (row.markerKind !== "plan_poi" || !row.planPoiId) return null;
-											const snap = snapped.find((s) => s.id === row.planPoiId);
-											if (!snap) return null;
-											return (
-												<DotsMenu
-													entries={[
-														{
-															type: "item",
-															key: "edit",
-															label: "편집",
-															icon: <PencilIcon className="h-4 w-4" />,
-															onSelect: () => onEditPoi(snap),
-														},
-														{ type: "separator", key: "sep" },
-														{
-															type: "item",
-															key: "delete",
-															label: "삭제",
-															icon: <TrashIcon className="h-4 w-4" />,
-															variant: "destructive",
-															onSelect: () => {
-																if (window.confirm("이 경유지를 삭제할까요?")) {
-																	onDeletePoi(snap.id);
-																}
+											if (row.markerKind === "plan_poi" && row.planPoiId) {
+												const snap = snapped.find((s) => s.id === row.planPoiId);
+												if (!snap) return null;
+												return (
+													<DotsMenu
+														entries={[
+															{
+																type: "item",
+																key: "edit",
+																label: "편집",
+																icon: <PencilIcon className="h-4 w-4" />,
+																onSelect: () => onEditPoi(snap),
 															},
-														},
-													]}
-												/>
-											);
+															{ type: "separator", key: "sep" },
+															{
+																type: "item",
+																key: "delete",
+																label: "삭제",
+																icon: <TrashIcon className="h-4 w-4" />,
+																variant: "destructive",
+																onSelect: () => {
+																	if (window.confirm("이 경유지를 삭제할까요?")) {
+																		onDeletePoi(snap.id);
+																	}
+																},
+															},
+														]}
+													/>
+												);
+											}
+											if (
+												(row.markerKind === "cp" || row.markerKind === "summit") &&
+												onScheduleMarkerMemoSave
+											) {
+												return (
+													<DotsMenu
+														entries={[
+															{
+																type: "item",
+																key: "memo",
+																label: "메모 편집",
+																icon: <PencilIcon className="h-4 w-4" />,
+																onSelect: () => setScheduleMemoEditRow(row),
+															},
+														]}
+													/>
+												);
+											}
+											return null;
 										}
 							}
 						/>
 					)}
 				</section>
 			</div>
+
+			<ScheduleMarkerMemoDialog
+				open={scheduleMemoEditRow != null}
+				onOpenChange={(open) => {
+					if (!open) setScheduleMemoEditRow(null);
+				}}
+				rowKey={scheduleMemoEditRow?.rowKey ?? null}
+				markerKind={scheduleMemoEditRow?.markerKind ?? null}
+				name={scheduleMemoEditRow?.name ?? ""}
+				categoryLabel={scheduleMemoEditRow?.categoryLabel ?? ""}
+				initialMemo={scheduleMemoEditRow?.memo ?? ""}
+				onSave={async ({ rowKey, memo }) => {
+					if (!onScheduleMarkerMemoSave) return;
+					await onScheduleMarkerMemoSave(rowKey, memo);
+				}}
+			/>
 		</div>
 	);
 }

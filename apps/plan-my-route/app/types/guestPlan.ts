@@ -1,4 +1,5 @@
 import type { PlanPoiRow } from "./planPoi";
+import type { ScheduleMarkerMemos } from "./scheduleMarkerMemos";
 
 export const GUEST_STORAGE_KEY = "pmr:guest:v1";
 
@@ -24,6 +25,8 @@ export type GuestPlan = {
   created_at: string;
   updated_at: string;
   stages: GuestStage[];
+  /** CP·정상 스케줄 마커 메모 (`rowKey` → 텍스트) */
+  schedule_marker_memos?: ScheduleMarkerMemos | null;
 };
 
 export type GuestRoute = {
@@ -53,6 +56,7 @@ export type PublicPlanSnapshot = {
     start_date: string | null;
     public_share_token: string;
     shared_at: string | null;
+    schedule_marker_memos?: ScheduleMarkerMemos | null;
   };
   route: {
     name: string;

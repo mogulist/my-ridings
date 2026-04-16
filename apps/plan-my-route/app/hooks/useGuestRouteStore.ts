@@ -9,6 +9,7 @@ import type {
   PublicPlanSnapshot,
 } from "../types/guestPlan";
 import { GUEST_STORAGE_KEY } from "../types/guestPlan";
+import { normalizeScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 
 const createDefaultWorkspace = (): GuestWorkspace => ({ version: 1, routes: [] });
 
@@ -70,6 +71,10 @@ const buildGuestRouteFromPublicPlan = (publicPlan: PublicPlanSnapshot): GuestRou
   const planId = crypto.randomUUID();
   const routeName = publicPlan.route.name || "공유 경로";
 
+  const scheduleMarkerMemos = normalizeScheduleMarkerMemos(
+    publicPlan.plan.schedule_marker_memos,
+  );
+
   const firstPlan: GuestPlan = {
     id: planId,
     name: `${publicPlan.plan.name} (복제본)`,
@@ -80,6 +85,9 @@ const buildGuestRouteFromPublicPlan = (publicPlan: PublicPlanSnapshot): GuestRou
     created_at: nowIso,
     updated_at: nowIso,
     stages: sortStages(publicPlan.stages),
+    ...(scheduleMarkerMemos != null
+      ? { schedule_marker_memos: scheduleMarkerMemos }
+      : {}),
   };
 
   return {

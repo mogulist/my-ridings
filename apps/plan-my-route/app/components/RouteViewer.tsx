@@ -34,6 +34,10 @@ import { cn } from "@my-ridings/ui";
 import type { Stage } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { GuestPlan } from "../types/guestPlan";
+import {
+  normalizeScheduleMarkerMemos,
+  upsertScheduleMarkerMemo,
+} from "../types/scheduleMarkerMemos";
 import type { SummitCatalogRow } from "../types/summitCatalog";
 
 type RouteViewerProps = {
@@ -257,6 +261,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
       start_name: stage.start_name ?? null,
       end_name: stage.end_name ?? null,
     }));
+    const scheduleMarkerMemos = normalizeScheduleMarkerMemos(
+      plan.schedule_marker_memos,
+    );
     return {
       id: plan.id,
       name: plan.name ?? "플랜",
@@ -267,6 +274,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
       created_at: plan.created_at ?? nowIso,
       updated_at: nowIso,
       stages: guestStages,
+      ...(scheduleMarkerMemos != null
+        ? { schedule_marker_memos: scheduleMarkerMemos }
+        : {}),
     };
   }, []);
 
@@ -930,6 +940,72 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     [stages, panelStageId],
   );
 
+  const activePlanRow = useMemo(() => {
+    if (!activePlanId || !dbRoute?.plans) return null;
+    return (
+      (dbRoute.plans as { id: string; schedule_marker_memos?: unknown }[]).find(
+        (p) => p.id === activePlanId,
+      ) ?? null
+    );
+  }, [activePlanId, dbRoute?.plans]);
+
+  const scheduleMarkerMemosForPanel = useMemo(
+    () => normalizeScheduleMarkerMemos(activePlanRow?.schedule_marker_memos),
+    [activePlanRow?.schedule_marker_memos],
+  );
+
+  const handleScheduleMarkerMemoSave = useCallback(
+    async (rowKey: string, memoTrimmed: string) => {
+      if (!activePlanId || !activePlanRow) return;
+      const nextMemos = upsertScheduleMarkerMemo(
+        activePlanRow.schedule_marker_memos,
+        rowKey,
+        memoTrimmed,
+      );
+      if (isGuestMode) {
+        setDbRoute((prev: { plans?: { id: string }[] } | null) => {
+          if (!prev?.plans) return prev;
+          const idx = prev.plans.findIndex((p) => p.id === activePlanId);
+          if (idx === -1) return prev;
+          const nextPlans = [...prev.plans];
+          nextPlans[idx] = {
+            ...nextPlans[idx],
+            schedule_marker_memos: nextMemos,
+          } as (typeof nextPlans)[number];
+          return { ...prev, plans: nextPlans };
+        });
+        return;
+      }
+      const res = await fetch(`/api/plans/${activePlanId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schedule_marker_memos: nextMemos }),
+      });
+      if (!res.ok) {
+        alert("메모 저장에 실패했습니다.");
+        return;
+      }
+      const updated = (await res.json()) as {
+        schedule_marker_memos?: unknown;
+      };
+      const normalized = normalizeScheduleMarkerMemos(
+        updated.schedule_marker_memos,
+      );
+      setDbRoute((prev: { plans?: { id: string }[] } | null) => {
+        if (!prev?.plans) return prev;
+        const idx = prev.plans.findIndex((p) => p.id === activePlanId);
+        if (idx === -1) return prev;
+        const nextPlans = [...prev.plans];
+        nextPlans[idx] = {
+          ...nextPlans[idx],
+          schedule_marker_memos: normalized,
+        } as (typeof nextPlans)[number];
+        return { ...prev, plans: nextPlans };
+      });
+    },
+    [activePlanId, activePlanRow, isGuestMode],
+  );
+
   const handleSavePoiFromDialog = useCallback(
     async (payload: { name: string; memo: string }) => {
       if (!poiEditSnap) return;
@@ -1051,6 +1127,13 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
             created_at: nowIso,
             updated_at: nowIso,
           };
+          const sourcePlanRow =
+            (dbRoute?.plans ?? []).find((p: { id: string }) => p.id === plan.id) ??
+            plan;
+          const clonedMemos = normalizeScheduleMarkerMemos(
+            (sourcePlanRow as { schedule_marker_memos?: unknown })
+              .schedule_marker_memos,
+          );
           const clonedPlanPois = sourcePlanPois.map((poi) => ({
             ...poi,
             id: crypto.randomUUID(),
@@ -1060,7 +1143,14 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
           }));
           setDbRoute((prev: any) => ({
             ...prev,
-            plans: [...(prev?.plans ?? []), { ...newPlan, stages: createdStages }],
+            plans: [
+              ...(prev?.plans ?? []),
+              {
+                ...newPlan,
+                stages: createdStages,
+                ...(clonedMemos != null ? { schedule_marker_memos: clonedMemos } : {}),
+              },
+            ],
           }));
           setActivePlanId(newPlan.id);
           setDbStages(normalizeDbStages(createdStages));
@@ -1127,11 +1217,35 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
           clonedPois.push((await poiRes.json()) as PlanPoiRow);
         }
 
+        const sourcePlanRowDb =
+          (dbRoute?.plans ?? []).find((p: { id: string }) => p.id === plan.id) ??
+          plan;
+        const clonedScheduleMemos = normalizeScheduleMarkerMemos(
+          (sourcePlanRowDb as { schedule_marker_memos?: unknown })
+            .schedule_marker_memos,
+        );
+        if (clonedScheduleMemos != null) {
+          const memoPut = await fetch(`/api/plans/${newPlan.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              schedule_marker_memos: clonedScheduleMemos,
+            }),
+          });
+          if (!memoPut.ok) throw new Error("Plan schedule marker memos copy failed");
+        }
+
         setDbRoute((prev: any) => ({
           ...prev,
           plans: [
             ...(prev?.plans ?? []),
-            { ...newPlan, stages: createdStages },
+            {
+              ...newPlan,
+              stages: createdStages,
+              ...(clonedScheduleMemos != null
+                ? { schedule_marker_memos: clonedScheduleMemos }
+                : {}),
+            },
           ],
         }));
         setActivePlanId(newPlan.id);
@@ -1144,7 +1258,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
         setPlanActionInProgress(null);
       }
     },
-    [routeId, isGuestMode, dbRoute?.plans?.length, getRouteById],
+    [routeId, isGuestMode, dbRoute?.plans, getRouteById],
   );
 
   const handleReorderPlans = useCallback(
@@ -1411,6 +1525,8 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
                       planPois={planPois}
                       cpMarkers={cpMarkers}
                       summitMarkers={summitMarkers}
+                      scheduleMarkerMemos={scheduleMarkerMemosForPanel}
+                      onScheduleMarkerMemoSave={handleScheduleMarkerMemoSave}
                       onClose={() => {
                         setPanelStageId(null);
                         setStageEditOpen(false);

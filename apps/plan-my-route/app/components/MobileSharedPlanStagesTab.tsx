@@ -19,6 +19,7 @@ import { calibrateThreshold, computeTrackElevationGainLoss } from "../hooks/useP
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
+import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type {
 	StageScheduleMarkerKind,
 	StageScheduleWaypoint,
@@ -166,6 +167,7 @@ export function stageScheduleWaypoints(
 	summitMarkers: SummitOnRoute[],
 	trackPoints: TrackPoint[],
 	calibratedThreshold: number,
+	scheduleMarkerMemos?: ScheduleMarkerMemos | null,
 ): StageScheduleWaypoint[] {
 	const fromPois: StageScheduleWaypoint[] = itemsInStage(snappedPois, stage).map((p) =>
 		waypointRowForAbsoluteKm(stage, trackPoints, p.distanceKm, p.elevation, calibratedThreshold, {
@@ -178,38 +180,46 @@ export function stageScheduleWaypoints(
 			planPoiId: p.id,
 		}),
 	);
-	const fromCp: StageScheduleWaypoint[] = itemsInStage(cpMarkers, stage).map((c) =>
-		waypointRowForAbsoluteKm(
+	const fromCp: StageScheduleWaypoint[] = itemsInStage(cpMarkers, stage).map((c) => {
+		const rowKey = `cp:${c.id}`;
+		const rawMemo = scheduleMarkerMemos?.[rowKey];
+		const memo =
+			typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
+		return waypointRowForAbsoluteKm(
 			stage,
 			trackPoints,
 			c.distanceKm,
 			Math.round(c.elevation),
 			calibratedThreshold,
 			{
-				rowKey: `cp:${c.id}`,
+				rowKey,
 				name: c.name,
 				categoryLabel: CP_LABEL_KO,
-				memo: null,
+				memo,
 				markerKind: "cp",
 			},
-		),
-	);
-	const fromSummit: StageScheduleWaypoint[] = itemsInStage(summitMarkers, stage).map((s) =>
-		waypointRowForAbsoluteKm(
+		);
+	});
+	const fromSummit: StageScheduleWaypoint[] = itemsInStage(summitMarkers, stage).map((s) => {
+		const rowKey = `summit:${s.id}`;
+		const rawMemo = scheduleMarkerMemos?.[rowKey];
+		const memo =
+			typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
+		return waypointRowForAbsoluteKm(
 			stage,
 			trackPoints,
 			s.distanceKm,
 			Math.round(s.elevation),
 			calibratedThreshold,
 			{
-				rowKey: `summit:${s.id}`,
+				rowKey,
 				name: s.name,
 				categoryLabel: SUMMIT_LABEL_KO,
-				memo: null,
+				memo,
 				markerKind: "summit",
 			},
-		),
-	);
+		);
+	});
 	return [...fromPois, ...fromCp, ...fromSummit].sort(
 		(a, b) => a.distanceAlongRouteKm - b.distanceAlongRouteKm,
 	);
@@ -437,6 +447,7 @@ export type StagesTabProps = {
 	planPois: PlanPoiRow[];
 	cpMarkers?: CPOnRoute[];
 	summitMarkers?: SummitOnRoute[];
+	scheduleMarkerMemos?: ScheduleMarkerMemos | null;
 };
 
 export function StagesTab({
@@ -448,6 +459,7 @@ export function StagesTab({
 	planPois,
 	cpMarkers = [],
 	summitMarkers = [],
+	scheduleMarkerMemos = null,
 }: StagesTabProps) {
 	const [elevProfileDay, setElevProfileDay] = useState<number | null>(null);
 	const [selectedWaypointRowKey, setSelectedWaypointRowKey] = useState<string | null>(null);
@@ -477,11 +489,20 @@ export function StagesTab({
 					summitMarkers,
 					trackPoints,
 					elevationCalibratedThreshold,
+					scheduleMarkerMemos,
 				),
 			);
 		}
 		return m;
-	}, [stages, snappedPois, cpMarkers, summitMarkers, trackPoints, elevationCalibratedThreshold]);
+	}, [
+		stages,
+		snappedPois,
+		cpMarkers,
+		summitMarkers,
+		trackPoints,
+		elevationCalibratedThreshold,
+		scheduleMarkerMemos,
+	]);
 
 	const maxElevByDay = useMemo(() => {
 		const m = new Map<number, number | null>();

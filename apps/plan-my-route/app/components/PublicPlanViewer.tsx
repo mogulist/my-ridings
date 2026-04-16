@@ -11,6 +11,7 @@ import type { SummitCatalogRow } from "../types/summitCatalog";
 import { calibrateThreshold } from "../hooks/usePlanStages";
 import { computeCPsOnRoute, computeSummitsOnRoute } from "./RouteViewer";
 import type { Stage } from "../types/plan";
+import { normalizeScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import { stageDayLabel } from "./PlanStagesPane";
 import StageCard from "./StageCard";
 import { StageDetailPanel } from "./StageDetailPanel";
@@ -26,6 +27,7 @@ export type PublicPlanResponse = {
     start_date: string | null;
     public_share_token: string;
     shared_at: string | null;
+    schedule_marker_memos?: Record<string, string> | null;
   };
   route: {
     name: string;
@@ -319,6 +321,15 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     [stages, panelStageId],
   );
 
+  const sharedScheduleMarkerMemos = useMemo(
+    () =>
+      normalizeScheduleMarkerMemos(
+        (publicPlan?.plan as { schedule_marker_memos?: unknown } | undefined)
+          ?.schedule_marker_memos,
+      ),
+    [publicPlan?.plan],
+  );
+
   const handleStageCardSelect = (stageId: string) => {
     setPanelStageId(stageId);
     setActiveStageId(stageId);
@@ -411,6 +422,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         stagesPlanPois={planPois}
         stagesCpMarkers={cpMarkers}
         stagesSummitMarkers={summitMarkers}
+        stagesScheduleMarkerMemos={sharedScheduleMarkerMemos}
         isHeroDistanceElevPending={route === null}
       />
     );
@@ -520,6 +532,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
                   planPois={planPois}
                   cpMarkers={cpMarkers}
                   summitMarkers={summitMarkers}
+                  scheduleMarkerMemos={sharedScheduleMarkerMemos}
                   readOnly
                   onClose={() => setPanelStageId(null)}
                   onEditStage={() => {}}

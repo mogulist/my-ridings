@@ -28,6 +28,7 @@ import { RollingDeciK, RollingNumber } from "./RollingNumber";
 import { StagesTab } from "./MobileSharedPlanStagesTab";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { Stage } from "../types/plan";
+import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import { getStageColor } from "../types/plan";
 
 const TAB_BAR_H = MOBILE_PLAN_TAB_BAR_HEIGHT_PX;
@@ -52,6 +53,7 @@ type MobileSharedPlanLayoutProps = {
   stagesPlanPois: PlanPoiRow[];
   stagesCpMarkers?: CPOnRoute[];
   stagesSummitMarkers?: SummitOnRoute[];
+  stagesScheduleMarkerMemos?: ScheduleMarkerMemos | null;
   /** RWGPS 경로 로딩 중이면 거리·획득고도 카드에 스피너만 표시 */
   isHeroDistanceElevPending?: boolean;
 };
@@ -317,6 +319,7 @@ export function MobileSharedPlanLayout({
   stagesPlanPois,
   stagesCpMarkers = [],
   stagesSummitMarkers = [],
+  stagesScheduleMarkerMemos = null,
   isHeroDistanceElevPending = false,
 }: MobileSharedPlanLayoutProps) {
   const [tab, setTab] = useState<TabId>("summary");
@@ -603,6 +606,7 @@ export function MobileSharedPlanLayout({
               planPois={stagesPlanPois}
               cpMarkers={stagesCpMarkers}
               summitMarkers={stagesSummitMarkers}
+              scheduleMarkerMemos={stagesScheduleMarkerMemos}
             />
           )}
         </div>

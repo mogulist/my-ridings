@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { PlanPoiRow } from "@/app/types/planPoi";
+import { normalizeScheduleMarkerMemos } from "@/app/types/scheduleMarkerMemos";
 
 type PublicPlanStage = {
   id: string;
@@ -32,6 +33,7 @@ type PublicPlanRow = {
   start_date: string | null;
   public_share_token: string;
   shared_at: string | null;
+  schedule_marker_memos?: unknown;
   route: PublicPlanRouteRow;
   stages: PublicPlanStage[];
 };
@@ -50,13 +52,14 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("plan")
-    .select(
+		.select(
       `
 			id,
 			name,
 			start_date,
 			public_share_token,
 			shared_at,
+			schedule_marker_memos,
 			route:route (
 				name,
 				rwgps_url,
@@ -129,6 +132,10 @@ export async function GET(
     planPois = poiRows as PlanPoiRow[];
   }
 
+  const scheduleMarkerMemos = normalizeScheduleMarkerMemos(
+    publicPlan.schedule_marker_memos,
+  );
+
   return NextResponse.json({
     plan: {
       id: publicPlan.id,
@@ -136,6 +143,9 @@ export async function GET(
       start_date: publicPlan.start_date,
       public_share_token: publicPlan.public_share_token,
       shared_at: publicPlan.shared_at,
+      ...(scheduleMarkerMemos != null
+        ? { schedule_marker_memos: scheduleMarkerMemos }
+        : {}),
     },
     route: routeForClient,
     stages: sortedStages,
