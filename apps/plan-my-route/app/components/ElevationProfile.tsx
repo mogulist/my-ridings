@@ -31,6 +31,8 @@ export interface TrackPoint {
 	d?: number; // 누적 거리 (m)
 }
 
+type TrackPointWithElevation = TrackPoint & { e: number; d: number };
+
 export type CPOnRoute = {
 	id: number;
 	name: string;
@@ -145,7 +147,9 @@ function buildChartData(
 	elevationCalibratedThreshold?: number,
 	maxSamples = 2000,
 ): ChartDatum[] {
-	const withEle = points.filter((p) => p.e != null && p.d != null);
+	const withEle = points.filter(
+		(p): p is TrackPointWithElevation => p.e != null && p.d != null,
+	);
 	if (withEle.length === 0) return [];
 
 	const useSmoothedGain =
@@ -154,16 +158,19 @@ function buildChartData(
 		stages.length > 0;
 
 	// 스테이지별 스무딩 적용 상승고도 곡선 (elevationCalibratedThreshold 있을 때만 사용)
-	const stageGainCurves: GainCurve[] = useSmoothedGain
-		? stages.map((stage) =>
-				computeElevationGainCurve(
-					points,
-					stage.startDistanceKm,
-					stage.endDistanceKm,
-					elevationCalibratedThreshold!,
-				),
-			)
-		: [];
+	const stageGainCurves: GainCurve[] =
+		typeof elevationCalibratedThreshold === "number" &&
+		elevationCalibratedThreshold >= 0 &&
+		stages.length > 0
+			? stages.map((stage) =>
+					computeElevationGainCurve(
+						points,
+						stage.startDistanceKm,
+						stage.endDistanceKm,
+						elevationCalibratedThreshold,
+					),
+				)
+			: [];
 
 	// 스무딩 미사용 시: 전체 구간 누적 상승고도 (withEle 인덱스 기준)
 	const cumulativeGain: number[] = [];
@@ -172,20 +179,20 @@ function buildChartData(
 			if (i === 0) {
 				cumulativeGain.push(0);
 			} else {
-				const prev = withEle[i - 1].e!;
-				const curr = withEle[i].e!;
+				const prev = withEle[i - 1].e;
+				const curr = withEle[i].e;
 				cumulativeGain.push(cumulativeGain[i - 1] + Math.max(0, curr - prev));
 			}
 		}
 	}
 
 	const stageStartIndices: number[] = stages.map((stage) => {
-		const idx = withEle.findIndex((p) => p.d! / 1000 >= stage.startDistanceKm);
+		const idx = withEle.findIndex((p) => p.d / 1000 >= stage.startDistanceKm);
 		return idx === -1 ? withEle.length : idx;
 	});
 
 	const findFirstIndexAtOrAfter = (distanceKm: number) => {
-		const idx = withEle.findIndex((p) => p.d! / 1000 >= distanceKm);
+		const idx = withEle.findIndex((p) => p.d / 1000 >= distanceKm);
 		return idx === -1 ? withEle.length - 1 : idx;
 	};
 
@@ -208,7 +215,7 @@ function buildChartData(
 		.sort((a, b) => a - b);
 
 	return sampledIndices.map((withEleIndex) => {
-		const rawDistanceKm = withEle[withEleIndex].d! / 1000;
+		const rawDistanceKm = withEle[withEleIndex].d / 1000;
 		const distanceKm = Math.round(rawDistanceKm * 100) / 100;
 		let stageIndex: number | null = null;
 		for (let i = 0; i < stages.length; i++) {
@@ -220,7 +227,7 @@ function buildChartData(
 
 		const datum: ChartDatum = {
 			distanceKm,
-			ele: Math.round(withEle[withEleIndex].e!),
+			ele: Math.round(withEle[withEleIndex].e),
 			index: points.indexOf(withEle[withEleIndex]),
 			stageIndex,
 		};
@@ -308,8 +315,6 @@ function buildStageKeys(
 // ── 드래그 중 툴팁 (원본 vs 새값 vs 증감) ──────────────────────────
 function BoundaryTooltip({
 	stage,
-	originalEndKm,
-	previewEndKm,
 	previewStats,
 	leftPct,
 }: {
@@ -390,10 +395,12 @@ export function computeRawGainBetweenKm(
 	fromKm: number,
 	toKm: number,
 ): number {
-	const withEle = points.filter((p) => p.e != null && p.d != null);
+	const withEle = points.filter(
+		(p): p is TrackPointWithElevation => p.e != null && p.d != null,
+	);
 	if (withEle.length < 2 || toKm <= fromKm) return 0;
 	const findIdx = (km: number) => {
-		const idx = withEle.findIndex((p) => p.d! / 1000 >= km);
+		const idx = withEle.findIndex((p) => p.d / 1000 >= km);
 		return idx === -1 ? withEle.length - 1 : idx;
 	};
 	const i0 = findIdx(fromKm);
@@ -401,8 +408,8 @@ export function computeRawGainBetweenKm(
 	if (i1 <= i0) return 0;
 	let gain = 0;
 	for (let i = i0 + 1; i <= i1; i++) {
-		const prevE = withEle[i - 1].e!;
-		const currE = withEle[i].e!;
+		const prevE = withEle[i - 1].e;
+		const currE = withEle[i].e;
 		gain += Math.max(0, currE - prevE);
 	}
 	return Math.round(gain);
@@ -781,7 +788,6 @@ export function ElevationProfile({
 	const stageEndBoundaryHitStripRef = useRef<HTMLButtonElement>(null);
 	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
-	const [chartBoxHeight, setChartBoxHeight] = useState(0);
 	const [isHoveringStageEndBoundary, setIsHoveringStageEndBoundary] = useState(false);
 	const [stageEndBoundaryMenuAnchor, setStageEndBoundaryMenuAnchor] = useState<{
 		leftPx: number;
@@ -794,7 +800,6 @@ export function ElevationProfile({
 		if (!root) return;
 		const measure = () => {
 			setChartBoxWidth(root.clientWidth);
-			setChartBoxHeight(root.clientHeight);
 		};
 		measure();
 		const ro = new ResizeObserver(measure);
@@ -1015,11 +1020,14 @@ export function ElevationProfile({
 		};
 	}, [endBoundaryWindowDrag]);
 
+	const stageEndBoundaryUiResetKey = `${selectedDayNumber}\0${pendingStageEdit?.stageId ?? ""}\0${pendingStageEdit == null}`;
+
 	useEffect(() => {
+		void stageEndBoundaryUiResetKey;
 		setIsHoveringStageEndBoundary(false);
 		setStageEndBoundaryMenuAnchor(null);
 		endBoundaryWindowDrag();
-	}, [selectedDayNumber, pendingStageEdit?.stageId, pendingStageEdit == null, endBoundaryWindowDrag]);
+	}, [stageEndBoundaryUiResetKey, endBoundaryWindowDrag]);
 
 	useEffect(() => {
 		if (stageEndBoundaryMenuAnchor == null && !stageEndBoundaryChartEditMode) return;
@@ -1718,49 +1726,53 @@ export function ElevationProfile({
 									)
 								: null;
 						return (
-							<div
-								className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs shadow-lg dark:border-orange-600 dark:bg-zinc-800"
+							<button
+								type="button"
+								aria-label="고정 툴팁 해제"
+								className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-left text-xs font-normal shadow-lg dark:border-orange-600 dark:bg-zinc-800"
 								style={pinnedTooltipPlacementStyle}
 								onClick={(e) => {
 									e.stopPropagation();
 									onUnpin?.();
 								}}
 							>
-								<div className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
+								<span className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
 									<span>📌 전체</span>
 									<span>
 										{km.toFixed(1)} km · △ {ele} m
 									</span>
-								</div>
+								</span>
 								{hasStageStats && (
-									<div className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
+									<span className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
 										<span>스테이지</span>
 										<span>
 											+{Number(currentChartDatum.distanceFromStageStartKm).toFixed(1)} km · ▲{" "}
 											{currentChartDatum.elevationGainFromStageStart} m
 										</span>
-									</div>
+									</span>
 								)}
 								{cpMarkers.length > 0 && (
-									<div className="mt-1 space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
-										<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+									<span className="mt-1 flex flex-col space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
+										<span className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
 											<span>{cpSegLabel}</span>
 											<span>
 												+{segDist.toFixed(1)} km · ▲ {segGain} m
 											</span>
-										</div>
+										</span>
 										{nextTargetLabel != null && remainKm != null && remainGain != null && (
-											<div className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
+											<span className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
 												<span>{nextTargetLabel}</span>
 												<span>
 													{remainKm.toFixed(1)} km · ▲ {remainGain} m
 												</span>
-											</div>
+											</span>
 										)}
-									</div>
+									</span>
 								)}
-								<p className="mt-1 text-center text-zinc-400 dark:text-zinc-500">클릭하여 해제</p>
-							</div>
+								<span className="mt-1 block text-center text-zinc-400 dark:text-zinc-500">
+									클릭하여 해제
+								</span>
+							</button>
 						);
 					})()}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
