@@ -26,7 +26,10 @@ import { SharePlanDuplicateCta } from "./SharePlanDuplicateCta";
 import { SharedPlanSummaryElevationMini } from "./SharedPlanSummaryElevationMini";
 import { RollingDeciK, RollingNumber } from "./RollingNumber";
 import { StagesTab } from "./MobileSharedPlanStagesTab";
+import { MobileSharedPlanMapTab } from "./MobileSharedPlanMapTab";
+import type { RideWithGPSRoute } from "./KakaoMap";
 import type { PlanPoiRow } from "../types/planPoi";
+import type { SummitCatalogRow } from "../types/summitCatalog";
 import type { Stage } from "../types/plan";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import { getStageColor } from "../types/plan";
@@ -56,6 +59,9 @@ type MobileSharedPlanLayoutProps = {
   stagesScheduleMarkerMemos?: ScheduleMarkerMemos | null;
   /** RWGPS 경로 로딩 중이면 거리·획득고도 카드에 스피너만 표시 */
   isHeroDistanceElevPending?: boolean;
+  shareRoute: RideWithGPSRoute | null;
+  planId: string | null;
+  planOfficialSummits?: SummitCatalogRow[];
 };
 
 type SummaryTabProps = {
@@ -261,46 +267,6 @@ function SummaryKeyStats({
   );
 }
 
-function MapTabPlaceholder() {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div
-        className="flex flex-[0_0_57%] items-center justify-center border-b border-border bg-muted/50"
-      >
-        <div className="text-center">
-          <MapPin className="mx-auto mb-2 size-8 text-muted-foreground/50" aria-hidden />
-          <p className="text-sm text-muted-foreground">지도 영역</p>
-          <p className="mt-1 text-xs text-muted-foreground/80">
-            인터랙티브 지도가 여기에 표시됩니다
-          </p>
-        </div>
-      </div>
-      <div
-        className="flex flex-[0_0_43%] flex-col overflow-hidden bg-card"
-      >
-        <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 pb-2 pt-3">
-          <span className="text-xs text-muted-foreground">고도 프로필</span>
-          <span className="text-xs text-muted-foreground/80">
-            Day 선택 → 지도 연동
-          </span>
-        </div>
-        <div className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <BarChart3
-              className="mx-auto mb-2 size-8 text-muted-foreground/50"
-              aria-hidden
-            />
-            <p className="text-xs text-muted-foreground">고도 프로필 차트</p>
-            <p className="mt-1 text-xs text-muted-foreground/80">
-              스테이지 칩 선택 → 구간 필터
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function MobileSharedPlanLayout({
   token,
   routeName,
@@ -321,6 +287,9 @@ export function MobileSharedPlanLayout({
   stagesSummitMarkers = [],
   stagesScheduleMarkerMemos = null,
   isHeroDistanceElevPending = false,
+  shareRoute,
+  planId,
+  planOfficialSummits = [],
 }: MobileSharedPlanLayoutProps) {
   const [tab, setTab] = useState<TabId>("summary");
   const [scrollY, setScrollY] = useState(0);
@@ -612,7 +581,13 @@ export function MobileSharedPlanLayout({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <MapTabPlaceholder />
+          <MobileSharedPlanMapTab
+            route={shareRoute}
+            stages={summaryStages}
+            planPois={stagesPlanPois}
+            officialSummits={planOfficialSummits}
+            activePlanId={planId}
+          />
         </div>
       )}
     </div>

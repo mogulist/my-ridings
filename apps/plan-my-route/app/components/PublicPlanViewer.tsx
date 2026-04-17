@@ -424,6 +424,9 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
         stagesSummitMarkers={summitMarkers}
         stagesScheduleMarkerMemos={sharedScheduleMarkerMemos}
         isHeroDistanceElevPending={route === null}
+        shareRoute={route}
+        planId={publicPlan.plan.id}
+        planOfficialSummits={officialSummits}
       />
     );
   }
