@@ -133,6 +133,7 @@ export function MobileSharedPlanMapTab({
                 compactTooltip
                 cpMarkers={cpMarkers}
                 summitMarkers={summitMarkers}
+                labelLayout="stagger"
               />
             </div>
           </div>

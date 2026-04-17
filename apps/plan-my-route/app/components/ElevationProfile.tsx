@@ -122,6 +122,8 @@ interface ElevationProfileProps {
 	singleScheduleMarkerLabel?: boolean;
 	/** `singleScheduleMarkerLabel`일 때 강조할 마커 */
 	scheduleMarkerFocus?: ElevationScheduleMarkerFocus | null;
+	/** 라벨 레이아웃: `stagger`는 인접 라벨이 가까울 때 2번째 줄로 번갈아 배치(모바일 공유 지도 탭용) */
+	labelLayout?: "single" | "stagger";
 	/** 종료 지점 단축 메뉴「수정」— 맵을 해당 누적 거리(km)로 센터·줌 + 고도 종료 변경 모드 */
 	onStageEndBoundaryEditMapCenter?: (distanceKm: number) => void;
 	/** 고도 차트 종료 지점 변경 모드(±5km 줌, 단축 메뉴 비표시) */
@@ -527,25 +529,195 @@ function nearestChartRowEleByKm(
 const CP_COLOR = MAP_VISUAL_PALETTE.elevationCpStroke;
 const SUMMIT_COLOR = CP_COLOR;
 const CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE = 3;
+/** stagger 레이아웃: 같은 row 인접 라벨의 기본 최소 허용 간격(px). 라벨 이름 폭이 작을 때의 하한. */
+const LABEL_STAGGER_MIN_GAP_PX = 28;
+/** 라벨 이름 글자 1개당 추정 폭(px). 한글 11px 폰트 기준. */
+const LABEL_STAGGER_CHAR_WIDTH_PX = 11;
+/** 인접 라벨 박스 사이 여백(px). */
+const LABEL_STAGGER_GAP_PADDING_PX = 6;
+/** stagger 레이아웃 최대 row (0-indexed). 현재 3줄까지 허용. */
+const LABEL_STAGGER_MAX_ROW = 2;
+/** row 한 칸당 수직 간격(px). font-size 11 + 여백. */
+const LABEL_STAGGER_ROW_HEIGHT_PX = 14;
+
+type LabelRow = 0 | 1 | 2;
+type LabelRowEntry = { key: string; distanceKm: number; halfWidthPx: number };
+type LabelRowResult = { rowByKey: Map<string, LabelRow>; maxRowUsed: LabelRow };
+
+function estimateLabelHalfWidthPx(name: string): number {
+	return (name.length * LABEL_STAGGER_CHAR_WIDTH_PX) / 2;
+}
+
+function computeLabelRows(params: {
+	enabled: boolean;
+	visibleStart: number;
+	visibleEnd: number;
+	chartBoxWidth: number;
+	visibleCPs: CPOnRoute[];
+	visibleSummits: SummitOnRoute[];
+	useSingleScheduleLabel: boolean;
+	scheduleMarkerFocus: ElevationScheduleMarkerFocus | null | undefined;
+	showStageMarkerNames: boolean;
+	planPoiFocusInView: boolean;
+	selectedStageStartKm: number | null;
+	selectedStageEndKm: number | null;
+}): LabelRowResult {
+	const rowByKey = new Map<string, LabelRow>();
+	const {
+		enabled,
+		visibleStart,
+		visibleEnd,
+		chartBoxWidth,
+		visibleCPs,
+		visibleSummits,
+		useSingleScheduleLabel,
+		scheduleMarkerFocus,
+		showStageMarkerNames,
+		planPoiFocusInView,
+		selectedStageStartKm,
+		selectedStageEndKm,
+	} = params;
+	if (!enabled) return { rowByKey, maxRowUsed: 0 };
+	const span = visibleEnd - visibleStart;
+	if (span <= 0 || chartBoxWidth <= 0) return { rowByKey, maxRowUsed: 0 };
+	const kmPerPx = span / chartBoxWidth;
+
+	const isWithinStage = (distanceKm: number) => {
+		if (selectedStageStartKm == null || selectedStageEndKm == null) return true;
+		return distanceKm >= selectedStageStartKm && distanceKm <= selectedStageEndKm;
+	};
+
+	const entries: LabelRowEntry[] = [];
+	const cpVisible = (cp: CPOnRoute) => {
+		if (!isWithinStage(cp.distanceKm)) return false;
+		return useSingleScheduleLabel
+			? scheduleMarkerFocus?.kind === "cp" && scheduleMarkerFocus.id === cp.id
+			: showStageMarkerNames;
+	};
+	const summitVisible = (summit: SummitOnRoute) => {
+		if (!isWithinStage(summit.distanceKm)) return false;
+		return useSingleScheduleLabel
+			? scheduleMarkerFocus?.kind === "summit" && scheduleMarkerFocus.id === summit.id
+			: showStageMarkerNames;
+	};
+
+	for (const cp of visibleCPs) {
+		if (cpVisible(cp))
+			entries.push({
+				key: `cp-${cp.id}`,
+				distanceKm: cp.distanceKm,
+				halfWidthPx: estimateLabelHalfWidthPx(cp.name),
+			});
+	}
+	for (const summit of visibleSummits) {
+		if (summitVisible(summit))
+			entries.push({
+				key: `summit-${summit.id}`,
+				distanceKm: summit.distanceKm,
+				halfWidthPx: estimateLabelHalfWidthPx(summit.name),
+			});
+	}
+	if (planPoiFocusInView && scheduleMarkerFocus?.kind === "plan_poi") {
+		entries.push({
+			key: "plan-poi-focus",
+			distanceKm: scheduleMarkerFocus.distanceKm,
+			halfWidthPx: estimateLabelHalfWidthPx(scheduleMarkerFocus.name),
+		});
+	}
+	entries.sort((a, b) => a.distanceKm - b.distanceKm);
+
+	type RowLast = { km: number; halfWidthPx: number };
+	const lastByRow: Array<RowLast | null> = new Array(LABEL_STAGGER_MAX_ROW + 1).fill(null);
+
+	/** 이전 라벨과의 간격이 두 라벨 박스를 피하기에 충분한지(라벨 이름 길이 반영). */
+	const fitsInRow = (row: number, entry: LabelRowEntry): boolean => {
+		const last = lastByRow[row];
+		if (last == null) return true;
+		const requiredPx = Math.max(
+			LABEL_STAGGER_MIN_GAP_PX,
+			last.halfWidthPx + entry.halfWidthPx + LABEL_STAGGER_GAP_PADDING_PX,
+		);
+		const gapPx = (entry.distanceKm - last.km) / kmPerPx;
+		return gapPx >= requiredPx;
+	};
+
+	let maxRowUsed: LabelRow = 0;
+	let lastChosenRow: LabelRow = 0;
+	let hasPlacedAny = false;
+	for (const entry of entries) {
+		let chosenRow: LabelRow = 0;
+		let placed = false;
+
+		// 1) row 0에 들어갈 수 있으면 최우선 (밀도 낮을 때 빈 공간 방지)
+		if (fitsInRow(0, entry)) {
+			chosenRow = 0;
+			placed = true;
+		} else if (hasPlacedAny) {
+			// 2) 라운드로빈: 직전에 배치한 row 다음부터 순회하며 들어갈 수 있는 row 탐색
+			for (let step = 1; step <= LABEL_STAGGER_MAX_ROW; step++) {
+				const r = ((lastChosenRow + step) % (LABEL_STAGGER_MAX_ROW + 1)) as LabelRow;
+				if (fitsInRow(r, entry)) {
+					chosenRow = r;
+					placed = true;
+					break;
+				}
+			}
+		}
+
+		// 3) 모든 row가 안 맞으면 "가장 오래 전에 배치된 row"에 폴백
+		if (!placed) {
+			let oldestRow: LabelRow = 0;
+			let oldestKm = lastByRow[0]?.km ?? Infinity;
+			for (let r = 1; r <= LABEL_STAGGER_MAX_ROW; r++) {
+				const last = lastByRow[r];
+				if (last != null && last.km < oldestKm) {
+					oldestKm = last.km;
+					oldestRow = r as LabelRow;
+				}
+			}
+			chosenRow = oldestRow;
+		}
+
+		rowByKey.set(entry.key, chosenRow);
+		lastByRow[chosenRow] = { km: entry.distanceKm, halfWidthPx: entry.halfWidthPx };
+		lastChosenRow = chosenRow;
+		hasPlacedAny = true;
+		if (chosenRow > maxRowUsed) maxRowUsed = chosenRow;
+	}
+	return { rowByKey, maxRowUsed };
+}
 
 function CPMarkerLabel({
 	viewBox,
 	showName,
 	name,
+	row = 0,
 }: {
 	viewBox?: { x?: number; y?: number };
 	showName: boolean;
 	name: string;
+	row?: LabelRow;
 }) {
 	if (viewBox?.x == null || viewBox?.y == null) return null;
 	const { x, y } = viewBox;
 	const triW = 4;
 	const triH = 6;
+	const labelY = y - 4 - row * LABEL_STAGGER_ROW_HEIGHT_PX;
 	return (
 		<g>
 			<polygon points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`} fill={CP_COLOR} />
+			{showName && row > 0 && (
+				<line x1={x} y1={y - 2} x2={x} y2={labelY + 2} stroke="#d4d4d8" strokeWidth={0.5} />
+			)}
 			{showName && (
-				<text x={x} y={y - 4} textAnchor="middle" fill="#71717a" fontSize={11} fontWeight={500}>
+				<text
+					x={x}
+					y={labelY}
+					textAnchor="middle"
+					fill="#71717a"
+					fontSize={11}
+					fontWeight={500}
+				>
 					{name}
 				</text>
 			)}
@@ -557,23 +729,36 @@ function SummitMarkerLabel({
 	viewBox,
 	showName,
 	name,
+	row = 0,
 }: {
 	viewBox?: { x?: number; y?: number };
 	showName: boolean;
 	name: string;
+	row?: LabelRow;
 }) {
 	if (viewBox?.x == null || viewBox?.y == null) return null;
 	const { x, y } = viewBox;
 	const triW = 4;
 	const triH = 6;
+	const labelY = y - 4 - row * LABEL_STAGGER_ROW_HEIGHT_PX;
 	return (
 		<g>
 			<polygon
 				points={`${x - triW},${y + triH} ${x + triW},${y + triH} ${x},${y}`}
 				fill={SUMMIT_COLOR}
 			/>
+			{showName && row > 0 && (
+				<line x1={x} y1={y - 2} x2={x} y2={labelY + 2} stroke="#d4d4d8" strokeWidth={0.5} />
+			)}
 			{showName && (
-				<text x={x} y={y - 4} textAnchor="middle" fill="#71717a" fontSize={11} fontWeight={500}>
+				<text
+					x={x}
+					y={labelY}
+					textAnchor="middle"
+					fill="#71717a"
+					fontSize={11}
+					fontWeight={500}
+				>
 					{name}
 				</text>
 			)}
@@ -587,23 +772,36 @@ function PlanPoiMarkerLabel({
 	viewBox,
 	showName,
 	name,
+	row = 0,
 }: {
 	viewBox?: { x?: number; y?: number };
 	showName: boolean;
 	name: string;
+	row?: LabelRow;
 }) {
 	if (viewBox?.x == null || viewBox?.y == null) return null;
 	const { x, y } = viewBox;
 	const triW = 4;
 	const triH = 6;
+	const labelY = y - 4 - row * LABEL_STAGGER_ROW_HEIGHT_PX;
 	return (
 		<g>
 			<polygon
 				points={`${x - triW},${y} ${x + triW},${y} ${x},${y + triH}`}
 				fill={PLAN_POI_MARKER_COLOR}
 			/>
+			{showName && row > 0 && (
+				<line x1={x} y1={y - 2} x2={x} y2={labelY + 2} stroke="#d4d4d8" strokeWidth={0.5} />
+			)}
 			{showName && (
-				<text x={x} y={y - 4} textAnchor="middle" fill="#71717a" fontSize={11} fontWeight={500}>
+				<text
+					x={x}
+					y={labelY}
+					textAnchor="middle"
+					fill="#71717a"
+					fontSize={11}
+					fontWeight={500}
+				>
 					{name}
 				</text>
 			)}
@@ -823,6 +1021,7 @@ export function ElevationProfile({
 	compactTooltip = false,
 	singleScheduleMarkerLabel = false,
 	scheduleMarkerFocus = null,
+	labelLayout = "single",
 	onStageEndBoundaryEditMapCenter,
 	stageEndBoundaryChartEditMode = false,
 	onExitStageEndBoundaryChartEditMode,
@@ -1148,13 +1347,23 @@ export function ElevationProfile({
 	const useSingleScheduleLabel =
 		Boolean(singleScheduleMarkerLabel) && showStageMarkerNames && scheduleMarkerFocus != null;
 
+	/** 선택된 스테이지 구간 내(경계 포함)인지 — 인접 스테이지 오버랩 구간의 라벨은 숨김 */
+	const isWithinSelectedStage = (distanceKm: number) => {
+		if (selectedStage == null) return true;
+		return (
+			distanceKm >= selectedStage.startDistanceKm && distanceKm <= selectedStage.endDistanceKm
+		);
+	};
+
 	const cpNameVisible = (cp: CPOnRoute) => {
+		if (!isWithinSelectedStage(cp.distanceKm)) return false;
 		if (!useSingleScheduleLabel) return showStageMarkerNames;
 		const f = scheduleMarkerFocus;
 		return f?.kind === "cp" && f.id === cp.id;
 	};
 
 	const summitNameVisible = (summit: SummitOnRoute) => {
+		if (!isWithinSelectedStage(summit.distanceKm)) return false;
 		if (!useSingleScheduleLabel) return showStageMarkerNames;
 		const f = scheduleMarkerFocus;
 		return f?.kind === "summit" && f.id === summit.id;
@@ -1165,6 +1374,22 @@ export function ElevationProfile({
 		scheduleMarkerFocus?.kind === "plan_poi" &&
 		scheduleMarkerFocus.distanceKm >= visibleStart &&
 		scheduleMarkerFocus.distanceKm <= visibleEnd;
+
+	/** 라벨 stagger: 라벨이 조밀할수록 위쪽 row로 밀어 최대 3줄까지 사용. 빈 공간이면 row 0만 사용. */
+	const { rowByKey: labelRowByKey, maxRowUsed: maxLabelRowUsed } = computeLabelRows({
+		enabled: labelLayout === "stagger",
+		visibleStart,
+		visibleEnd,
+		chartBoxWidth,
+		visibleCPs,
+		visibleSummits,
+		useSingleScheduleLabel,
+		scheduleMarkerFocus,
+		showStageMarkerNames,
+		planPoiFocusInView,
+		selectedStageStartKm: selectedStage?.startDistanceKm ?? null,
+		selectedStageEndKm: selectedStage?.endDistanceKm ?? null,
+	});
 
 	const tooltipCpAnchorKm = selectedStage?.startDistanceKm ?? 0;
 	const tooltipCpAnchorMaxKm = selectedStage?.endDistanceKm ?? totalKm;
@@ -1186,6 +1411,15 @@ export function ElevationProfile({
 				bottom: 2,
 			}
 		: null;
+
+	/** 실제로 사용된 stagger row 수만큼만 상단 여백을 동적으로 확보해, POI 적은 스테이지에 빈 공간 방지 */
+	const baseChartMargin = tightChartMargin ?? DEFAULT_AREA_CHART_MARGIN;
+	const staggerTopExtraPx =
+		maxLabelRowUsed > 0 ? maxLabelRowUsed * LABEL_STAGGER_ROW_HEIGHT_PX + 4 : 0;
+	const effectiveChartMargin =
+		staggerTopExtraPx > 0
+			? { ...baseChartMargin, top: Math.max(baseChartMargin.top, 14 + staggerTopExtraPx) }
+			: baseChartMargin;
 
 	const pillChipRow =
 		!hideChips && alwaysShowChips && hasStages ? (
@@ -1223,7 +1457,7 @@ export function ElevationProfile({
 			</div>
 		) : null;
 
-	const marginForScheduleTooltip = tightChartMargin ?? DEFAULT_AREA_CHART_MARGIN;
+	const marginForScheduleTooltip = effectiveChartMargin;
 	const yAxisWidthForScheduleTooltip = elevationYAxisReservedWidth(
 		tightFixedHeightChart,
 		compactYAxis,
@@ -1443,7 +1677,7 @@ export function ElevationProfile({
 					<AreaChart
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						data={chartData as any}
-						margin={tightChartMargin ?? DEFAULT_AREA_CHART_MARGIN}
+						margin={effectiveChartMargin}
 						onMouseMove={chartInteractionDisabled ? undefined : handleMouseMove}
 						onMouseLeave={chartInteractionDisabled ? undefined : handleMouseLeave}
 						onMouseDown={chartInteractionDisabled ? undefined : handleChartClick}
@@ -1629,7 +1863,13 @@ export function ElevationProfile({
 								stroke={CP_COLOR}
 								strokeWidth={0.5}
 								strokeDasharray="2 3"
-								label={<CPMarkerLabel showName={cpNameVisible(cp)} name={cp.name} />}
+								label={
+									<CPMarkerLabel
+										showName={cpNameVisible(cp)}
+										name={cp.name}
+										row={labelRowByKey.get(`cp-${cp.id}`) ?? 0}
+									/>
+								}
 							/>
 						))}
 						{/* Summit 마커 (스테이지 선택 시에만, CP 겹침은 제외) */}
@@ -1641,7 +1881,11 @@ export function ElevationProfile({
 								strokeWidth={0.5}
 								strokeDasharray="2 3"
 								label={
-									<SummitMarkerLabel showName={summitNameVisible(summit)} name={summit.name} />
+									<SummitMarkerLabel
+										showName={summitNameVisible(summit)}
+										name={summit.name}
+										row={labelRowByKey.get(`summit-${summit.id}`) ?? 0}
+									/>
 								}
 							/>
 						))}
@@ -1652,7 +1896,13 @@ export function ElevationProfile({
 								stroke={PLAN_POI_MARKER_COLOR}
 								strokeWidth={0.5}
 								strokeDasharray="2 3"
-								label={<PlanPoiMarkerLabel showName name={scheduleMarkerFocus.name} />}
+								label={
+									<PlanPoiMarkerLabel
+										showName
+										name={scheduleMarkerFocus.name}
+										row={labelRowByKey.get("plan-poi-focus") ?? 0}
+									/>
+								}
 							/>
 						) : null}
 
