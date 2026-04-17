@@ -1763,29 +1763,6 @@ export function ElevationProfile({
 							</div>
 						);
 					})()}
-				{/* CP 세로선 클릭 → trackPointIndex 핀 (차트 mousedown과 분리) */}
-				{!chartInteractionDisabled &&
-					onPin != null &&
-					visibleCPs.map((cp) => {
-						const span = visibleEnd - visibleStart;
-						const leftPct = span > 0 ? ((cp.distanceKm - visibleStart) / span) * 100 : 0;
-						return (
-							<button
-								key={`cp-hit-${cp.id}`}
-								type="button"
-								aria-label={`${cp.name} 위치로 고정`}
-								className="absolute inset-y-0 z-8 w-5 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0"
-								style={{
-									left: `${Math.max(0, Math.min(100, leftPct))}%`,
-								}}
-								onMouseDown={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									onPin(cp.trackPointIndex);
-								}}
-							/>
-						);
-					})}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
 				{canDragBoundary && selectedStage && stageEndBoundaryHitLeftPct != null && (
 					<>
