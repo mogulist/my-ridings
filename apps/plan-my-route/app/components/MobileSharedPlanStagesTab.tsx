@@ -644,13 +644,36 @@ export function StagesTab({
 				className="sticky z-40 border-b border-border bg-background/95 px-3 pb-2 pt-2 shadow-sm backdrop-blur-sm dark:bg-background/95"
 				style={{ top: MOBILE_PLAN_TAB_BAR_HEIGHT_PX }}
 			>
+				{stages.length > 0 ? (
+					<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+						{stages.map((s) => {
+							const color = getStageColor(s.dayNumber);
+							const isSel = elevProfileDay === s.dayNumber;
+							return (
+								<button
+									key={s.id}
+									type="button"
+									onClick={() => handleElevSelect(isSel ? null : s.dayNumber)}
+									className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+										isSel
+											? "text-white"
+											: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+									}`}
+									style={isSel ? { backgroundColor: color.stroke } : undefined}
+								>
+									{s.dayNumber}일
+								</button>
+							);
+						})}
+					</div>
+				) : null}
 				<ElevationProfile
 					trackPoints={trackPoints}
 					stages={stages}
 					elevationCalibratedThreshold={elevationCalibratedThreshold}
 					selectedDayNumber={elevProfileDay}
 					onSelectedDayChange={handleElevSelect}
-					alwaysShowChips
+					hideChips
 					chartHeightPx={135}
 					compactYAxis
 					disablePinAndHoverScrub

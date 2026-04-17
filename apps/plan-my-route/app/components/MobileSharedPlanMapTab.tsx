@@ -8,7 +8,7 @@ import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import { calibrateThreshold } from "../hooks/usePlanStages";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { SummitCatalogRow } from "../types/summitCatalog";
-import type { Stage } from "../types/plan";
+import { getStageColor, type Stage } from "../types/plan";
 
 type MobileSharedPlanMapTabProps = {
   route: RideWithGPSRoute | null;
@@ -94,20 +94,47 @@ export function MobileSharedPlanMapTab({
             />
           </div>
           <div className="flex min-h-0 basis-[35%] grow flex-col overflow-hidden border-t border-border bg-background">
-            <ElevationProfile
-              trackPoints={trackPoints}
-              stages={stages}
-              elevationCalibratedThreshold={elevationCalibratedThreshold}
-              selectedDayNumber={effectiveSelectedDay}
-              onSelectedDayChange={setSelectedDayNumber}
-              activeStageId={activeStageId}
-              alwaysShowChips
-              compactYAxis
-              disablePinAndHoverScrub
-              compactTooltip
-              cpMarkers={cpMarkers}
-              summitMarkers={summitMarkers}
-            />
+            {stages.length > 0 ? (
+              <div className="flex shrink-0 gap-1 overflow-x-auto px-2 pb-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {stages.map((s) => {
+                  const color = getStageColor(s.dayNumber);
+                  const isSel = effectiveSelectedDay === s.dayNumber;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedDayNumber(isSel ? null : s.dayNumber)
+                      }
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+                        isSel
+                          ? "text-white"
+                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                      }`}
+                      style={isSel ? { backgroundColor: color.stroke } : undefined}
+                    >
+                      {s.dayNumber}일
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <ElevationProfile
+                trackPoints={trackPoints}
+                stages={stages}
+                elevationCalibratedThreshold={elevationCalibratedThreshold}
+                selectedDayNumber={effectiveSelectedDay}
+                onSelectedDayChange={setSelectedDayNumber}
+                activeStageId={activeStageId}
+                hideChips
+                compactYAxis
+                disablePinAndHoverScrub
+                compactTooltip
+                cpMarkers={cpMarkers}
+                summitMarkers={summitMarkers}
+              />
+            </div>
           </div>
         </>
       )}

@@ -108,6 +108,8 @@ interface ElevationProfileProps {
 	summitMarkers?: SummitOnRoute[];
 	/** 모바일 일정 탭: 가로 스크롤 pill 칩 + 전체 버튼 */
 	alwaysShowChips?: boolean;
+	/** 내부 칩/헤더 렌더를 전부 숨김. 외부에서 칩을 직접 제공할 때 사용 */
+	hideChips?: boolean;
 	/** 고정 차트 높이(px). 미지정 시 부모 flex 높이 100% */
 	chartHeightPx?: number;
 	/** Y축 폭·라벨 간소화 */
@@ -814,6 +816,7 @@ export function ElevationProfile({
 	cpMarkers = [],
 	summitMarkers = [],
 	alwaysShowChips = false,
+	hideChips = false,
 	chartHeightPx,
 	compactYAxis = false,
 	disablePinAndHoverScrub = false,
@@ -1185,7 +1188,7 @@ export function ElevationProfile({
 		: null;
 
 	const pillChipRow =
-		alwaysShowChips && hasStages ? (
+		!hideChips && alwaysShowChips && hasStages ? (
 			<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 				<button
 					type="button"
@@ -1271,7 +1274,7 @@ export function ElevationProfile({
 
 	if (rawChartData.length === 0) {
 		const chipRow =
-			alwaysShowChips && hasStages ? (
+			!hideChips && alwaysShowChips && hasStages ? (
 				<div className="mb-1 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 					<button
 						type="button"
@@ -1366,7 +1369,7 @@ export function ElevationProfile({
 					: "flex h-full w-full flex-col gap-1 px-2 pt-2"
 			}
 		>
-			{alwaysShowChips && hasStages ? (
+			{hideChips ? null : alwaysShowChips && hasStages ? (
 				pillChipRow
 			) : (
 				<div className="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
