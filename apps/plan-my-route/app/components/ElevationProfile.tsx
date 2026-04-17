@@ -10,7 +10,6 @@ import {
 	ReferenceDot,
 	ReferenceLine,
 	ResponsiveContainer,
-	Tooltip,
 	XAxis,
 	YAxis,
 } from "recharts";
@@ -644,37 +643,39 @@ function ScheduleSelectionKmEleTooltip({
 	);
 }
 
-// ── 커스텀 툴팁 ───────────────────────────────────────────────────
-function CustomTooltip({
-	active,
-	payload,
+// ── 차트·맵 공용 호버/핀 툴팁 ─────────────────────────────────────
+type ElevationHoverTooltipProps = {
+	datum: ChartDatum;
+	trackPoints: TrackPoint[];
+	cpMarkers: CPOnRoute[];
+	elevationCalibratedThreshold?: number;
+	cpAnchorMinKm: number;
+	cpAnchorMaxKm: number;
+	anchorFallbackDayNumber: number | null;
+	compactTooltip: boolean;
+	pinned: boolean;
+	placementStyle: CSSProperties;
+	onUnpin?: () => void;
+};
+
+function ElevationHoverTooltip({
+	datum,
 	trackPoints,
 	cpMarkers,
 	elevationCalibratedThreshold,
 	cpAnchorMinKm,
 	cpAnchorMaxKm,
 	anchorFallbackDayNumber,
-	compactTooltip = false,
-}: {
-	active?: boolean;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	payload?: Array<{ payload: any }>;
-	trackPoints: TrackPoint[];
-	cpMarkers: CPOnRoute[];
-	elevationCalibratedThreshold?: number;
-	/** 일차 선택 시 해당 스테이지 시작 거리(km). 이보다 앞의 CP는 직전 CP로 쓰지 않음 */
-	cpAnchorMinKm: number;
-	/** 스테이지 종료 km — 이보다 뒤의 CP는 다음 CP로 쓰지 않음 */
-	cpAnchorMaxKm: number;
-	anchorFallbackDayNumber: number | null;
-	compactTooltip?: boolean;
-}) {
-	if (!active || !payload?.length) return null;
-	const d = payload[0].payload;
+	compactTooltip,
+	pinned,
+	placementStyle,
+	onUnpin,
+}: ElevationHoverTooltipProps) {
+	const km = datum.distanceKm;
+	const ele = datum.ele;
 	const hasStageStats =
-		typeof d.distanceFromStageStartKm === "number" &&
-		typeof d.elevationGainFromStageStart === "number";
-	const km = Number(d.distanceKm);
+		typeof datum.distanceFromStageStartKm === "number" &&
+		typeof datum.elevationGainFromStageStart === "number";
 	const prevCp = findPrevCPInContext(cpMarkers, km, cpAnchorMinKm);
 	const segFromKm = prevCp?.distanceKm ?? cpAnchorMinKm;
 	const segDist = Math.round((km - segFromKm) * 10) / 10;
@@ -687,7 +688,6 @@ function CustomTooltip({
 		: anchorFallbackDayNumber != null
 			? `${anchorFallbackDayNumber}일 출발부터`
 			: "출발부터";
-
 	const nextCp = findNextCPInContext(cpMarkers, km, cpAnchorMaxKm);
 	const nextTargetKm = nextCp?.distanceKm ?? (hasStageStats ? cpAnchorMaxKm : null);
 	const nextTargetLabel = nextCp
@@ -705,48 +705,89 @@ function CustomTooltip({
 	const blockY = compactTooltip ? "mt-0.5" : "mt-1";
 	const cpTop = compactTooltip ? "pt-0.5" : "pt-1";
 
-	return (
-		<div
-			className={cn(
-				ELEVATION_CHART_TOOLTIP_PANEL_CLASS,
-				compactTooltip
-					? "min-w-[168px] max-w-[min(100%,280px)] px-2 py-1.5 text-[10px] leading-snug"
-					: "min-w-[200px] px-3 py-2 text-xs",
-			)}
-		>
-			<div className={cn("flex justify-between font-semibold text-zinc-100", rowGap)}>
-				<span>전체</span>
+	const panelClass = pinned
+		? "rounded-lg border border-orange-300 bg-white shadow-lg dark:border-orange-600 dark:bg-zinc-800"
+		: ELEVATION_CHART_TOOLTIP_PANEL_CLASS;
+	const titleTextClass = pinned ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-100";
+	const stageTextClass = pinned ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-300";
+	const cpTextClass = pinned ? "text-emerald-700 dark:text-emerald-400" : "text-emerald-400";
+	const cpBorderClass = pinned ? "border-zinc-200 dark:border-zinc-600" : "border-white/10";
+	const hintTextClass = pinned ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-400";
+
+	const body = (
+		<>
+			<span className={cn("flex justify-between font-semibold", titleTextClass, rowGap)}>
+				<span>{pinned ? "📌 전체" : "전체"}</span>
 				<span>
-					{km.toFixed(1)} km · △ {d.ele} m
+					{km.toFixed(1)} km · △ {ele} m
 				</span>
-			</div>
+			</span>
 			{hasStageStats && (
-				<div className={cn("flex justify-between text-zinc-300", blockY, rowGap)}>
+				<span className={cn("flex justify-between", stageTextClass, blockY, rowGap)}>
 					<span>스테이지</span>
 					<span>
-						+{Number(d.distanceFromStageStartKm).toFixed(1)} km · ▲ {d.elevationGainFromStageStart}{" "}
-						m
+						+{Number(datum.distanceFromStageStartKm).toFixed(1)} km · ▲{" "}
+						{datum.elevationGainFromStageStart} m
 					</span>
-				</div>
+				</span>
 			)}
 			{cpMarkers.length > 0 && (
-				<div className={cn("space-y-0.5 border-t border-white/10", blockY, cpTop)}>
-					<div className={cn("flex justify-between text-emerald-400", rowGap)}>
+				<span
+					className={cn("flex flex-col space-y-0.5 border-t", cpBorderClass, blockY, cpTop)}
+				>
+					<span className={cn("flex justify-between", cpTextClass, rowGap)}>
 						<span>{cpSegLabel}</span>
 						<span>
 							+{segDist.toFixed(1)} km · ▲ {segGain} m
 						</span>
-					</div>
+					</span>
 					{nextTargetLabel != null && remainKm != null && remainGain != null && (
-						<div className={cn("flex justify-between text-emerald-400", rowGap)}>
+						<span className={cn("flex justify-between", cpTextClass, rowGap)}>
 							<span>{nextTargetLabel}</span>
 							<span>
 								{remainKm.toFixed(1)} km · ▲ {remainGain} m
 							</span>
-						</div>
+						</span>
 					)}
-				</div>
+				</span>
 			)}
+			{pinned && (
+				<span className={cn("block text-center", hintTextClass, blockY)}>클릭하여 해제</span>
+			)}
+		</>
+	);
+
+	const sizeClass = compactTooltip
+		? "min-w-[168px] max-w-[min(100%,280px)] px-2 py-1.5 text-[10px] leading-snug"
+		: "min-w-[200px] px-3 py-2 text-xs";
+
+	if (pinned) {
+		return (
+			<button
+				type="button"
+				aria-label="고정 툴팁 해제"
+				className={cn(
+					"pointer-events-auto absolute z-20 cursor-pointer text-left font-normal",
+					panelClass,
+					sizeClass,
+				)}
+				style={placementStyle}
+				onClick={(e) => {
+					e.stopPropagation();
+					onUnpin?.();
+				}}
+			>
+				{body}
+			</button>
+		);
+	}
+
+	return (
+		<div
+			className={cn("pointer-events-none absolute z-20", panelClass, sizeClass)}
+			style={placementStyle}
+		>
+			{body}
 		</div>
 	);
 }
@@ -1196,8 +1237,8 @@ export function ElevationProfile({
 				})
 			: null;
 
-	const pinnedTooltipPlacementStyle = useMemo((): CSSProperties | null => {
-		if (!isPinned || currentChartDatum == null) return null;
+	const hoverTooltipPlacementStyle = useMemo((): CSSProperties | null => {
+		if (currentChartDatum == null) return null;
 		if (chartBoxWidth <= 0) {
 			const span = visibleEnd - visibleStart;
 			const leftPct = span > 0 ? ((currentChartDatum.distanceKm - visibleStart) / span) * 100 : 50;
@@ -1220,7 +1261,6 @@ export function ElevationProfile({
 		});
 		return { left, top: 4, transform: translateX };
 	}, [
-		isPinned,
 		currentChartDatum,
 		chartBoxWidth,
 		visibleStart,
@@ -1476,27 +1516,6 @@ export function ElevationProfile({
 							}
 						/>
 
-						{!chartInteractionDisabled && !isPinned ? (
-							<Tooltip
-								cursor={{
-									stroke: "#f97316",
-									strokeWidth: 1,
-									strokeDasharray: "4 2",
-								}}
-								content={
-									<CustomTooltip
-										trackPoints={trackPoints}
-										cpMarkers={cpMarkers}
-										elevationCalibratedThreshold={elevationCalibratedThreshold}
-										cpAnchorMinKm={tooltipCpAnchorKm}
-										cpAnchorMaxKm={tooltipCpAnchorMaxKm}
-										anchorFallbackDayNumber={tooltipAnchorDayNumber}
-										compactTooltip={compactTooltip}
-									/>
-								}
-							/>
-						) : null}
-
 						{/* Stage가 없는 경우: 기본 Area */}
 						{!hasStages && (
 							<Area
@@ -1678,103 +1697,24 @@ export function ElevationProfile({
 						}}
 					/>
 				) : null}
-				{/* 핀 고정 툴팁 — 가로 배치는 elevationChartTooltipLineOffsetStyle 공통 */}
+				{/* 호버/핀 공용 툴팁 — 가로 배치는 elevationChartTooltipLineOffsetStyle 공통 */}
 				{!chartInteractionDisabled &&
-					isPinned &&
-					currentChartDatum != null &&
-					pinnedTooltipPlacementStyle != null &&
-					(() => {
-						const km = currentChartDatum.distanceKm;
-						const ele = currentChartDatum.ele;
-						const hasStageStats =
-							typeof currentChartDatum.distanceFromStageStartKm === "number" &&
-							typeof currentChartDatum.elevationGainFromStageStart === "number";
-						const prevCp = findPrevCPInContext(cpMarkers, km, tooltipCpAnchorKm);
-						const segFromKm = prevCp?.distanceKm ?? tooltipCpAnchorKm;
-						const segDist = Math.round((km - segFromKm) * 10) / 10;
-						const segGain =
-							cpMarkers.length > 0 && trackPoints.length > 0
-								? computeSegmentGainBetweenKm(
-										trackPoints,
-										segFromKm,
-										km,
-										elevationCalibratedThreshold,
-									)
-								: 0;
-						const cpSegLabel = prevCp
-							? "이전 CP부터"
-							: tooltipAnchorDayNumber != null
-								? `${tooltipAnchorDayNumber}일 출발부터`
-								: "출발부터";
-						const nextCp = findNextCPInContext(cpMarkers, km, tooltipCpAnchorMaxKm);
-						const nextTargetKm =
-							nextCp?.distanceKm ?? (hasStageStats ? tooltipCpAnchorMaxKm : null);
-						const nextTargetLabel = nextCp
-							? "다음 CP까지"
-							: hasStageStats && tooltipAnchorDayNumber != null
-								? `${tooltipAnchorDayNumber}일 종료까지`
-								: null;
-						const remainKm =
-							nextTargetKm != null ? Math.round((nextTargetKm - km) * 10) / 10 : null;
-						const remainGain =
-							nextTargetKm != null && trackPoints.length > 0
-								? computeSegmentGainBetweenKm(
-										trackPoints,
-										km,
-										nextTargetKm,
-										elevationCalibratedThreshold,
-									)
-								: null;
-						return (
-							<button
-								type="button"
-								aria-label="고정 툴팁 해제"
-								className="pointer-events-auto absolute z-20 min-w-[200px] cursor-pointer rounded-lg border border-orange-300 bg-white px-3 py-2 text-left text-xs font-normal shadow-lg dark:border-orange-600 dark:bg-zinc-800"
-								style={pinnedTooltipPlacementStyle}
-								onClick={(e) => {
-									e.stopPropagation();
-									onUnpin?.();
-								}}
-							>
-								<span className="flex justify-between gap-4 font-semibold text-zinc-800 dark:text-zinc-100">
-									<span>📌 전체</span>
-									<span>
-										{km.toFixed(1)} km · △ {ele} m
-									</span>
-								</span>
-								{hasStageStats && (
-									<span className="mt-1 flex justify-between gap-4 text-zinc-500 dark:text-zinc-400">
-										<span>스테이지</span>
-										<span>
-											+{Number(currentChartDatum.distanceFromStageStartKm).toFixed(1)} km · ▲{" "}
-											{currentChartDatum.elevationGainFromStageStart} m
-										</span>
-									</span>
-								)}
-								{cpMarkers.length > 0 && (
-									<span className="mt-1 flex flex-col space-y-0.5 border-t border-zinc-200 pt-1 dark:border-zinc-600">
-										<span className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
-											<span>{cpSegLabel}</span>
-											<span>
-												+{segDist.toFixed(1)} km · ▲ {segGain} m
-											</span>
-										</span>
-										{nextTargetLabel != null && remainKm != null && remainGain != null && (
-											<span className="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400">
-												<span>{nextTargetLabel}</span>
-												<span>
-													{remainKm.toFixed(1)} km · ▲ {remainGain} m
-												</span>
-											</span>
-										)}
-									</span>
-								)}
-								<span className="mt-1 block text-center text-zinc-400 dark:text-zinc-500">
-									클릭하여 해제
-								</span>
-							</button>
-						);
-					})()}
+				currentChartDatum != null &&
+				hoverTooltipPlacementStyle != null ? (
+					<ElevationHoverTooltip
+						datum={currentChartDatum}
+						trackPoints={trackPoints}
+						cpMarkers={cpMarkers}
+						elevationCalibratedThreshold={elevationCalibratedThreshold}
+						cpAnchorMinKm={tooltipCpAnchorKm}
+						cpAnchorMaxKm={tooltipCpAnchorMaxKm}
+						anchorFallbackDayNumber={tooltipAnchorDayNumber}
+						compactTooltip={compactTooltip}
+						pinned={isPinned}
+						placementStyle={hoverTooltipPlacementStyle}
+						onUnpin={onUnpin}
+					/>
+				) : null}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
 				{canDragBoundary && selectedStage && stageEndBoundaryHitLeftPct != null && (
 					<>
