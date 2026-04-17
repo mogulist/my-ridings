@@ -584,9 +584,13 @@ export function MobileSharedPlanLayout({
           <MobileSharedPlanMapTab
             route={shareRoute}
             stages={summaryStages}
+            trackPoints={summaryTrackPoints}
             planPois={stagesPlanPois}
             officialSummits={planOfficialSummits}
             activePlanId={planId}
+            knownRouteElevationGainM={totalElevationGainM}
+            cpMarkers={stagesCpMarkers}
+            summitMarkers={stagesSummitMarkers}
           />
         </div>
       )}
