@@ -1,6 +1,6 @@
 import { snapPlanPoisToTrack, type PlanPoiSnapInput } from '@my-ridings/plan-geometry';
 import { useMemo } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -41,22 +41,19 @@ const AXIS_WIDTH = 24;
 const DOT_SIZE = 10;
 const BAR_WIDTH = 2;
 
+/** 세로 간격은 거리 비례가 아니라 고정(스크롤 부담 완화). 거리 숫자는 좌측 라벨에만 표시 */
+const FIXED_SEGMENT_GAP_PX = 10;
+
 export function PlanStageTimelineStatic({
 	stage,
 	trackPoints,
 	planPois,
 }: PlanStageTimelineStaticProps) {
 	const theme = useTheme();
-	const { height: windowHeight } = useWindowDimensions();
 
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
 	const stageLenKm = Math.max(stageEndKm - stageStartKm, 0);
-
-	const pxPerKm = useMemo(() => {
-		const denom = Math.max(stageLenKm, 0.001);
-		return Math.max(4, windowHeight / denom);
-	}, [stageLenKm, windowHeight]);
 
 	const milestones = useMemo(() => {
 		const snapped =
@@ -125,14 +122,10 @@ export function PlanStageTimelineStatic({
 				</View>
 
 				{milestones.map((m, index) => {
-					const prev = milestones[index - 1];
-					const gapKm = prev ? Math.max(0, m.relKm - prev.relKm) : 0;
-					const spacerH = gapKm * pxPerKm;
-
 					return (
 						<View key={m.id}>
 							{index > 0 ? (
-								<View style={[styles.gapRow, { height: spacerH }]}>
+								<View style={[styles.gapRow, { height: FIXED_SEGMENT_GAP_PX }]}>
 									<View style={{ width: LEFT_KM_WIDTH }} />
 									<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
 										<View style={styles.axisSegment} />
