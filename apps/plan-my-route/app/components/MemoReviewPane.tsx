@@ -5,7 +5,7 @@ import { XIcon } from "lucide-react";
 import { getStageColor } from "../types/plan";
 import type { Stage } from "../types/plan";
 import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
-import { stageDayLabel } from "./PlanStagesPane";
+import { stageDayLabel } from "@my-ridings/plan-geometry";
 
 function formatNumber(n: number): string {
   return n.toLocaleString("ko-KR", { maximumFractionDigits: 1 });

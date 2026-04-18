@@ -20,11 +20,11 @@ import KakaoMap, {
 import { usePlanStages } from "../hooks/usePlanStages";
 import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import { PlanListPane } from "./PlanListPane";
-import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
+import { stageDayLabel, type SnappedPlanPoi } from "@my-ridings/plan-geometry";
+import { PlanStagesPane } from "./PlanStagesPane";
 import { StageDetailPanel } from "./StageDetailPanel";
 import { StageEditDialog } from "./StageEditDialog";
 import { PoiEditDialog } from "./PoiEditDialog";
-import type { SnappedPlanPoi } from "@my-ridings/plan-geometry";
 import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,

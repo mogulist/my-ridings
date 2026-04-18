@@ -1,10 +1,9 @@
 "use client";
 
+import { stageDayLabel } from "@my-ridings/plan-geometry";
 import StageCard from "./StageCard";
 import AddStageForm from "./AddStageForm";
 import type { Stage } from "../types/plan";
-
-const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 /** yyyy-mm-dd → YYYY. M. D. (ko locale order) */
 function formatDateForDisplay(isoDate: string): string {
@@ -33,21 +32,6 @@ type PlanStagesPaneProps = {
   addLastStage: () => void;
   isPending?: boolean;
 };
-
-export function stageDayLabel(
-  dayNumber: number,
-  planStartDate: string | null | undefined,
-): string {
-  if (!planStartDate) return "";
-  const start = new Date(planStartDate + "T12:00:00");
-  if (Number.isNaN(start.getTime())) return "";
-  const d = new Date(start);
-  d.setDate(d.getDate() + (dayNumber - 1));
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  const w = WEEKDAY_LABELS[d.getDay()];
-  return `${m}.${day}(${w})`;
-}
 
 export function PlanStagesPane({
   planName,

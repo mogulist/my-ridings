@@ -14,11 +14,8 @@ import {
 	YAxis,
 } from "recharts";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
-import {
-	computeElevationGainCurve,
-	computeTrackElevationGainLoss,
-	type PendingStageEdit,
-} from "../hooks/usePlanStages";
+import { computeElevationGainCurve, computeTrackElevationGainLoss } from "@my-ridings/plan-geometry";
+import type { PendingStageEdit } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 

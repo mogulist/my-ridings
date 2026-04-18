@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
 import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
-import { calibrateThreshold } from "../hooks/usePlanStages";
+import { calibrateThreshold } from "@my-ridings/plan-geometry";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { SummitCatalogRow } from "../types/summitCatalog";
 import { getStageColor, type Stage } from "../types/plan";

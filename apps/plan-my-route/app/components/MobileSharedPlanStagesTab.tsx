@@ -1,6 +1,12 @@
 "use client";
 
-import { snapPlanPoisToTrack, type SnappedPlanPoi } from "@my-ridings/plan-geometry";
+import {
+	calibrateThreshold,
+	computeTrackElevationGainLoss,
+	snapPlanPoisToTrack,
+	type SnappedPlanPoi,
+	stageDayLabel,
+} from "@my-ridings/plan-geometry";
 import { Badge, cn } from "@my-ridings/ui";
 import { ArrowUp, ChevronDown, ChevronUp, MapPin, Mountain } from "lucide-react";
 import {
@@ -16,7 +22,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { calibrateThreshold, computeTrackElevationGainLoss } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
@@ -36,7 +41,6 @@ import {
 	MOBILE_PLAN_ELEV_PANEL_HEIGHT_PX,
 	MOBILE_PLAN_TAB_BAR_HEIGHT_PX,
 } from "./mobileSharedPlanConstants";
-import { stageDayLabel } from "./PlanStagesPane";
 import { StageScheduleWaypointList } from "./StageScheduleWaypointList";
 
 // ── 스냅 POI / 구간 고도 ─────────────────────────────────────────

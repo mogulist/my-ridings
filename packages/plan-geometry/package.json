@@ -9,6 +9,9 @@
 		".": "./src/index.ts"
 	},
 	"sideEffects": false,
+	"scripts": {
+		"test": "bun test src"
+	},
 	"devDependencies": {
 		"@plan-my-route/typescript-config": "workspace:*",
 		"typescript": "^5"
