@@ -71,8 +71,8 @@ export default function RoutePlansScreen() {
                 style={({ pressed }) => [styles.planCard, pressed && styles.pressed]}
                 onPress={() =>
                   router.push({
-                    pathname: '/map',
-                    params: { routeId, planId: plan.id },
+                    pathname: '/routes/[routeId]/plans/[planId]/schedule',
+                    params: { routeId: routeId ?? '', planId: plan.id },
                   })
                 }>
                 <ThemedText type="smallBold">{plan.name}</ThemedText>
