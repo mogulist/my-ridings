@@ -7,14 +7,10 @@ import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type { StageScheduleWaypoint } from "../types/stageScheduleWaypoint";
+import { snapPlanPoisToTrack, type SnappedPlanPoi } from "@my-ridings/plan-geometry";
 import { DotsMenu } from "./DotsMenu";
 import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
-import {
-	maxElevationInStageRange,
-	type SnappedPlanPoi,
-	snapPlanPoisToTrack,
-	stageScheduleWaypoints,
-} from "./MobileSharedPlanStagesTab";
+import { maxElevationInStageRange, stageScheduleWaypoints } from "./MobileSharedPlanStagesTab";
 import { ScheduleMarkerMemoDialog } from "./ScheduleMarkerMemoDialog";
 import { StageScheduleWaypointList } from "./StageScheduleWaypointList";
 

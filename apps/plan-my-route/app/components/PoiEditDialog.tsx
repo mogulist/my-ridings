@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
-import type { SnappedPlanPoi } from "./MobileSharedPlanStagesTab";
+import type { SnappedPlanPoi } from "@my-ridings/plan-geometry";
 
 export type PoiEditDialogProps = {
   open: boolean;

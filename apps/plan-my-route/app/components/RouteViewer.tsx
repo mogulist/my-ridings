@@ -24,7 +24,7 @@ import { PlanStagesPane, stageDayLabel } from "./PlanStagesPane";
 import { StageDetailPanel } from "./StageDetailPanel";
 import { StageEditDialog } from "./StageEditDialog";
 import { PoiEditDialog } from "./PoiEditDialog";
-import type { SnappedPlanPoi } from "./MobileSharedPlanStagesTab";
+import type { SnappedPlanPoi } from "@my-ridings/plan-geometry";
 import {
   PendingDeletionDialog,
   DeleteConfirmationDialog,
