@@ -1,7 +1,14 @@
 import { stageDayLabel } from '@my-ridings/plan-geometry';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -78,6 +85,27 @@ export default function PlanScheduleScreen() {
     });
   };
 
+  const routerPushStageEdit = (dayNumber: number) => {
+    router.push({
+      pathname: '/routes/[routeId]/plans/[planId]/stages/[dayNumber]/edit',
+      params: {
+        routeId: routeId ?? '',
+        planId: planId ?? '',
+        dayNumber: String(dayNumber),
+      },
+    });
+  };
+
+  const openStageOverflowMenu = (dayNumber: number, headlineShort: string) => {
+    Alert.alert(headlineShort, undefined, [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '스테이지 편집',
+        onPress: () => routerPushStageEdit(dayNumber),
+      },
+    ]);
+  };
+
   const stages = detail?.stages ?? [];
 
   return (
@@ -134,22 +162,33 @@ export default function PlanScheduleScreen() {
                   ? `${headline}, ${meta}, ${titleExtra}`
                   : `${headline}, ${meta}`;
                 return (
-                  <Pressable
-                    key={stage.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
-                    style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-                    onPress={() => routerPushStage(dayNumber)}>
-                    <ThemedText type="smallBold">{headline}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {meta}
-                    </ThemedText>
-                    {titleExtra ? (
-                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
-                        {titleExtra}
+                  <View key={stage.id} style={styles.card}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
+                      style={({ pressed }) => [styles.cardMain, pressed && styles.cardPressed]}
+                      onPress={() => routerPushStage(dayNumber)}>
+                      <ThemedText type="smallBold">{headline}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {meta}
                       </ThemedText>
-                    ) : null}
-                  </Pressable>
+                      {titleExtra ? (
+                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+                          {titleExtra}
+                        </ThemedText>
+                      ) : null}
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${headline}, 더보기 메뉴`}
+                      hitSlop={12}
+                      style={({ pressed }) => [styles.cardMore, pressed && styles.cardPressed]}
+                      onPress={() => openStageOverflowMenu(dayNumber, headline)}>
+                      <ThemedText type="smallBold" style={styles.moreGlyph}>
+                        ⋯
+                      </ThemedText>
+                    </Pressable>
+                  </View>
                 );
               })}
             </>
@@ -187,12 +226,32 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     borderWidth: 1,
     borderColor: '#A0A4AE',
     borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingLeft: Spacing.three,
     paddingVertical: Spacing.two,
+    paddingRight: Spacing.two,
     gap: Spacing.half,
+  },
+  cardMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.half,
+    paddingRight: Spacing.one,
+  },
+  cardMore: {
+    paddingTop: 2,
+    paddingHorizontal: Spacing.one,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  moreGlyph: {
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: 1,
   },
   cardPressed: {
     opacity: 0.75,
