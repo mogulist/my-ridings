@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
+import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -165,7 +166,7 @@ export default function StageDetailScreen() {
 								<ThemedText type="smallBold">다시 시도</ThemedText>
 							</Pressable>
 						</View>
-					) : !stage ? (
+					) : !(detail && stage) ? (
 						<View style={styles.placeholderBlock}>
 							<ThemedText type="small" themeColor="textSecondary">
 								해당 일차 스테이지가 없습니다.
@@ -173,6 +174,7 @@ export default function StageDetailScreen() {
 						</View>
 					) : (
 						<StageSummaryBody
+							detail={detail}
 							stage={stage}
 							maxElevationM={maxElevationM}
 							elevationGainColor={elevationGainColor}
@@ -185,12 +187,14 @@ export default function StageDetailScreen() {
 }
 
 type StageSummaryBodyProps = {
+	detail: PlanDetail;
 	stage: MobilePlanStageRow;
 	maxElevationM: number | null;
 	elevationGainColor: string;
 };
 
 function StageSummaryBody({
+	detail,
 	stage,
 	maxElevationM,
 	elevationGainColor,
@@ -220,9 +224,14 @@ function StageSummaryBody({
 					</ThemedText>
 				</View>
 			</View>
+			<PlanStageTimelineStatic
+				planPois={detail.planPois}
+				stage={stage}
+				trackPoints={detail.trackPoints}
+			/>
 			<View style={styles.placeholderBlock}>
 				<ThemedText type="small" themeColor="textSecondary">
-					타임라인·고도·HUD는 다음 단계에서 표시됩니다.
+					고도 프로필·HUD는 다음 단계에서 표시됩니다.
 				</ThemedText>
 			</View>
 		</>
