@@ -2,7 +2,7 @@ import { stageDayLabel } from '@my-ridings/plan-geometry';
 import { HeaderButton } from '@react-navigation/elements';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -45,6 +45,8 @@ export default function StageDetailScreen() {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [detail, setDetail] = useState<PlanDetail | null>(null);
 	const [retryNonce, setRetryNonce] = useState(0);
+	const scrollRef = useRef<ScrollView>(null);
+	const scrollContentRef = useRef<View>(null);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -148,43 +150,48 @@ export default function StageDetailScreen() {
 		<ThemedView style={styles.container}>
 			<SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
 				<ScrollView
+					ref={scrollRef}
 					contentContainerStyle={styles.scrollContent}
 					contentInsetAdjustmentBehavior="automatic">
-					{isLoading ? (
-						<View style={styles.loadingBlock}>
-							<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" />
-							<ThemedText type="small" themeColor="textSecondary">
-								불러오는 중…
-							</ThemedText>
-						</View>
-					) : errorMessage ? (
-						<View style={styles.placeholderBlock}>
-							<ThemedText type="small" style={styles.errorText}>
-								{errorMessage}
-							</ThemedText>
-							<Pressable
-								accessibilityRole="button"
-								accessibilityLabel="다시 시도"
-								style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-								onPress={handleRetry}>
-								<ThemedText type="smallBold">다시 시도</ThemedText>
-							</Pressable>
-						</View>
-					) : !(detail && stage) ? (
-						<View style={styles.placeholderBlock}>
-							<ThemedText type="small" themeColor="textSecondary">
-								해당 일차 스테이지가 없습니다.
-							</ThemedText>
-						</View>
-					) : (
-						<StageSummaryBody
-							detail={detail}
-							stage={stage}
-							maxElevationM={maxElevationM}
-							elevationGainColor={elevationGainColor}
-							location={location}
-						/>
-					)}
+					<View ref={scrollContentRef} collapsable={false} style={styles.scrollInner}>
+						{isLoading ? (
+							<View style={styles.loadingBlock}>
+								<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" />
+								<ThemedText type="small" themeColor="textSecondary">
+									불러오는 중…
+								</ThemedText>
+							</View>
+						) : errorMessage ? (
+							<View style={styles.placeholderBlock}>
+								<ThemedText type="small" style={styles.errorText}>
+									{errorMessage}
+								</ThemedText>
+								<Pressable
+									accessibilityRole="button"
+									accessibilityLabel="다시 시도"
+									style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+									onPress={handleRetry}>
+									<ThemedText type="smallBold">다시 시도</ThemedText>
+								</Pressable>
+							</View>
+						) : !(detail && stage) ? (
+							<View style={styles.placeholderBlock}>
+								<ThemedText type="small" themeColor="textSecondary">
+									해당 일차 스테이지가 없습니다.
+								</ThemedText>
+							</View>
+						) : (
+							<StageSummaryBody
+								detail={detail}
+								stage={stage}
+								maxElevationM={maxElevationM}
+								elevationGainColor={elevationGainColor}
+								location={location}
+								scrollRef={scrollRef}
+								scrollContentRef={scrollContentRef}
+							/>
+						)}
+					</View>
 				</ScrollView>
 			</SafeAreaView>
 		</ThemedView>
@@ -197,6 +204,8 @@ type StageSummaryBodyProps = {
 	maxElevationM: number | null;
 	elevationGainColor: string;
 	location: ReturnType<typeof useCurrentLocationKm>;
+	scrollRef: RefObject<ScrollView | null>;
+	scrollContentRef: RefObject<View | null>;
 };
 
 function StageSummaryBody({
@@ -205,8 +214,18 @@ function StageSummaryBody({
 	maxElevationM,
 	elevationGainColor,
 	location,
+	scrollRef,
+	scrollContentRef,
 }: StageSummaryBodyProps) {
 	const routeLabel = stageRouteLine(stage);
+	const stageStartKm = (stage.start_distance ?? 0) / 1000;
+	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
+	const stageLenKm = Math.max(stageEndKm - stageStartKm, 0);
+	const currentRelKm =
+		location.currentKm != null
+			? Math.min(Math.max(location.currentKm - stageStartKm, 0), stageLenKm)
+			: null;
+
 	return (
 		<>
 			<View style={styles.summaryCard}>
@@ -237,6 +256,9 @@ function StageSummaryBody({
 				planPois={detail.planPois}
 				stage={stage}
 				trackPoints={detail.trackPoints}
+				currentRelKm={currentRelKm}
+				scrollRef={scrollRef}
+				scrollContentRef={scrollContentRef}
 			/>
 			<View style={styles.placeholderBlock}>
 				<ThemedText type="small" themeColor="textSecondary">
@@ -303,6 +325,8 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		paddingHorizontal: Spacing.four,
 		paddingVertical: Spacing.four,
+	},
+	scrollInner: {
 		gap: Spacing.three,
 	},
 	summaryCard: {
