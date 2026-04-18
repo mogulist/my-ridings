@@ -46,6 +46,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@mj-studio/react-native-naver-map": "^2.7.1",
+        "@my-ridings/plan-geometry": "workspace:*",
         "@react-navigation/bottom-tabs": "^7.15.5",
         "@react-navigation/elements": "^2.9.10",
         "@react-navigation/native": "^7.1.33",
@@ -124,6 +125,14 @@
       "devDependencies": {
         "@eslint/eslintrc": "^3",
         "eslint-config-next": "16.1.6",
+        "typescript": "^5",
+      },
+    },
+    "packages/plan-geometry": {
+      "name": "@my-ridings/plan-geometry",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@plan-my-route/typescript-config": "workspace:*",
         "typescript": "^5",
       },
     },
@@ -563,6 +572,8 @@
     "@mj-studio/react-native-naver-map": ["@mj-studio/react-native-naver-map@2.7.1", "", { "dependencies": { "object-hash": "^3.0.0" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-p5SnHGM0BD21FacETcEBI9Sn1RD0f6DIgpY4uQsHTYR1JZrrwdlVbB1NidrRbVoqafPcjZIJwcZy7sXOLcs9BA=="],
 
     "@my-ridings/design-tokens": ["@my-ridings/design-tokens@workspace:packages/design-tokens"],
+
+    "@my-ridings/plan-geometry": ["@my-ridings/plan-geometry@workspace:packages/plan-geometry"],
 
     "@my-ridings/plan-my-route": ["@my-ridings/plan-my-route@workspace:apps/plan-my-route"],
 

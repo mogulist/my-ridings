@@ -1,0 +1,16 @@
+{
+	"name": "@my-ridings/plan-geometry",
+	"version": "0.0.0",
+	"private": true,
+	"license": "MIT",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"sideEffects": false,
+	"devDependencies": {
+		"@plan-my-route/typescript-config": "workspace:*",
+		"typescript": "^5"
+	}
+}

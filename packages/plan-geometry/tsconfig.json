@@ -1,0 +1,9 @@
+{
+	"extends": "@plan-my-route/typescript-config/base.json",
+	"compilerOptions": {
+		"rootDir": "src",
+		"noEmit": true,
+		"baseUrl": "."
+	},
+	"include": ["src/**/*.ts"]
+}

@@ -4,6 +4,9 @@ import React from 'react';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { assertPlanGeometryPackageLinked } from '@/features/plan/workspace-package-check';
+
+assertPlanGeometryPackageLinked();
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();

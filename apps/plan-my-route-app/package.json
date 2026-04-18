@@ -16,6 +16,7 @@
     "build:debug:android:local": "eas build --profile debug --platform android --local"
   },
   "dependencies": {
+    "@my-ridings/plan-geometry": "workspace:*",
     "@mj-studio/react-native-naver-map": "^2.7.1",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/elements": "^2.9.10",
