@@ -6,15 +6,18 @@
     "debug": {
       "developmentClient": true,
       "distribution": "internal",
-      "environment": "development"
+      "environment": "development",
+      "installCommand": "cd ../.. && bun install --frozen-lockfile"
     },
     "preview": {
       "distribution": "internal",
-      "environment": "preview"
+      "environment": "preview",
+      "installCommand": "cd ../.. && bun install --frozen-lockfile"
     },
     "production": {
       "autoIncrement": true,
-      "environment": "production"
+      "environment": "production",
+      "installCommand": "cd ../.. && bun install --frozen-lockfile"
     }
   }
 }
