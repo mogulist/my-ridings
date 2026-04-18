@@ -9,6 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
 import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
+import { useCurrentLocationKm } from '@/hooks/use-current-location-km';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -83,6 +84,11 @@ export default function StageDetailScreen() {
 
 	const stages = detail?.stages ?? [];
 	const stage = stages[dayNumber - 1];
+
+	const location = useCurrentLocationKm(
+		detail?.trackPoints ?? null,
+		detail != null && stage != null,
+	);
 
 	const datePart =
 		detail != null ? stageDayLabel(dayNumber, detail.plan.start_date) : '';
@@ -179,6 +185,7 @@ export default function StageDetailScreen() {
 							stage={stage}
 							maxElevationM={maxElevationM}
 							elevationGainColor={elevationGainColor}
+							location={location}
 						/>
 					)}
 				</ScrollView>
@@ -192,6 +199,7 @@ type StageSummaryBodyProps = {
 	stage: MobilePlanStageRow;
 	maxElevationM: number | null;
 	elevationGainColor: string;
+	location: ReturnType<typeof useCurrentLocationKm>;
 };
 
 function StageSummaryBody({
@@ -199,6 +207,7 @@ function StageSummaryBody({
 	stage,
 	maxElevationM,
 	elevationGainColor,
+	location,
 }: StageSummaryBodyProps) {
 	const routeLabel = stageRouteLine(stage);
 	return (
@@ -224,6 +233,7 @@ function StageSummaryBody({
 						최고 {maxElevationM != null ? `${maxElevationM.toLocaleString()} m` : '—'}
 					</ThemedText>
 				</View>
+				<CurrentLocationKmLine location={location} />
 			</View>
 			<PlanStageMiniElevation stage={stage} trackPoints={detail.trackPoints} />
 			<PlanStageTimelineStatic
@@ -237,6 +247,39 @@ function StageSummaryBody({
 				</ThemedText>
 			</View>
 		</>
+	);
+}
+
+type CurrentLocationKmLineProps = {
+	location: ReturnType<typeof useCurrentLocationKm>;
+};
+
+function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
+	if (location.permission === 'denied') {
+		return (
+			<ThemedText type="small" themeColor="textSecondary">
+				현재 위치: 권한 거부됨
+			</ThemedText>
+		);
+	}
+	if (location.error) {
+		return (
+			<ThemedText type="small" themeColor="textSecondary">
+				현재 위치: {location.error}
+			</ThemedText>
+		);
+	}
+	if (location.currentKm == null) {
+		return (
+			<ThemedText type="small" themeColor="textSecondary">
+				현재 위치: 측정 중…
+			</ThemedText>
+		);
+	}
+	return (
+		<ThemedText type="small" themeColor="textSecondary">
+			현재 {location.currentKm.toFixed(1)} km
+		</ThemedText>
 	);
 }
 
