@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
+import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
 import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -224,6 +225,7 @@ function StageSummaryBody({
 					</ThemedText>
 				</View>
 			</View>
+			<PlanStageMiniElevation stage={stage} trackPoints={detail.trackPoints} />
 			<PlanStageTimelineStatic
 				planPois={detail.planPois}
 				stage={stage}
@@ -231,7 +233,7 @@ function StageSummaryBody({
 			/>
 			<View style={styles.placeholderBlock}>
 				<ThemedText type="small" themeColor="textSecondary">
-					고도 프로필·HUD는 다음 단계에서 표시됩니다.
+					HUD는 다음 단계에서 표시됩니다.
 				</ThemedText>
 			</View>
 		</>
