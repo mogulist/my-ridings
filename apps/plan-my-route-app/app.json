@@ -11,6 +11,9 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.herbertlim.planmyrouteapp",
       "appleTeamId": "HJQ38R7WDY",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "라이딩 중 현재 위치를 경로에 표시하기 위해 위치 권한이 필요합니다."
+      },
       "config": {
         "usesNonExemptEncryption": false
       }
