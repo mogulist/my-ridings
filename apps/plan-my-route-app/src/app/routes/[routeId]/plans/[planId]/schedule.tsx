@@ -1,3 +1,4 @@
+import { stageDayLabel } from '@my-ridings/plan-geometry';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -6,7 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { fetchPlanDetail, type PlanDetail } from '@/features/api/plan-my-route';
+import {
+  fetchPlanDetail,
+  type MobilePlanStageRow,
+  type PlanDetail,
+} from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
 
 /** 플로팅 pill·탭바와 겹치지 않도록 하단 여백 */
@@ -111,24 +116,39 @@ export default function PlanScheduleScreen() {
             </View>
           ) : (
             <>
-              <ThemedText type="small" themeColor="textSecondary">
-                {detail?.plan.name ?? ''} · 스테이지 {stages.length}개 (표시 형식은 다음 단계에서 다듬습니다)
-              </ThemedText>
+              {detail?.plan.name ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {detail.plan.name}
+                </ThemedText>
+              ) : null}
 
               {stages.map((stage, index) => {
                 const dayNumber = index + 1;
-                const title = stage.title?.trim() || `Day ${dayNumber}`;
+                const datePart = stageDayLabel(dayNumber, detail?.plan.start_date ?? null);
+                const headline = datePart ? `D${dayNumber} · ${datePart}` : `D${dayNumber}`;
+                const distanceKm = stageDistanceKm(stage);
+                const gainM = Math.round(Number(stage.elevation_gain) || 0);
+                const meta = `${distanceKm.toFixed(1)} km · ↑${gainM.toLocaleString()} m`;
+                const titleExtra = stage.title?.trim();
+                const a11yLabel = titleExtra
+                  ? `${headline}, ${meta}, ${titleExtra}`
+                  : `${headline}, ${meta}`;
                 return (
                   <Pressable
                     key={stage.id}
                     accessibilityRole="button"
-                    accessibilityLabel={`${title} 스테이지 상세`}
+                    accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
                     style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
                     onPress={() => routerPushStage(dayNumber)}>
-                    <ThemedText type="smallBold">{title}</ThemedText>
+                    <ThemedText type="smallBold">{headline}</ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      거리·획득고도 카드는 다음 단계에서 표시됩니다.
+                      {meta}
                     </ThemedText>
+                    {titleExtra ? (
+                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+                        {titleExtra}
+                      </ThemedText>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -189,3 +209,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
 });
+
+function stageDistanceKm(stage: MobilePlanStageRow): number {
+  const startM = stage.start_distance ?? 0;
+  const endM = stage.end_distance ?? startM;
+  return (endM - startM) / 1000;
+}
