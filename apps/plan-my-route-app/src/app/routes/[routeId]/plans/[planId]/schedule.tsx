@@ -34,7 +34,7 @@ export default function PlanScheduleScreen() {
 					contentInsetAdjustmentBehavior="automatic">
 					<ThemedText type="subtitle">일정</ThemedText>
 					<ThemedText type="small" themeColor="textSecondary">
-						임시 더미 스테이지 — 카드를 탭하면 상세로 이동합니다.
+						임시 더미입니다. 카드를 탭하면 스테이지 상세로 들어가며, 상세 화면 네비 바 오른쪽의 「편집」으로 모달을 열 수 있습니다.
 					</ThemedText>
 
 					{DUMMY_STAGE_ROWS.map((row) => (

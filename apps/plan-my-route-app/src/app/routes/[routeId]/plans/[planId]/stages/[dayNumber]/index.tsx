@@ -1,8 +1,10 @@
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { HeaderButton } from '@react-navigation/elements';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useLayoutEffect } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -31,11 +33,8 @@ export default function StageDetailScreen() {
 		navigation.setOptions({
 			title,
 			headerRight: () => (
-				<Pressable
-					accessibilityRole="button"
+				<HeaderButton
 					accessibilityLabel="스테이지 편집"
-					hitSlop={12}
-					style={({ pressed }) => [styles.headerIconWrap, pressed && styles.headerIconPressed]}
 					onPress={() => {
 						router.push({
 							pathname: '/routes/[routeId]/plans/[planId]/stages/[dayNumber]/edit',
@@ -46,16 +45,17 @@ export default function StageDetailScreen() {
 							},
 						});
 					}}>
-					<SymbolView
-						name={{
-							ios: 'square.and.pencil',
-							android: 'edit',
-							web: 'edit',
-						}}
-						size={22}
-						tintColor={theme.text}
-					/>
-				</Pressable>
+					<View style={styles.headerRightRow}>
+						{Platform.OS === 'ios' ? (
+							<SymbolView
+								name="square.and.pencil"
+								size={20}
+								tintColor={theme.text}
+							/>
+						) : null}
+						<ThemedText type="smallBold">편집</ThemedText>
+					</View>
+				</HeaderButton>
 			),
 		});
 	}, [navigation, router, routeId, planId, dayNumber, title, theme.text]);
@@ -86,13 +86,9 @@ const styles = StyleSheet.create({
 		paddingVertical: Spacing.four,
 		gap: Spacing.two,
 	},
-	headerIconWrap: {
-		marginRight: Spacing.two,
-		padding: Spacing.half,
-		justifyContent: 'center',
+	headerRightRow: {
+		flexDirection: 'row',
 		alignItems: 'center',
-	},
-	headerIconPressed: {
-		opacity: 0.6,
+		gap: 6,
 	},
 });
