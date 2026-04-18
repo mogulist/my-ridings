@@ -46,7 +46,6 @@ export default function StageDetailScreen() {
 	const [detail, setDetail] = useState<PlanDetail | null>(null);
 	const [retryNonce, setRetryNonce] = useState(0);
 	const scrollRef = useRef<ScrollView>(null);
-	const scrollContentRef = useRef<View>(null);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -153,7 +152,7 @@ export default function StageDetailScreen() {
 					ref={scrollRef}
 					contentContainerStyle={styles.scrollContent}
 					contentInsetAdjustmentBehavior="automatic">
-					<View ref={scrollContentRef} collapsable={false} style={styles.scrollInner}>
+					<View style={styles.scrollInner}>
 						{isLoading ? (
 							<View style={styles.loadingBlock}>
 								<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" />
@@ -188,7 +187,6 @@ export default function StageDetailScreen() {
 								elevationGainColor={elevationGainColor}
 								location={location}
 								scrollRef={scrollRef}
-								scrollContentRef={scrollContentRef}
 							/>
 						)}
 					</View>
@@ -205,7 +203,6 @@ type StageSummaryBodyProps = {
 	elevationGainColor: string;
 	location: ReturnType<typeof useCurrentLocationKm>;
 	scrollRef: RefObject<ScrollView | null>;
-	scrollContentRef: RefObject<View | null>;
 };
 
 function StageSummaryBody({
@@ -215,7 +212,6 @@ function StageSummaryBody({
 	elevationGainColor,
 	location,
 	scrollRef,
-	scrollContentRef,
 }: StageSummaryBodyProps) {
 	const routeLabel = stageRouteLine(stage);
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;

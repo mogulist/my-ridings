@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
 	Animated,
 	Easing,
-	findNodeHandle,
 	ScrollView,
 	StyleSheet,
 	View,
@@ -28,7 +27,7 @@ function poiTypeLabel(poiType: string): string {
 	return POI_TYPE_LABEL_KO[poiType] ?? poiType;
 }
 
-type TimelineKind = 'start' | 'poi' | 'end';
+type TimelineKind = 'start' | 'poi' | 'end' | 'current';
 
 type TimelineMilestone = {
 	id: string;
@@ -42,10 +41,9 @@ export type PlanStageTimelineStaticProps = {
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
 	planPois: PlanPoiRow[];
-	/** 스테이지 기준 상대 km (0…스테이지 길이). 없으면 현위치 도트·스크롤 생략 */
+	/** 스테이지 기준 상대 km (0…스테이지 길이). 없으면 현위치 행·스크롤 생략 */
 	currentRelKm: number | null;
 	scrollRef: RefObject<ScrollView | null>;
-	scrollContentRef: RefObject<View | null>;
 };
 
 const LEFT_KM_WIDTH = 56;
@@ -53,7 +51,6 @@ const AXIS_WIDTH = 24;
 const DOT_SIZE = 10;
 const CURRENT_DOT_SIZE = 14;
 const BAR_WIDTH = 2;
-const MILESTONE_ROW_MIN_HEIGHT = 44;
 const SCROLL_LEAD_PX = 100;
 const SCROLL_THROTTLE_MS = 800;
 
@@ -66,14 +63,13 @@ export function PlanStageTimelineStatic({
 	planPois,
 	currentRelKm,
 	scrollRef,
-	scrollContentRef,
 }: PlanStageTimelineStaticProps) {
 	const theme = useTheme();
-	const dotRef = useRef<View>(null);
 	const pulse = useRef(new Animated.Value(1)).current;
+	const currentRowRef = useRef<View>(null);
 	const lastScrollAtRef = useRef(0);
 	const hasAutoScrolledRef = useRef(false);
-	const lastThrottledScrollKmRef = useRef<number | null>(null);
+	const lastScrollKmRef = useRef<number | null>(null);
 
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
@@ -116,23 +112,32 @@ export function PlanStageTimelineStatic({
 			},
 		];
 
+		if (currentRelKm != null) {
+			rows.push({
+				id: 'current',
+				kind: 'current',
+				relKm: Math.min(Math.max(currentRelKm, 0), stageLenKm),
+				title: '현재 위치',
+			});
+		}
+
 		rows.sort((a, b) => {
 			const d = a.relKm - b.relKm;
 			if (d !== 0) return d;
-			const order = (k: TimelineKind) => (k === 'start' ? 0 : k === 'poi' ? 1 : 2);
-			return order(a.kind) - order(b.kind);
+			return kindOrder(a.kind) - kindOrder(b.kind);
 		});
 
 		return rows;
-	}, [planPois, stage.end_name, stage.start_name, stageEndKm, stageLenKm, stageStartKm, trackPoints]);
-
-	const dotCenterY = useMemo(
-		() =>
-			currentRelKm == null
-				? null
-				: computeCurrentDotCenterY(milestones, currentRelKm, MILESTONE_ROW_MIN_HEIGHT, FIXED_SEGMENT_GAP_PX),
-		[currentRelKm, milestones],
-	);
+	}, [
+		currentRelKm,
+		planPois,
+		stage.end_name,
+		stage.start_name,
+		stageEndKm,
+		stageLenKm,
+		stageStartKm,
+		trackPoints,
+	]);
 
 	useEffect(() => {
 		if (currentRelKm == null) {
@@ -164,48 +169,20 @@ export function PlanStageTimelineStatic({
 	useLayoutEffect(() => {
 		if (currentRelKm == null) {
 			hasAutoScrolledRef.current = false;
-			lastThrottledScrollKmRef.current = null;
-			return;
+			lastScrollKmRef.current = null;
 		}
-		const contentNode = scrollContentRef.current;
-		const outer = scrollRef.current;
-		if (!contentNode || !outer || dotCenterY == null) return;
+	}, [currentRelKm]);
 
-		const scrollToMeasured = () => {
-			const inner = dotRef.current;
-			const anchor = findNodeHandle(contentNode);
-			if (!inner || anchor == null) return;
-
-			const now = Date.now();
-			const kmDelta =
-				lastThrottledScrollKmRef.current == null
-					? Infinity
-					: Math.abs(currentRelKm - lastThrottledScrollKmRef.current);
-			const isFirstReady = !hasAutoScrolledRef.current;
-			const throttleOk =
-				isFirstReady || now - lastScrollAtRef.current >= SCROLL_THROTTLE_MS || kmDelta >= 1;
-			if (!throttleOk) return;
-
-			inner.measureLayout(
-				anchor,
-				(_x, y) => {
-					const dotCenterOffsetY = y + CURRENT_DOT_SIZE / 2;
-					const targetY = Math.max(0, dotCenterOffsetY - SCROLL_LEAD_PX);
-					outer.scrollTo({
-						y: targetY,
-						animated: hasAutoScrolledRef.current,
-					});
-					lastScrollAtRef.current = Date.now();
-					hasAutoScrolledRef.current = true;
-					lastThrottledScrollKmRef.current = currentRelKm;
-				},
-				() => {},
-			);
-		};
-
-		scrollToMeasured();
-		requestAnimationFrame(scrollToMeasured);
-	}, [currentRelKm, dotCenterY, milestones, scrollContentRef, scrollRef]);
+	const handleCurrentRowLayout = () => {
+		maybeAutoScroll({
+			scrollRef,
+			currentRowRef,
+			currentRelKm,
+			lastScrollAtRef,
+			hasAutoScrolledRef,
+			lastScrollKmRef,
+		});
+	};
 
 	return (
 		<View style={styles.wrap}>
@@ -232,7 +209,10 @@ export function PlanStageTimelineStatic({
 							m.kind === 'poi' && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 
 						return (
-							<View key={m.id}>
+							<View
+								key={m.id}
+								ref={m.kind === 'current' ? currentRowRef : undefined}
+								onLayout={m.kind === 'current' ? handleCurrentRowLayout : undefined}>
 								{index > 0 ? (
 									<View style={[styles.gapRow, { height: FIXED_SEGMENT_GAP_PX }]}>
 										<View style={{ width: LEFT_KM_WIDTH }} />
@@ -266,6 +246,17 @@ export function PlanStageTimelineStatic({
 													]}
 												/>
 											)
+										) : m.kind === 'current' ? (
+											<Animated.View
+												style={[
+													styles.currentDotPulse,
+													{
+														transform: [{ scale: pulse }],
+														backgroundColor: theme.text,
+														shadowColor: theme.text,
+													},
+												]}
+											/>
 										) : (
 											<View style={[styles.endpointBar, { backgroundColor: theme.text }]} />
 										)}
@@ -285,31 +276,6 @@ export function PlanStageTimelineStatic({
 							</View>
 						);
 					})}
-
-					{currentRelKm != null && dotCenterY != null ? (
-						<View
-							ref={dotRef}
-							pointerEvents="none"
-							collapsable={false}
-							style={[
-								styles.currentDotWrap,
-								{
-									top: dotCenterY - CURRENT_DOT_SIZE / 2,
-									left: LEFT_KM_WIDTH + AXIS_WIDTH / 2 - CURRENT_DOT_SIZE / 2,
-								},
-							]}>
-							<Animated.View
-								style={[
-									styles.currentDotPulse,
-									{
-										transform: [{ scale: pulse }],
-										backgroundColor: theme.text,
-										shadowColor: theme.text,
-									},
-								]}
-							/>
-						</View>
-					) : null}
 				</View>
 			</View>
 		</View>
@@ -392,13 +358,6 @@ const styles = StyleSheet.create({
 		minWidth: 0,
 		gap: 2,
 	},
-	currentDotWrap: {
-		position: 'absolute',
-		width: CURRENT_DOT_SIZE,
-		height: CURRENT_DOT_SIZE,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
 	currentDotPulse: {
 		width: CURRENT_DOT_SIZE,
 		height: CURRENT_DOT_SIZE,
@@ -410,50 +369,64 @@ const styles = StyleSheet.create({
 	},
 });
 
+function kindOrder(k: TimelineKind): number {
+	if (k === 'start') return 0;
+	if (k === 'poi') return 1;
+	if (k === 'current') return 2;
+	return 3;
+}
+
 function formatStageKm(relKm: number): string {
 	const rounded = Math.round(relKm * 10) / 10;
 	const n = Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
 	return `${n}km`;
 }
 
-type MilestoneRow = {
-	relKm: number;
+type MaybeAutoScrollArgs = {
+	scrollRef: RefObject<ScrollView | null>;
+	currentRowRef: RefObject<View | null>;
+	currentRelKm: number | null;
+	lastScrollAtRef: { current: number };
+	hasAutoScrolledRef: { current: boolean };
+	lastScrollKmRef: { current: number | null };
 };
 
-function computeCurrentDotCenterY(
-	milestones: MilestoneRow[],
-	currentRelKm: number,
-	rowHeight: number,
-	gapPx: number,
-): number | null {
-	const n = milestones.length;
-	if (n === 0) return null;
-	if (n === 1) return rowHeight / 2;
+function maybeAutoScroll({
+	scrollRef,
+	currentRowRef,
+	currentRelKm,
+	lastScrollAtRef,
+	hasAutoScrolledRef,
+	lastScrollKmRef,
+}: MaybeAutoScrollArgs) {
+	if (currentRelKm == null) return;
+	const outer = scrollRef.current;
+	const row = currentRowRef.current;
+	if (!outer || !row) return;
 
-	const centers: number[] = [];
-	let y = 0;
-	for (let i = 0; i < n; i++) {
-		if (i > 0) y += gapPx;
-		centers.push(y + rowHeight / 2);
-		y += rowHeight;
-	}
+	const now = Date.now();
+	const kmDelta =
+		lastScrollKmRef.current == null ? Infinity : Math.abs(currentRelKm - lastScrollKmRef.current);
+	const isFirstReady = !hasAutoScrolledRef.current;
+	const throttleOk =
+		isFirstReady || now - lastScrollAtRef.current >= SCROLL_THROTTLE_MS || kmDelta >= 1;
+	if (!throttleOk) return;
 
-	const firstKm = milestones[0].relKm;
-	const lastKm = milestones[n - 1].relKm;
-	const clampedKm = Math.min(Math.max(currentRelKm, firstKm), lastKm);
-
-	if (clampedKm <= firstKm) return centers[0];
-	if (clampedKm >= lastKm) return centers[n - 1];
-
-	for (let i = 0; i < n - 1; i++) {
-		const k0 = milestones[i].relKm;
-		const k1 = milestones[i + 1].relKm;
-		if (clampedKm >= k0 && clampedKm <= k1) {
-			const span = k1 - k0;
-			const t = span > 1e-9 ? (clampedKm - k0) / span : 0;
-			return centers[i] + t * (centers[i + 1] - centers[i]);
-		}
-	}
-
-	return centers[n - 1];
+	/**
+	 * New Architecture 호환: `measureLayout`의 첫 인자는 ref이어야 한다.
+	 * ScrollView의 경우 내부 스크롤 콘텐츠 기준 y를 반환하므로 그대로 scrollTo 가능.
+	 */
+	row.measureLayout(
+		outer as unknown as Parameters<View['measureLayout']>[0],
+		(_x, y) => {
+			outer.scrollTo({
+				y: Math.max(0, y - SCROLL_LEAD_PX),
+				animated: hasAutoScrolledRef.current,
+			});
+			lastScrollAtRef.current = Date.now();
+			hasAutoScrolledRef.current = true;
+			lastScrollKmRef.current = currentRelKm;
+		},
+		() => {},
+	);
 }
