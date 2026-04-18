@@ -254,7 +254,6 @@ function StageSummaryBody({
 				trackPoints={detail.trackPoints}
 				currentRelKm={currentRelKm}
 				scrollRef={scrollRef}
-				scrollContentRef={scrollContentRef}
 			/>
 			<View style={styles.placeholderBlock}>
 				<ThemedText type="small" themeColor="textSecondary">
