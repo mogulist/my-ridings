@@ -85,10 +85,7 @@ export default function StageDetailScreen() {
 	const stages = detail?.stages ?? [];
 	const stage = stages[dayNumber - 1];
 
-	const location = useCurrentLocationKm(
-		detail?.trackPoints ?? null,
-		detail != null && stage != null,
-	);
+	const location = useCurrentLocationKm(detail?.trackPoints ?? null);
 
 	const datePart =
 		detail != null ? stageDayLabel(dayNumber, detail.plan.start_date) : '';
@@ -255,31 +252,40 @@ type CurrentLocationKmLineProps = {
 };
 
 function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
-	if (location.permission === 'denied') {
-		return (
-			<ThemedText type="small" themeColor="textSecondary">
-				현재 위치: 권한 거부됨
-			</ThemedText>
-		);
-	}
-	if (location.error) {
-		return (
-			<ThemedText type="small" themeColor="textSecondary">
-				현재 위치: {location.error}
-			</ThemedText>
-		);
-	}
-	if (location.currentKm == null) {
-		return (
-			<ThemedText type="small" themeColor="textSecondary">
-				현재 위치: 측정 중…
-			</ThemedText>
-		);
-	}
+	const kmText =
+		location.currentKm != null
+			? `현재 ${location.currentKm.toFixed(1)} km (경로 기준)`
+			: '현재 위치: —';
+
 	return (
-		<ThemedText type="small" themeColor="textSecondary">
-			현재 {location.currentKm.toFixed(1)} km
-		</ThemedText>
+		<View style={styles.locationBlock}>
+			<ThemedText type="small" themeColor="textSecondary">
+				{location.permission === 'denied' ? '위치 권한이 거부되어 있어요.' : kmText}
+			</ThemedText>
+			{location.error ? (
+				<ThemedText type="small" style={styles.errorText}>
+					{location.error}
+				</ThemedText>
+			) : null}
+			<Pressable
+				accessibilityRole="button"
+				accessibilityLabel="현재 위치 갱신"
+				disabled={!location.canRefresh || location.isRefreshing}
+				style={({ pressed }) => [
+					styles.locationRefreshButton,
+					(!location.canRefresh || location.isRefreshing) && styles.locationRefreshButtonDisabled,
+					pressed && location.canRefresh && !location.isRefreshing && styles.pressed,
+				]}
+				onPress={() => {
+					void location.refresh();
+				}}>
+				{location.isRefreshing ? (
+					<ThemedText type="smallBold">가져오는 중…</ThemedText>
+				) : (
+					<ThemedText type="smallBold">현재 위치 갱신</ThemedText>
+				)}
+			</Pressable>
+		</View>
 	);
 }
 
@@ -346,6 +352,21 @@ const styles = StyleSheet.create({
 	},
 	pressed: {
 		opacity: 0.75,
+	},
+	locationBlock: {
+		gap: Spacing.two,
+		marginTop: Spacing.half,
+	},
+	locationRefreshButton: {
+		alignSelf: 'flex-start',
+		borderWidth: 1,
+		borderColor: '#A0A4AE',
+		borderRadius: Spacing.two,
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.two,
+	},
+	locationRefreshButtonDisabled: {
+		opacity: 0.5,
 	},
 });
 
