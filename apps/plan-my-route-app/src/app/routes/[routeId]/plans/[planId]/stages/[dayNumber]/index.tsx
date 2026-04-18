@@ -2,7 +2,7 @@ import { HeaderButton } from '@react-navigation/elements';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useLayoutEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
@@ -45,16 +45,15 @@ export default function StageDetailScreen() {
 							},
 						});
 					}}>
-					<View style={styles.headerRightRow}>
-						{Platform.OS === 'ios' ? (
-							<SymbolView
-								name="square.and.pencil"
-								size={20}
-								tintColor={theme.text}
-							/>
-						) : null}
-						<ThemedText type="smallBold">편집</ThemedText>
-					</View>
+					<SymbolView
+						name={{
+							ios: 'square.and.pencil',
+							android: 'edit',
+							web: 'edit',
+						}}
+						size={22}
+						tintColor={theme.text}
+					/>
 				</HeaderButton>
 			),
 		});
@@ -85,10 +84,5 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.four,
 		paddingVertical: Spacing.four,
 		gap: Spacing.two,
-	},
-	headerRightRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 6,
 	},
 });
