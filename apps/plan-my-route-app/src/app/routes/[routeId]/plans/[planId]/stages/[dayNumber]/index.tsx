@@ -3,7 +3,7 @@ import { HeaderButton } from '@react-navigation/elements';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
@@ -14,14 +14,19 @@ import {
 	fetchPlanDetail,
 	type MobilePlanStageRow,
 	type PlanDetail,
+	type TrackPoint,
 } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function StageDetailScreen() {
 	const navigation = useNavigation();
 	const router = useRouter();
 	const theme = useTheme();
+	const colorScheme = useColorScheme();
+	const elevationGainColor =
+		colorScheme === 'dark' ? '#4ade80' : '#15803d';
 	const { routeId, planId, dayNumber: dayNumberParam } = useLocalSearchParams<{
 		routeId: string;
 		planId: string;
@@ -76,18 +81,21 @@ export default function StageDetailScreen() {
 
 	const stages = detail?.stages ?? [];
 	const stage = stages[dayNumber - 1];
-	const headerTitle = (() => {
-		if (isLoading) return '스테이지';
-		if (errorMessage) return '스테이지';
-		if (!detail || !stage) {
-			return `D${dayNumber}`;
-		}
-		const datePart = stageDayLabel(dayNumber, detail.plan.start_date);
-		const headline = datePart ? `D${dayNumber} · ${datePart}` : `D${dayNumber}`;
-		const distanceKm = stageDistanceKm(stage);
-		const gainM = Math.round(Number(stage.elevation_gain) || 0);
-		return `${headline} · ${distanceKm.toFixed(1)} km · ${gainM} m`;
-	})();
+
+	const datePart =
+		detail != null ? stageDayLabel(dayNumber, detail.plan.start_date) : '';
+
+	const maxElevationM = useMemo(() => {
+		if (!detail?.trackPoints?.length || !stage) return null;
+		const startKm = (stage.start_distance ?? 0) / 1000;
+		const endKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
+		return maxElevationInStageRange(detail.trackPoints, startKm, endKm);
+	}, [detail?.trackPoints, stage]);
+
+	const headerTitle =
+		datePart.trim() !== ''
+			? `스테이지 ${dayNumber} · ${datePart}`
+			: `스테이지 ${dayNumber}`;
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
@@ -133,42 +141,91 @@ export default function StageDetailScreen() {
 
 	return (
 		<ThemedView style={styles.container}>
-			<SafeAreaView style={styles.safeArea}>
-				{isLoading ? (
-					<View style={styles.loadingBlock}>
-						<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" />
-						<ThemedText type="small" themeColor="textSecondary">
-							불러오는 중…
-						</ThemedText>
-					</View>
-				) : errorMessage ? (
-					<View style={styles.placeholderBlock}>
-						<ThemedText type="small" style={styles.errorText}>
-							{errorMessage}
-						</ThemedText>
-						<Pressable
-							accessibilityRole="button"
-							accessibilityLabel="다시 시도"
-							style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-							onPress={handleRetry}>
-							<ThemedText type="smallBold">다시 시도</ThemedText>
-						</Pressable>
-					</View>
-				) : !stage ? (
-					<View style={styles.placeholderBlock}>
-						<ThemedText type="small" themeColor="textSecondary">
-							해당 일차 스테이지가 없습니다.
-						</ThemedText>
-					</View>
-				) : (
-					<View style={styles.placeholderBlock}>
-						<ThemedText type="small" themeColor="textSecondary">
-							타임라인·고도·HUD는 다음 단계에서 표시됩니다.
-						</ThemedText>
-					</View>
-				)}
+			<SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+				<ScrollView
+					contentContainerStyle={styles.scrollContent}
+					contentInsetAdjustmentBehavior="automatic">
+					{isLoading ? (
+						<View style={styles.loadingBlock}>
+							<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" />
+							<ThemedText type="small" themeColor="textSecondary">
+								불러오는 중…
+							</ThemedText>
+						</View>
+					) : errorMessage ? (
+						<View style={styles.placeholderBlock}>
+							<ThemedText type="small" style={styles.errorText}>
+								{errorMessage}
+							</ThemedText>
+							<Pressable
+								accessibilityRole="button"
+								accessibilityLabel="다시 시도"
+								style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+								onPress={handleRetry}>
+								<ThemedText type="smallBold">다시 시도</ThemedText>
+							</Pressable>
+						</View>
+					) : !stage ? (
+						<View style={styles.placeholderBlock}>
+							<ThemedText type="small" themeColor="textSecondary">
+								해당 일차 스테이지가 없습니다.
+							</ThemedText>
+						</View>
+					) : (
+						<StageSummaryBody
+							stage={stage}
+							maxElevationM={maxElevationM}
+							elevationGainColor={elevationGainColor}
+						/>
+					)}
+				</ScrollView>
 			</SafeAreaView>
 		</ThemedView>
+	);
+}
+
+type StageSummaryBodyProps = {
+	stage: MobilePlanStageRow;
+	maxElevationM: number | null;
+	elevationGainColor: string;
+};
+
+function StageSummaryBody({
+	stage,
+	maxElevationM,
+	elevationGainColor,
+}: StageSummaryBodyProps) {
+	const routeLabel = stageRouteLine(stage);
+	return (
+		<>
+			<View style={styles.summaryCard}>
+				{routeLabel ? (
+					<ThemedText
+						type="small"
+						themeColor="textSecondary"
+						numberOfLines={3}
+						style={styles.routeLine}>
+						{routeLabel}
+					</ThemedText>
+				) : null}
+				<View style={styles.statsRow}>
+					<ThemedText type="smallBold" style={styles.statPrimary}>
+						{stageDistanceKm(stage).toFixed(1)} km
+					</ThemedText>
+					<ThemedText type="small" style={[styles.statGain, { color: elevationGainColor }]}>
+						+{Math.round(Number(stage.elevation_gain) || 0).toLocaleString()} m
+					</ThemedText>
+					<ThemedText type="small" themeColor="textSecondary">
+						최고 {maxElevationM != null ? `${maxElevationM.toLocaleString()} m` : '—'}
+					</ThemedText>
+				</View>
+			</View>
+			<View style={styles.placeholderBlock}>
+				<ThemedText type="small" themeColor="textSecondary">
+					타임라인·고도·HUD는 다음 단계에서 표시됩니다.
+				</ThemedText>
+			</View>
+		</>
 	);
 }
 
@@ -182,9 +239,36 @@ const styles = StyleSheet.create({
 		flex: 1,
 		width: '100%',
 		maxWidth: MaxContentWidth,
+	},
+	scrollContent: {
 		paddingHorizontal: Spacing.four,
 		paddingVertical: Spacing.four,
+		gap: Spacing.three,
+	},
+	summaryCard: {
+		borderWidth: 1,
+		borderColor: '#A0A4AE',
+		borderRadius: Spacing.two,
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.three,
 		gap: Spacing.two,
+	},
+	routeLine: {
+		lineHeight: 20,
+	},
+	statsRow: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		alignItems: 'baseline',
+		columnGap: Spacing.three,
+		rowGap: Spacing.one,
+	},
+	statPrimary: {
+		fontVariant: ['tabular-nums'],
+	},
+	statGain: {
+		fontVariant: ['tabular-nums'],
+		fontWeight: 600,
 	},
 	loadingBlock: {
 		gap: Spacing.two,
@@ -215,4 +299,28 @@ function stageDistanceKm(stage: MobilePlanStageRow): number {
 	const startM = stage.start_distance ?? 0;
 	const endM = stage.end_distance ?? startM;
 	return (endM - startM) / 1000;
+}
+
+/** 웹 `MobileSharedPlanStagesTab.maxElevationInStageRange`와 동일 */
+function maxElevationInStageRange(
+	trackPoints: TrackPoint[],
+	startKm: number,
+	endKm: number,
+): number | null {
+	const withEle = trackPoints.filter((p) => p.e != null && p.d != null);
+	if (withEle.length === 0) return null;
+	let max = -Infinity;
+	for (const p of withEle) {
+		const km = (p.d as number) / 1000;
+		if (km >= startKm && km <= endKm && (p.e as number) > max) max = p.e as number;
+	}
+	return Number.isFinite(max) ? Math.round(max) : null;
+}
+
+/** `StageDetailPanel`과 동일: 출발·도착 이름이 모두 있을 때만 표시 */
+function stageRouteLine(stage: MobilePlanStageRow): string | null {
+	const startLabel = stage.start_name?.trim();
+	const endLabel = stage.end_name?.trim();
+	if (startLabel && endLabel) return `${startLabel} → ${endLabel}`;
+	return null;
 }
