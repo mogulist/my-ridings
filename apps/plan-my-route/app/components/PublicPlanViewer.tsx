@@ -9,6 +9,7 @@ import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { SummitCatalogRow } from "../types/summitCatalog";
 import { calibrateThreshold, stageDayLabel } from "@my-ridings/plan-geometry";
+import { summitQueryStringForTrackPoints } from "@/lib/rwgps-plan-markers";
 import { computeCPsOnRoute, computeSummitsOnRoute } from "./RouteViewer";
 import type { Stage } from "../types/plan";
 import { normalizeScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
@@ -55,38 +56,6 @@ export type PublicPlanResponse = {
 type PublicPlanViewerProps = {
   token: string;
 };
-
-function summitQueryStringForRoute(route: RideWithGPSRoute | null): string | null {
-  const trackPoints = route?.track_points ?? [];
-  if (trackPoints.length === 0) return null;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  for (const point of trackPoints) {
-    if (point.y < minLat) minLat = point.y;
-    if (point.y > maxLat) maxLat = point.y;
-    if (point.x < minLng) minLng = point.x;
-    if (point.x > maxLng) maxLng = point.x;
-  }
-  if (
-    !Number.isFinite(minLat) ||
-    !Number.isFinite(maxLat) ||
-    !Number.isFinite(minLng) ||
-    !Number.isFinite(maxLng)
-  ) {
-    return null;
-  }
-  const buffer = 0.01;
-  const search = new URLSearchParams({
-    minLat: String(minLat - buffer),
-    maxLat: String(maxLat + buffer),
-    minLng: String(minLng - buffer),
-    maxLng: String(maxLng + buffer),
-    limit: "1200",
-  });
-  return search.toString();
-}
 
 export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   const [route, setRoute] = useState<RideWithGPSRoute | null>(null);
@@ -172,7 +141,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
   }, [publicPlan, route]);
 
   useEffect(() => {
-    const query = summitQueryStringForRoute(route);
+    const query = summitQueryStringForTrackPoints(route?.track_points ?? []);
     if (!query) {
       setOfficialSummits([]);
       return;
