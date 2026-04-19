@@ -10,6 +10,7 @@ import {
 	fetchPlanDetail,
 	type MobilePlanStageRow,
 	type PlanDetail,
+	type TrackPoint,
 } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -113,16 +114,22 @@ export default function PlanSummaryScreen() {
 								</ThemedText>
 							) : null}
 
-							<View style={styles.statsGrid}>
-								<StatCard label="총 거리" value={`${stats.totalDistanceKm.toFixed(1)} km`} />
-								<StatCard
-									label="총 획득고도"
-									value={`+${stats.totalElevationGainM.toLocaleString()} m`}
-									valueColor={elevationGainColor}
-								/>
-								<StatCard label="일수" value={`${stats.dayCount}일`} />
-								<StatCard label="시작일" value={stats.startDateLabel} />
-							</View>
+							<SectionPlaceholder
+								title="스테이지 요약"
+								description="일자별 카드 요약(가로 스크롤)을 곧 추가합니다."
+							/>
+
+							<SectionPlaceholder
+								title="전체 고도 프로필"
+								description="플랜 전체 고도 곡선(mini)을 곧 추가합니다."
+							/>
+
+							<KeyStatsSection stats={stats} elevationGainColor={elevationGainColor} />
+
+							<SectionPlaceholder
+								title="루트 설명"
+								description="루트 설명 텍스트 영역을 곧 추가합니다."
+							/>
 						</>
 					)}
 				</ScrollView>
@@ -131,23 +138,115 @@ export default function PlanSummaryScreen() {
 	);
 }
 
-type StatCardProps = {
+type KeyStatRow = {
 	label: string;
 	value: string;
-	valueColor?: string;
+	sub: string;
+	emphasizeColor?: string;
 };
 
-function StatCard({ label, value, valueColor }: StatCardProps) {
+type KeyStatsSectionProps = {
+	stats: PlanSummaryStats;
+	elevationGainColor: string;
+};
+
+function KeyStatsSection({ stats, elevationGainColor }: KeyStatsSectionProps) {
+	const rows: KeyStatRow[] = [
+		{
+			label: '전체 거리',
+			value: `${Math.round(stats.totalDistanceKm).toLocaleString()} km`,
+			sub: '총 라이딩 거리',
+		},
+		{
+			label: '전체 획득고도',
+			value: `+${stats.totalElevationGainM.toLocaleString()} m`,
+			sub: '누적 상승고도',
+			emphasizeColor: elevationGainColor,
+		},
+		{
+			label: '최고 고도',
+			value: stats.maxElevationM != null ? `${stats.maxElevationM.toLocaleString()} m` : '—',
+			sub: stats.maxElevationM != null ? '트랙 기준 최고점' : '트랙 미로드',
+		},
+		{
+			label: '일평균 거리',
+			value: `${stats.avgDailyKm.toLocaleString()} km`,
+			sub: '하루 평균',
+		},
+		{
+			label: '일평균 획득고도',
+			value: `+${stats.avgDailyElevationGainM.toLocaleString()} m`,
+			sub: '하루 평균 상승',
+			emphasizeColor: elevationGainColor,
+		},
+		{
+			label: '가장 힘든 날',
+			value: stats.hardestDay ? `Day ${stats.hardestDay.dayNumber}` : '—',
+			sub: stats.hardestDay
+				? `+${Math.round(stats.hardestDay.elevationGainM).toLocaleString()} m`
+				: '스테이지 없음',
+		},
+		{
+			label: '가장 긴 날',
+			value: stats.longestDay ? `${stats.longestDay.distanceKm.toFixed(1)} km` : '—',
+			sub: stats.longestDay ? `Day ${stats.longestDay.dayNumber}` : '스테이지 없음',
+		},
+		{
+			label: '시작일',
+			value: stats.startDateLabel,
+			sub: `${stats.dayCount}일 일정`,
+		},
+	];
+
 	return (
-		<View style={styles.card}>
-			<ThemedText type="small" themeColor="textSecondary">
-				{label}
+		<View style={styles.section}>
+			<ThemedText type="smallBold" style={styles.sectionTitle}>
+				핵심 통계
 			</ThemedText>
-			<ThemedText
-				type="smallBold"
-				style={[styles.statValue, valueColor ? { color: valueColor } : null]}>
-				{value}
+			<View style={styles.statsCard}>
+				{rows.map((r, i) => (
+					<View
+						key={r.label}
+						style={[styles.statRow, i < rows.length - 1 ? styles.statRowDivider : null]}>
+						<ThemedText type="small" themeColor="textSecondary" style={styles.statLabel}>
+							{r.label}
+						</ThemedText>
+						<View style={styles.statRight}>
+							<ThemedText
+								type="smallBold"
+								style={[
+									styles.statValue,
+									r.emphasizeColor ? { color: r.emphasizeColor } : null,
+								]}>
+								{r.value}
+							</ThemedText>
+							<ThemedText type="small" themeColor="textSecondary" style={styles.statSub}>
+								{r.sub}
+							</ThemedText>
+						</View>
+					</View>
+				))}
+			</View>
+		</View>
+	);
+}
+
+type SectionPlaceholderProps = {
+	title: string;
+	description: string;
+};
+
+function SectionPlaceholder({ title, description }: SectionPlaceholderProps) {
+	return (
+		<View style={styles.section}>
+			<ThemedText type="smallBold" style={styles.sectionTitle}>
+				{title}
 			</ThemedText>
+			<View style={styles.placeholderCard}>
+				<ThemedText type="small" themeColor="textSecondary">
+					{description}
+				</ThemedText>
+			</View>
 		</View>
 	);
 }
@@ -192,26 +291,51 @@ const styles = StyleSheet.create({
 	pressed: {
 		opacity: 0.75,
 	},
-	statsGrid: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
+	section: {
 		gap: Spacing.two,
 	},
-	card: {
-		flexBasis: '48%',
-		flexGrow: 1,
-		minWidth: 140,
+	sectionTitle: {
+		marginBottom: Spacing.half,
+	},
+	statsCard: {
 		borderWidth: 1,
+		borderColor: '#A0A4AE',
+		borderRadius: Spacing.two,
+		overflow: 'hidden',
+	},
+	statRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.two + 2,
+		gap: Spacing.three,
+	},
+	statRowDivider: {
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		borderBottomColor: '#A0A4AE',
+	},
+	statLabel: {
+		flex: 1,
+	},
+	statRight: {
+		alignItems: 'flex-end',
+		gap: 2,
+	},
+	statValue: {
+		fontVariant: ['tabular-nums'],
+	},
+	statSub: {
+		fontVariant: ['tabular-nums'],
+	},
+	placeholderCard: {
+		borderWidth: 1,
+		borderStyle: 'dashed',
 		borderColor: '#A0A4AE',
 		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
-		gap: Spacing.half,
-	},
-	statValue: {
-		fontSize: 18,
-		lineHeight: 22,
-		fontVariant: ['tabular-nums'],
+		minHeight: 64,
+		justifyContent: 'center',
 	},
 });
 
@@ -220,6 +344,11 @@ type PlanSummaryStats = {
 	totalElevationGainM: number;
 	dayCount: number;
 	startDateLabel: string;
+	maxElevationM: number | null;
+	avgDailyKm: number;
+	avgDailyElevationGainM: number;
+	hardestDay: { dayNumber: number; elevationGainM: number } | null;
+	longestDay: { dayNumber: number; distanceKm: number } | null;
 };
 
 function computePlanSummaryStats(detail: PlanDetail): PlanSummaryStats {
@@ -227,7 +356,24 @@ function computePlanSummaryStats(detail: PlanDetail): PlanSummaryStats {
 	const totalElevationGainM = computeTotalElevationGainM(detail);
 	const dayCount = detail.stages.length;
 	const startDateLabel = formatStartDate(detail.plan.start_date);
-	return { totalDistanceKm, totalElevationGainM, dayCount, startDateLabel };
+	const maxElevationM = computeMaxElevationM(detail.trackPoints);
+	const avgDailyKm = dayCount > 0 ? Math.round(totalDistanceKm / dayCount) : 0;
+	const avgDailyElevationGainM = dayCount > 0 ? Math.round(totalElevationGainM / dayCount) : 0;
+
+	const hardestDay = pickHardestDay(detail.stages);
+	const longestDay = pickLongestDay(detail.stages);
+
+	return {
+		totalDistanceKm,
+		totalElevationGainM,
+		dayCount,
+		startDateLabel,
+		maxElevationM,
+		avgDailyKm,
+		avgDailyElevationGainM,
+		hardestDay,
+		longestDay,
+	};
 }
 
 function computeTotalDistanceKm(detail: PlanDetail): number {
@@ -248,6 +394,50 @@ function computeTotalElevationGainM(detail: PlanDetail): number {
 		return acc + (Number.isFinite(v) ? v : 0);
 	}, 0);
 	return Math.round(sum);
+}
+
+function computeMaxElevationM(trackPoints: TrackPoint[]): number | null {
+	let max = -Infinity;
+	for (const p of trackPoints) {
+		if (p.e != null && p.e > max) max = p.e;
+	}
+	return Number.isFinite(max) ? Math.round(max) : null;
+}
+
+function pickHardestDay(
+	stages: MobilePlanStageRow[],
+): { dayNumber: number; elevationGainM: number } | null {
+	if (stages.length === 0) return null;
+	let bestIdx = 0;
+	let bestGain = -Infinity;
+	for (let i = 0; i < stages.length; i++) {
+		const v = Number(stages[i].elevation_gain);
+		const g = Number.isFinite(v) ? v : 0;
+		if (g > bestGain) {
+			bestGain = g;
+			bestIdx = i;
+		}
+	}
+	return { dayNumber: bestIdx + 1, elevationGainM: Math.round(bestGain) };
+}
+
+function pickLongestDay(
+	stages: MobilePlanStageRow[],
+): { dayNumber: number; distanceKm: number } | null {
+	if (stages.length === 0) return null;
+	let bestIdx = 0;
+	let bestKm = -Infinity;
+	for (let i = 0; i < stages.length; i++) {
+		const startM = Number(stages[i].start_distance);
+		const endM = Number(stages[i].end_distance);
+		const km =
+			Number.isFinite(startM) && Number.isFinite(endM) ? Math.max(0, (endM - startM) / 1000) : 0;
+		if (km > bestKm) {
+			bestKm = km;
+			bestIdx = i;
+		}
+	}
+	return { dayNumber: bestIdx + 1, distanceKm: bestKm };
 }
 
 function formatStartDate(input: string | null | undefined): string {
