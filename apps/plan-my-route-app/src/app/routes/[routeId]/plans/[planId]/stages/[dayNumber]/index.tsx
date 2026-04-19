@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
+import { PlanStageHud } from '@/components/plan-stage-hud';
 import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
 import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
 import { useCurrentLocationKm } from '@/hooks/use-current-location-km';
@@ -255,11 +256,12 @@ function StageSummaryBody({
 				currentRelKm={currentRelKm}
 				scrollRef={scrollRef}
 			/>
-			<View style={styles.placeholderBlock}>
-				<ThemedText type="small" themeColor="textSecondary">
-					HUD는 다음 단계에서 표시됩니다.
-				</ThemedText>
-			</View>
+			<PlanStageHud
+				stage={stage}
+				trackPoints={detail.trackPoints}
+				summitMarkers={detail.summitMarkers}
+				currentRelKm={currentRelKm}
+			/>
 		</>
 	);
 }
