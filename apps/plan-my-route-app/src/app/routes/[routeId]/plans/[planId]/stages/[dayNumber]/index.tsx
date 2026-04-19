@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { PlanStageHud } from '@/components/plan-stage-hud';
 import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
 import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
+import { Snackbar } from '@/components/snackbar';
 import { useCurrentLocationKm } from '@/hooks/use-current-location-km';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -46,7 +47,9 @@ export default function StageDetailScreen() {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [detail, setDetail] = useState<PlanDetail | null>(null);
 	const [retryNonce, setRetryNonce] = useState(0);
+	const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 	const scrollRef = useRef<ScrollView>(null);
+	const lastSeenCurrentKmRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -146,6 +149,21 @@ export default function StageDetailScreen() {
 		setRetryNonce((n) => n + 1);
 	};
 
+	useEffect(() => {
+		const km = location.currentKm;
+		if (km == null || stage == null) return;
+		if (lastSeenCurrentKmRef.current === km) return;
+		lastSeenCurrentKmRef.current = km;
+
+		const startKm = (stage.start_distance ?? 0) / 1000;
+		const endKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
+		const tolerance = 0.05;
+		const isInStage = km >= startKm - tolerance && km <= endKm + tolerance;
+		if (!isInStage) {
+			setSnackbarMessage('이 스테이지에 현재 위치가 없습니다.');
+		}
+	}, [location.currentKm, stage]);
+
 	return (
 		<ThemedView style={styles.container}>
 			<SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
@@ -192,6 +210,10 @@ export default function StageDetailScreen() {
 						)}
 					</View>
 				</ScrollView>
+				<Snackbar
+					message={snackbarMessage}
+					onDismiss={() => setSnackbarMessage(null)}
+				/>
 			</SafeAreaView>
 		</ThemedView>
 	);
@@ -218,10 +240,13 @@ function StageSummaryBody({
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
 	const stageLenKm = Math.max(stageEndKm - stageStartKm, 0);
-	const currentRelKm =
-		location.currentKm != null
-			? Math.min(Math.max(location.currentKm - stageStartKm, 0), stageLenKm)
-			: null;
+	const currentRelKm = (() => {
+		const km = location.currentKm;
+		if (km == null) return null;
+		const tolerance = 0.05;
+		if (km < stageStartKm - tolerance || km > stageEndKm + tolerance) return null;
+		return Math.min(Math.max(km - stageStartKm, 0), stageLenKm);
+	})();
 
 	return (
 		<>
