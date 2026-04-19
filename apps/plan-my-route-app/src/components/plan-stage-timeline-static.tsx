@@ -11,7 +11,13 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import type { MobilePlanStageRow, PlanPoiRow, TrackPoint } from '@/features/api/plan-my-route';
+import type {
+	CpMarkerOnRoute,
+	MobilePlanStageRow,
+	PlanPoiRow,
+	SummitMarkerOnRoute,
+	TrackPoint,
+} from '@/features/api/plan-my-route';
 import { useTheme } from '@/hooks/use-theme';
 
 /** 웹 `PoiEditDialog` / 공유 탭과 동일 라벨 세트 */
@@ -27,7 +33,10 @@ function poiTypeLabel(poiType: string): string {
 	return POI_TYPE_LABEL_KO[poiType] ?? poiType;
 }
 
-type TimelineKind = 'start' | 'poi' | 'end' | 'current';
+type TimelineKind = 'start' | 'poi' | 'cp' | 'summit' | 'end' | 'current';
+
+const CP_LABEL_KO = '체크포인트';
+const SUMMIT_LABEL_KO = '정상';
 
 type TimelineMilestone = {
 	id: string;
@@ -41,6 +50,8 @@ export type PlanStageTimelineStaticProps = {
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
 	planPois: PlanPoiRow[];
+	cpMarkers: CpMarkerOnRoute[];
+	summitMarkers: SummitMarkerOnRoute[];
 	/** 스테이지 기준 상대 km (0…스테이지 길이). 없으면 현위치 행·스크롤 생략 */
 	currentRelKm: number | null;
 	scrollRef: RefObject<ScrollView | null>;
@@ -61,6 +72,8 @@ export function PlanStageTimelineStatic({
 	stage,
 	trackPoints,
 	planPois,
+	cpMarkers,
+	summitMarkers,
 	currentRelKm,
 	scrollRef,
 }: PlanStageTimelineStaticProps) {
@@ -88,6 +101,26 @@ export function PlanStageTimelineStatic({
 		const startTitle = stage.start_name?.trim() ?? '출발';
 		const endTitle = stage.end_name?.trim() ?? '도착';
 
+		const cpRows: TimelineMilestone[] = cpMarkers
+			.filter((c) => c.distanceKm >= stageStartKm && c.distanceKm <= stageEndKm)
+			.map((c) => ({
+				id: `cp-${c.id}`,
+				kind: 'cp' as const,
+				relKm: Math.max(0, c.distanceKm - stageStartKm),
+				title: c.name?.trim() || CP_LABEL_KO,
+				sub: `${CP_LABEL_KO} · ${Math.round(c.elevation).toLocaleString()} m`,
+			}));
+
+		const summitRows: TimelineMilestone[] = summitMarkers
+			.filter((s) => s.distanceKm >= stageStartKm && s.distanceKm <= stageEndKm)
+			.map((s) => ({
+				id: `summit-${s.id}`,
+				kind: 'summit' as const,
+				relKm: Math.max(0, s.distanceKm - stageStartKm),
+				title: s.name?.trim() || SUMMIT_LABEL_KO,
+				sub: `${SUMMIT_LABEL_KO} · ${Math.round(s.elevation).toLocaleString()} m`,
+			}));
+
 		const rows: TimelineMilestone[] = [
 			{
 				id: 'start',
@@ -103,6 +136,8 @@ export function PlanStageTimelineStatic({
 				title: p.name?.trim() || 'POI',
 				sub: poiTypeLabel(p.poiType),
 			})),
+			...cpRows,
+			...summitRows,
 			{
 				id: 'end',
 				kind: 'end',
@@ -129,6 +164,7 @@ export function PlanStageTimelineStatic({
 
 		return rows;
 	}, [
+		cpMarkers,
 		currentRelKm,
 		planPois,
 		stage.end_name,
@@ -136,6 +172,7 @@ export function PlanStageTimelineStatic({
 		stageEndKm,
 		stageLenKm,
 		stageStartKm,
+		summitMarkers,
 		trackPoints,
 	]);
 
@@ -205,8 +242,9 @@ export function PlanStageTimelineStatic({
 
 				<View style={styles.timelineBody} collapsable={false}>
 					{milestones.map((m, index) => {
-						const poiPassed =
-							m.kind === 'poi' && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
+						const isWaypoint = m.kind === 'poi' || m.kind === 'cp' || m.kind === 'summit';
+						const passed =
+							isWaypoint && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 
 						return (
 							<View
@@ -231,8 +269,28 @@ export function PlanStageTimelineStatic({
 									</ThemedText>
 
 									<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
-										{m.kind === 'poi' ? (
-											poiPassed ? (
+										{m.kind === 'cp' ? (
+											<View
+												style={[
+													styles.cpDot,
+													passed
+														? { backgroundColor: theme.text }
+														: {
+																backgroundColor: 'transparent',
+																borderWidth: 2,
+																borderColor: theme.text,
+														  },
+												]}
+											/>
+										) : m.kind === 'summit' ? (
+											<View
+												style={[
+													styles.summitDot,
+													{ borderBottomColor: theme.text, opacity: passed ? 1 : 0.35 },
+												]}
+											/>
+										) : m.kind === 'poi' ? (
+											passed ? (
 												<View style={[styles.poiDot, { backgroundColor: theme.text }]} />
 											) : (
 												<View
@@ -347,6 +405,19 @@ const styles = StyleSheet.create({
 		height: DOT_SIZE,
 		borderRadius: DOT_SIZE / 2,
 	},
+	cpDot: {
+		width: DOT_SIZE,
+		height: DOT_SIZE,
+	},
+	summitDot: {
+		width: 0,
+		height: 0,
+		borderLeftWidth: DOT_SIZE / 2 + 2,
+		borderRightWidth: DOT_SIZE / 2 + 2,
+		borderBottomWidth: DOT_SIZE + 2,
+		borderLeftColor: 'transparent',
+		borderRightColor: 'transparent',
+	},
 	endpointBar: {
 		width: BAR_WIDTH,
 		height: 14,
@@ -372,8 +443,10 @@ const styles = StyleSheet.create({
 function kindOrder(k: TimelineKind): number {
 	if (k === 'start') return 0;
 	if (k === 'poi') return 1;
-	if (k === 'current') return 2;
-	return 3;
+	if (k === 'cp') return 2;
+	if (k === 'summit') return 3;
+	if (k === 'current') return 4;
+	return 5;
 }
 
 function formatStageKm(relKm: number): string {

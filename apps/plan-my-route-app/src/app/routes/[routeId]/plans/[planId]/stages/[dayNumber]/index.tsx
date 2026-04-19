@@ -282,6 +282,8 @@ function StageSummaryBody({
 			/>
 			<PlanStageTimelineStatic
 				planPois={detail.planPois}
+				cpMarkers={detail.cpMarkers}
+				summitMarkers={detail.summitMarkers}
 				stage={stage}
 				trackPoints={detail.trackPoints}
 				currentRelKm={currentRelKm}
