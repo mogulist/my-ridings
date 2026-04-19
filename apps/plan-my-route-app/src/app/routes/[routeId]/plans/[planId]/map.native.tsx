@@ -1,4 +1,8 @@
-import { NaverMapPathOverlay, NaverMapView } from '@mj-studio/react-native-naver-map';
+import {
+	NaverMapMarkerOverlay,
+	NaverMapPathOverlay,
+	NaverMapView,
+} from '@mj-studio/react-native-naver-map';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
@@ -6,8 +10,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { fetchPlanDetail, type PlanDetail, type TrackPoint } from '@/features/api/plan-my-route';
+import {
+	fetchPlanDetail,
+	type CpMarkerOnRoute,
+	type MobilePlanStageRow,
+	type PlanDetail,
+	type SummitMarkerOnRoute,
+	type TrackPoint,
+} from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+
+/** 웹 `STAGE_COLORS`(types/plan.ts)와 동일한 2색 순환 */
+const STAGE_STROKE_COLORS = ['#3B82F6', '#8B5CF6'] as const;
+const UNPLANNED_STROKE_COLOR = '#9CA3AF';
+
+function stageStrokeColor(dayNumber: number): string {
+	if (!Number.isFinite(dayNumber) || dayNumber < 1) return UNPLANNED_STROKE_COLOR;
+	return STAGE_STROKE_COLORS[(dayNumber - 1) % STAGE_STROKE_COLORS.length];
+}
 
 type MapCoordinate = {
 	latitude: number;
@@ -75,6 +95,10 @@ export default function PlanMapScreen() {
 		() => (detail ? toMapCoordinates(detail.trackPoints) : []),
 		[detail],
 	);
+	const stageSegments = useMemo(
+		() => (detail ? buildStageSegments(detail.stages, detail.trackPoints) : []),
+		[detail],
+	);
 
 	if (isLoading) {
 		return (
@@ -118,16 +142,84 @@ export default function PlanMapScreen() {
 	return (
 		<View style={styles.root}>
 			<NaverMapView style={styles.map} initialCamera={initialCamera}>
-				<NaverMapPathOverlay
-					coords={validTrack}
-					width={4}
-					color="#2D7EF7"
-					outlineWidth={1}
-					outlineColor="#174AA0"
-				/>
+				{stageSegments.length > 0 ? (
+					stageSegments.map((seg) => (
+						<NaverMapPathOverlay
+							key={`stage-${seg.dayNumber}`}
+							coords={seg.coords}
+							width={5}
+							color={seg.color}
+							outlineWidth={1}
+							outlineColor="#1F2937"
+						/>
+					))
+				) : (
+					<NaverMapPathOverlay
+						coords={validTrack}
+						width={4}
+						color="#2D7EF7"
+						outlineWidth={1}
+						outlineColor="#174AA0"
+					/>
+				)}
+
+				{detail.planPois.map((poi) => (
+					<NaverMapMarkerOverlay
+						key={`poi-${poi.id}`}
+						latitude={poi.lat}
+						longitude={poi.lng}
+						width={28}
+						height={36}
+						image={{ symbol: 'green' }}
+						caption={{ text: poi.name?.trim() || 'POI', textSize: 11 }}
+					/>
+				))}
+
+				{renderCpMarkers(detail.cpMarkers, detail.trackPoints)}
+				{renderSummitMarkers(detail.summitMarkers, detail.trackPoints)}
 			</NaverMapView>
 		</View>
 	);
+}
+
+function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]) {
+	return cpMarkers
+		.map((cp) => {
+			const tp = trackPoints[cp.trackPointIndex];
+			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
+			return (
+				<NaverMapMarkerOverlay
+					key={`cp-${cp.id}`}
+					latitude={tp.y}
+					longitude={tp.x}
+					width={28}
+					height={36}
+					image={{ symbol: 'gray' }}
+					caption={{ text: cp.name?.trim() || 'CP', textSize: 11 }}
+				/>
+			);
+		})
+		.filter(Boolean);
+}
+
+function renderSummitMarkers(summitMarkers: SummitMarkerOnRoute[], trackPoints: TrackPoint[]) {
+	return summitMarkers
+		.map((s) => {
+			const tp = trackPoints[s.trackPointIndex];
+			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
+			return (
+				<NaverMapMarkerOverlay
+					key={`summit-${s.id}`}
+					latitude={tp.y}
+					longitude={tp.x}
+					width={28}
+					height={36}
+					image={{ symbol: 'red' }}
+					caption={{ text: s.name?.trim() || '정상', textSize: 11 }}
+				/>
+			);
+		})
+		.filter(Boolean);
 }
 
 const styles = StyleSheet.create({
@@ -168,6 +260,40 @@ const styles = StyleSheet.create({
 		opacity: 0.75,
 	},
 });
+
+type StageSegment = {
+	dayNumber: number;
+	color: string;
+	coords: MapCoordinate[];
+};
+
+function buildStageSegments(
+	stages: MobilePlanStageRow[],
+	trackPoints: TrackPoint[],
+): StageSegment[] {
+	if (stages.length === 0 || trackPoints.length === 0) return [];
+
+	return stages
+		.map((stage, index) => {
+			const dayNumber = index + 1;
+			const startM = Number(stage.start_distance);
+			const endM = Number(stage.end_distance);
+			if (!Number.isFinite(startM) || !Number.isFinite(endM) || endM <= startM) return null;
+
+			const segmentPoints = trackPoints.filter(
+				(p) => p.d != null && (p.d as number) >= startM && (p.d as number) <= endM,
+			);
+			const coords = toMapCoordinates(segmentPoints);
+			if (coords.length < 2) return null;
+
+			return {
+				dayNumber,
+				color: stageStrokeColor(dayNumber),
+				coords,
+			};
+		})
+		.filter((s): s is StageSegment => s != null);
+}
 
 function toMapCoordinates(trackPoints: TrackPoint[]): MapCoordinate[] {
 	return trackPoints
