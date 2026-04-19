@@ -1,5 +1,6 @@
 import { stageDayLabel } from '@my-ridings/plan-geometry';
 import { HeaderButton } from '@react-navigation/elements';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
@@ -26,6 +27,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function StageDetailScreen() {
+	useKeepAwake();
 	const navigation = useNavigation();
 	const router = useRouter();
 	const theme = useTheme();
@@ -273,7 +275,11 @@ function StageSummaryBody({
 				</View>
 				<CurrentLocationKmLine location={location} />
 			</View>
-			<PlanStageMiniElevation stage={stage} trackPoints={detail.trackPoints} />
+			<PlanStageMiniElevation
+				stage={stage}
+				trackPoints={detail.trackPoints}
+				currentRelKm={currentRelKm}
+			/>
 			<PlanStageTimelineStatic
 				planPois={detail.planPois}
 				stage={stage}

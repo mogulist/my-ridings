@@ -5,17 +5,26 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import type { MobilePlanStageRow, TrackPoint } from '@/features/api/plan-my-route';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 
 const CHART_HEIGHT = 76;
 const BIN_COUNT = 72;
+const CURRENT_DOT_SIZE = 10;
 
 export type PlanStageMiniElevationProps = {
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
+	/** 스테이지 기준 상대 km. 범위 안일 때만 마커 표시 */
+	currentRelKm?: number | null;
 };
 
-export function PlanStageMiniElevation({ stage, trackPoints }: PlanStageMiniElevationProps) {
+export function PlanStageMiniElevation({
+	stage,
+	trackPoints,
+	currentRelKm,
+}: PlanStageMiniElevationProps) {
 	const colorScheme = useColorScheme();
+	const theme = useTheme();
 
 	const chart = useMemo(
 		() => buildStageElevationBins(trackPoints, stage),
@@ -24,6 +33,14 @@ export function PlanStageMiniElevation({ stage, trackPoints }: PlanStageMiniElev
 
 	const barColor =
 		colorScheme === 'dark' ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)';
+
+	const stageStartM = stage.start_distance ?? 0;
+	const stageEndM = stage.end_distance ?? stageStartM;
+	const stageLenM = Math.max(stageEndM - stageStartM, 0);
+	const markerRatio =
+		currentRelKm == null || stageLenM <= 0
+			? null
+			: Math.min(Math.max((currentRelKm * 1000) / stageLenM, 0), 1);
 
 	return (
 		<View style={styles.wrap}>
@@ -58,6 +75,30 @@ export function PlanStageMiniElevation({ stage, trackPoints }: PlanStageMiniElev
 									</View>
 								);
 							})}
+							{markerRatio != null ? (
+								<View
+									pointerEvents="none"
+									style={[
+										styles.markerLine,
+										{
+											left: `${markerRatio * 100}%`,
+											backgroundColor: theme.text,
+										},
+									]}
+								/>
+							) : null}
+							{markerRatio != null ? (
+								<View
+									pointerEvents="none"
+									style={[
+										styles.markerDot,
+										{
+											left: `${markerRatio * 100}%`,
+											backgroundColor: theme.text,
+										},
+									]}
+								/>
+							) : null}
 						</View>
 					</View>
 				)}
@@ -86,6 +127,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'flex-end',
 		width: '100%',
+		position: 'relative',
 	},
 	barSlot: {
 		flex: 1,
@@ -97,6 +139,22 @@ const styles = StyleSheet.create({
 	bar: {
 		width: '100%',
 		borderRadius: 1,
+	},
+	markerLine: {
+		position: 'absolute',
+		top: 0,
+		bottom: 0,
+		width: 2,
+		marginLeft: -1,
+		opacity: 0.85,
+	},
+	markerDot: {
+		position: 'absolute',
+		top: -CURRENT_DOT_SIZE / 2,
+		width: CURRENT_DOT_SIZE,
+		height: CURRENT_DOT_SIZE,
+		borderRadius: CURRENT_DOT_SIZE / 2,
+		marginLeft: -CURRENT_DOT_SIZE / 2,
 	},
 }) satisfies Record<string, ViewStyle>;
 
