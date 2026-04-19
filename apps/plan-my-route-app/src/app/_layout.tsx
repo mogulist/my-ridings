@@ -17,7 +17,6 @@ export default function TabLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
         <Stack.Screen name="routes/[routeId]/plans" />
-        <Stack.Screen name="map" />
       </Stack>
     </ThemeProvider>
   );
