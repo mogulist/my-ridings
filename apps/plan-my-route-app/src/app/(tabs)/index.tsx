@@ -82,7 +82,7 @@ export default function HomeScreen() {
                   style={({ pressed }) => [styles.card, pressed && styles.pressed]}
                   onPress={() =>
                     router.push({
-                      pathname: '/map',
+                      pathname: '/routes/[routeId]/plans/[planId]/schedule',
                       params: { routeId: favoritePlan.routeId, planId: favoritePlan.planId },
                     })
                   }>
