@@ -393,9 +393,45 @@ apps/
 
 ---
 
-## 10. 다음 단계
+## 10. 구현 진행 상황 및 남은 작업
 
-1. **사용자**: §0 (기상청 API 키 발급) 완료 후 알려주세요.
-2. **에이전트**: Phase W1부터 순차 진행. 각 Phase 끝에 검증 결과 보고 후 다음 Phase 진행 여부를 확인합니다.
+> 본 문서 초안의 앱 경로는 `apps/weather-service`였으나, 실제 구현은 **`apps/weather`** 로 통일되어 있다.
 
-본 Plan 자체에 추가/수정하고 싶은 부분이 있다면 (예: DB 분리, public API 우선순위, 다른 외부 데이터 소스 추가 등) 진행 전에 말씀 주세요. 보완 라운드를 한두 번 더 돌리고 W1로 들어가는 게 좋습니다.
+### 10-1. 완료된 구현 요약
+
+| Phase | 상태 | 구현 내용 |
+|------:|:---:|-----------|
+| **W0** | 완료 | 기상청 API 허브 키·활용신청, `apps/weather/.env.local` (`KMA_*`, `CRON_SECRET`, `INTERNAL_API_KEY`, `DATABASE_URL` 등) |
+| **W1** | 완료 | `packages/weather-grid` — LCC 격자 `latLngToGrid` / `gridToLatLng`, Bun 테스트 |
+| **W2** | 완료 | `packages/kma-client` — 단기 `fetchVilageFcst`, 중기 `fetchMidLandFcst` / `fetchMidTa`, zod·정규화, Bun 테스트 |
+| **W3** | 완료 | `packages/weather-types` — 외부 노출 API용 zod; `apps/weather` Next.js 16; Drizzle + `weather` 스키마 테이블 5종; `drizzle/0000_init.sql`; 격자 메타 시드 스크립트 `bun run db:seed` (nx 1~149 × ny 1~253) |
+| **W4** | 완료 | `GET /api/cron/ingest-short-term` — `CRON_SECRET` 검증, `tracked_grids` 기준 수집, `?shard=&total=` 샤딩, `ingest_runs`·`weather_short_term` upsert |
+| **W5** | 완료 | `GET /api/v1/forecast/point` — `INTERNAL_API_KEY`, zod 쿼리, 캐시 헤더·ETag |
+| **W6** | 완료 | `POST /api/v1/forecast/along` — polyline 구간·ETA, 격자별 DB 조회, `tracked_grids` 자동 upsert |
+| **W7** | 부분 | `apps/weather/vercel.json` 크론 등록됨. **실제 Vercel 프로젝트 생성·Root Directory·환경변수·프로덕션 배포**는 저장소 밖 작업으로 미완 |
+| **W8** | 부분 | `GET /api/cron/ingest-mid-term`, `GET /api/v1/forecast/daily` 구현됨. **`weather_grid_meta.mid_region_land` / `mid_region_temp` 는 시드 시 null**이라 중기 수집·일별 API는 코드 경로만 있고, 지역코드 매핑 전에는 실질 데이터가 비어 있을 수 있음. 플랜의 W8-c 수준 **통합 테스트·발표회차 후 검증**은 미작성/미실행 |
+
+추가로 구현된 것: `POST /api/internal/tracked-grids` (플랜 §4-4 보조).
+
+### 10-2. 사용자(운영) 측에서 할 일 (한 번씩)
+
+1. **DB**: `cd apps/weather && bun run db:migrate` 또는 `bun run db:push` 로 `weather` 스키마 적용.
+2. **시드**: 동 디렉터리에서 `bun run db:seed` 로 격자 메타 적재.
+3. **Vercel**: 프로젝트 Root `apps/weather`, 환경변수에 `DATABASE_URL`, `KMA_API_KEY`, `CRON_SECRET`, `INTERNAL_API_KEY` 등록 후 배포; Cron 동작 로그 확인.
+4. **(선택·중기)** 격자별 `mid_region_land` / `mid_region_temp` 채우기 — 없으면 중기 크론은 해당 격자를 건너뜀.
+
+### 10-3. 남은 개발 작업 (플랜 기준)
+
+| 우선순위 | 내용 |
+|:---:|------|
+| **W9** | `plan-my-route-app` — `fetchAlongForecast` 등 weather HTTP 클라이언트, 일정 카드 인라인 날씨(플랜 7-c), 브리핑 스크린(7-d); 기존 7-a/7-b 프록시 폐기 |
+| **검증·테스트** | 플랜에 적힌 W5-d / W6-e / W8-c 수준의 **통합 테스트**(실 DB·curl 시나리오) 정리 및 CI 여부 결정 |
+| **중기 데이터** | `weather_grid_meta` 중기 지역코드 매핑(시드 또는 별도 테이블·스크립트) — 없으면 daily·mid ingest가 빈 상태로 남음 |
+| **W7 마무리** | 프로덕션 첫 배포 후 cron 한 회차 돌고 `ingest_runs`·테이블 증분 확인(플랜 W7-d) |
+| **W10+** | 플랜 §7 옵션(강수 알림, 특보, public API, 대시보드, QStash 등) — 범위 밖 |
+
+### 10-4. 문서·이름 정리 (선택)
+
+- 본문 전역의 `apps/weather-service` 표기를 `apps/weather` 로 맞출지, 또는 디렉터리명을 플랜에 맞춰 rename 할지 결정하면 혼선이 줄어든다.
+
+본 Plan 자체에 추가/수정하고 싶은 부분이 있다면 (예: DB 분리, public API 우선순위, 다른 외부 데이터 소스 추가 등) 진행 전에 말씀 주세요.
