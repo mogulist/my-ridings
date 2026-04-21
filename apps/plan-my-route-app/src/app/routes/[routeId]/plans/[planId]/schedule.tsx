@@ -1,6 +1,6 @@
 import { stageDayLabel } from '@my-ridings/plan-geometry';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import {
   ActionSheetIOS,
   ActivityIndicator,
@@ -17,14 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { AppIcon } from '@/components/ui/icon';
+import { ListRefreshControl } from '@/components/ui/list-refresh-control';
 import { PressableHaptic } from '@/components/ui/pressable-haptic';
 import { MaxContentWidth, Radius, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
-import {
-  fetchPlanDetail,
-  type MobilePlanStageRow,
-  type PlanDetail,
-} from '@/features/api/plan-my-route';
-import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import type { MobilePlanStageRow } from '@/features/api/plan-my-route';
+import { usePlanDetailQuery } from '@/features/plan-my-route/plan-detail-query';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -36,51 +33,25 @@ export default function PlanScheduleScreen() {
   const theme = useTheme();
   const colorScheme = useColorScheme();
   const { routeId, planId } = useLocalSearchParams<{ routeId: string; planId: string }>();
-  const apiOrigin = useMemo(getApiOrigin, []);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [detail, setDetail] = useState<PlanDetail | null>(null);
-  const [retryNonce, setRetryNonce] = useState(0);
+  const { data: detail, error, isPending, isRefetching, refetch } = usePlanDetailQuery(planId);
 
   useEffect(() => {
-    let isMounted = true;
-    void (async () => {
-      if (!planId) {
-        setErrorMessage('planId가 필요합니다.');
-        setIsLoading(false);
-        return;
-      }
-      setErrorMessage(null);
-      setIsLoading(true);
-      try {
-        const accessToken = await getStoredAccessToken();
-        if (!accessToken) {
-          if (isMounted) setIsLoading(false);
-          router.replace('/login');
-          return;
-        }
-        if (!apiOrigin) throw new Error('EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.');
+    if (error?.message === 'UNAUTHENTICATED') {
+      router.replace('/login');
+    }
+  }, [error, router]);
 
-        const data = await fetchPlanDetail(apiOrigin, accessToken, planId);
-        if (!isMounted) return;
-        setDetail(data);
-      } catch (error: unknown) {
-        if (!isMounted) return;
-        setDetail(null);
-        setErrorMessage(error instanceof Error ? error.message : '플랜을 불러오지 못했습니다.');
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    })();
+  const errorMessage = !planId
+    ? 'planId가 필요합니다.'
+    : error && error.message !== 'UNAUTHENTICATED' && !detail
+      ? error.message
+      : null;
 
-    return () => {
-      isMounted = false;
-    };
-  }, [apiOrigin, planId, router, retryNonce]);
+  const showLoading = Boolean(planId) && isPending && !detail;
 
   const handleRetry = () => {
-    setRetryNonce((n) => n + 1);
+    void refetch();
   };
 
   const routerPushStage = (dayNumber: number) => {
@@ -135,14 +106,22 @@ export default function PlanScheduleScreen() {
       <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          contentInsetAdjustmentBehavior="automatic">
+          contentInsetAdjustmentBehavior="automatic"
+          refreshControl={
+            planId ? (
+              <ListRefreshControl
+                refreshing={isRefetching}
+                onRefresh={() => void refetch()}
+              />
+            ) : undefined
+          }>
           {detail?.plan.name ? (
             <ThemedText type="caption" themeColor="textSecondary" style={styles.planName}>
               {detail.plan.name}
             </ThemedText>
           ) : null}
 
-          {isLoading ? (
+          {showLoading ? (
             <View style={styles.stateBlock}>
               <ActivityIndicator accessibilityLabel="일정 불러오는 중" color={theme.tint} />
               <ThemedText type="small" themeColor="textSecondary">

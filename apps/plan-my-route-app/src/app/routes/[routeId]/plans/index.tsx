@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useLayoutEffect, useMemo } from 'react';
 import {
 	ActivityIndicator,
-	RefreshControl,
 	ScrollView,
 	StyleSheet,
 	View,
@@ -15,6 +14,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { AppIcon } from '@/components/ui/icon';
 import { HeaderBack } from '@/components/ui/header-back';
+import { ListRefreshControl } from '@/components/ui/list-refresh-control';
 import { PressableHaptic } from '@/components/ui/pressable-haptic';
 import { MaxContentWidth, Radius, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
 import { formatPlanMetaDate } from '@/features/plan-my-route/format-plan-meta-date';
@@ -83,11 +83,9 @@ export default function RoutePlansScreen() {
 				contentInsetAdjustmentBehavior="automatic"
 				refreshControl={
 					normalizedRouteId ? (
-						<RefreshControl
+						<ListRefreshControl
 							refreshing={isRefetching}
 							onRefresh={() => void refetch()}
-							tintColor={theme.tint}
-							colors={process.env.EXPO_OS === 'android' ? [theme.tint] : undefined}
 						/>
 					) : undefined
 				}>

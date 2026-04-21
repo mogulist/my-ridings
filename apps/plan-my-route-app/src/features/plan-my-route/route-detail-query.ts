@@ -6,6 +6,7 @@ import {
 
 import { fetchRouteDetail, type RouteDetail } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { INFINITE_CACHE_OPTIONS } from '@/lib/query-cache';
 
 export const routeDetailQueryKey = (routeId: string) => ['routeDetail', routeId] as const;
 
@@ -29,17 +30,11 @@ export function seedRouteDetailCache(
 	queryClient.setQueryData(routeDetailQueryKey(routeId), data);
 }
 
-const ROUTE_DETAIL_CACHE = {
-	staleTime: Number.POSITIVE_INFINITY,
-	gcTime: Number.POSITIVE_INFINITY,
-} as const;
-
 export function useRouteDetailQuery(routeId: string | undefined): UseQueryResult<RouteDetail, Error> {
 	return useQuery({
 		queryKey: routeId ? routeDetailQueryKey(routeId) : ['routeDetail', '__none__'],
 		queryFn: () => fetchRouteDetailQuery(routeId!),
 		enabled: Boolean(routeId),
-		staleTime: ROUTE_DETAIL_CACHE.staleTime,
-		gcTime: ROUTE_DETAIL_CACHE.gcTime,
+		...INFINITE_CACHE_OPTIONS,
 	});
 }
