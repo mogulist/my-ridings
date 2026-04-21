@@ -1,0 +1,400 @@
+{
+	"id": "3e59fde2-7ff9-42d2-964e-399db53edd37",
+	"prevId": "00000000-0000-0000-0000-000000000000",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"weather.ingest_runs": {
+			"name": "ingest_runs",
+			"schema": "weather",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"kind": {
+					"name": "kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"finished_at": {
+					"name": "finished_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"base_at": {
+					"name": "base_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cells_requested": {
+					"name": "cells_requested",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cells_succeeded": {
+					"name": "cells_succeeded",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cells_failed": {
+					"name": "cells_failed",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"error_summary": {
+					"name": "error_summary",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"weather.tracked_grids": {
+			"name": "tracked_grids",
+			"schema": "weather",
+			"columns": {
+				"nx": {
+					"name": "nx",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ny": {
+					"name": "ny",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"last_requested_at": {
+					"name": "last_requested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"tracked_grids_nx_ny_pk": {
+					"name": "tracked_grids_nx_ny_pk",
+					"columns": ["nx", "ny"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"weather.weather_grid_meta": {
+			"name": "weather_grid_meta",
+			"schema": "weather",
+			"columns": {
+				"nx": {
+					"name": "nx",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ny": {
+					"name": "ny",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"lat": {
+					"name": "lat",
+					"type": "numeric(9, 6)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"lng": {
+					"name": "lng",
+					"type": "numeric(9, 6)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"mid_region_land": {
+					"name": "mid_region_land",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"mid_region_temp": {
+					"name": "mid_region_temp",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"weather_grid_meta_nx_ny_pk": {
+					"name": "weather_grid_meta_nx_ny_pk",
+					"columns": ["nx", "ny"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"weather.weather_mid_term": {
+			"name": "weather_mid_term",
+			"schema": "weather",
+			"columns": {
+				"region_land_code": {
+					"name": "region_land_code",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"region_temp_code": {
+					"name": "region_temp_code",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"forecast_date": {
+					"name": "forecast_date",
+					"type": "date",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"base_at": {
+					"name": "base_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"tmn": {
+					"name": "tmn",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"tmx": {
+					"name": "tmx",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"am_sky": {
+					"name": "am_sky",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"pm_sky": {
+					"name": "pm_sky",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"am_pop": {
+					"name": "am_pop",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"pm_pop": {
+					"name": "pm_pop",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"ingested_at": {
+					"name": "ingested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"weather_mid_term_region_land_code_region_temp_code_forecast_date_base_at_pk": {
+					"name": "weather_mid_term_region_land_code_region_temp_code_forecast_date_base_at_pk",
+					"columns": ["region_land_code", "region_temp_code", "forecast_date", "base_at"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"weather.weather_short_term": {
+			"name": "weather_short_term",
+			"schema": "weather",
+			"columns": {
+				"nx": {
+					"name": "nx",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ny": {
+					"name": "ny",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"forecast_at": {
+					"name": "forecast_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"base_at": {
+					"name": "base_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"temp_c": {
+					"name": "temp_c",
+					"type": "numeric(5, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"pop_pct": {
+					"name": "pop_pct",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"sky": {
+					"name": "sky",
+					"type": "smallint",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"pty": {
+					"name": "pty",
+					"type": "smallint",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"wind_ms": {
+					"name": "wind_ms",
+					"type": "numeric(6, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"humidity_pct": {
+					"name": "humidity_pct",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"rain_mm": {
+					"name": "rain_mm",
+					"type": "numeric(8, 3)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"snow_cm": {
+					"name": "snow_cm",
+					"type": "numeric(8, 3)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"ingested_at": {
+					"name": "ingested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"weather_short_term_nx_ny_forecast_at_idx": {
+					"name": "weather_short_term_nx_ny_forecast_at_idx",
+					"columns": [
+						{
+							"expression": "nx",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "ny",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "forecast_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"weather_short_term_nx_ny_forecast_at_base_at_pk": {
+					"name": "weather_short_term_nx_ny_forecast_at_base_at_pk",
+					"columns": ["nx", "ny", "forecast_at", "base_at"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}
