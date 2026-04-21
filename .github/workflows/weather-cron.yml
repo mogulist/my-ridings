@@ -1,0 +1,82 @@
+name: weather-cron
+
+# Vercel Hobby는 크론이 하루 1회만 허용되므로, apps/weather 수집 크론은 GitHub Actions에서 트리거한다.
+# 스케줄은 기상청 단기예보 발표시각(KST 02/05/08/11/14/17/20/23) + 10분 버퍼,
+# 중기예보 발표시각(KST 06/18) + 10분 버퍼 기준이다. UTC로 환산:
+#   - 단기: 17:10, 20:10, 23:10, 02:10, 05:10, 08:10, 11:10, 14:10 UTC
+#   - 중기: 21:10, 09:10 UTC
+
+on:
+  schedule:
+    # 단기예보 ingest (8회/일)
+    - cron: "10 17 * * *"
+    - cron: "10 20 * * *"
+    - cron: "10 23 * * *"
+    - cron: "10 2 * * *"
+    - cron: "10 5 * * *"
+    - cron: "10 8 * * *"
+    - cron: "10 11 * * *"
+    - cron: "10 14 * * *"
+    # 중기예보 ingest (2회/일)
+    - cron: "10 21 * * *"
+    - cron: "10 9 * * *"
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "수동 실행 대상 ('short' | 'mid' | 'both')"
+        default: "both"
+        required: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Decide which endpoints to call
+        id: decide
+        run: |
+          schedule="${{ github.event.schedule }}"
+          manual="${{ github.event.inputs.kind }}"
+          call_short=false
+          call_mid=false
+          case "$schedule" in
+            "10 21 * * *"|"10 9 * * *")
+              call_mid=true
+              ;;
+            "10 17 * * *"|"10 20 * * *"|"10 23 * * *"|"10 2 * * *"|"10 5 * * *"|"10 8 * * *"|"10 11 * * *"|"10 14 * * *")
+              call_short=true
+              ;;
+          esac
+          if [ "$manual" = "short" ]; then call_short=true; fi
+          if [ "$manual" = "mid" ]; then call_mid=true; fi
+          if [ "$manual" = "both" ]; then call_short=true; call_mid=true; fi
+          echo "call_short=$call_short" >> "$GITHUB_OUTPUT"
+          echo "call_mid=$call_mid" >> "$GITHUB_OUTPUT"
+
+      - name: Ingest short-term
+        if: steps.decide.outputs.call_short == 'true'
+        env:
+          WEATHER_BASE_URL: ${{ secrets.WEATHER_BASE_URL }}
+          CRON_SECRET: ${{ secrets.WEATHER_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/short.json -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$WEATHER_BASE_URL/api/cron/ingest-short-term")
+          echo "HTTP $code"
+          cat /tmp/short.json || true
+          [ "$code" = "200" ] || exit 1
+
+      - name: Ingest mid-term
+        if: steps.decide.outputs.call_mid == 'true'
+        env:
+          WEATHER_BASE_URL: ${{ secrets.WEATHER_BASE_URL }}
+          CRON_SECRET: ${{ secrets.WEATHER_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/mid.json -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$WEATHER_BASE_URL/api/cron/ingest-mid-term")
+          echo "HTTP $code"
+          cat /tmp/mid.json || true
+          [ "$code" = "200" ] || exit 1

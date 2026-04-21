@@ -462,8 +462,21 @@ apps/
 | 중기 시드 | `lib/mid-region-centroids.ts` + `bun run db:seed-mid` |
 | 테스트 | `bun test lib` — `grid-shard`, `mid-term-dates` |
 
-### 11-3. 다음 (W-review-3 / W9)
+### 11-3. 크론 운영 전략 변경 — Vercel Hobby + GitHub Actions
 
-- Vercel 프로덕션 배포 후 cron·`ingest_runs` 검증(W7-d).
+- **배경**: Vercel Hobby는 cron을 하루 1회만 허용해, 하루 8회(단기)/2회(중기) 스케줄이 맞지 않아 Pro 업그레이드($30/월)가 필요해짐.
+- **결정**: Vercel Hobby를 유지하되, **크론 트리거를 GitHub Actions로 이관**.
+  - `apps/weather/vercel.json` → 빈 객체 `{}` (자체 크론 제거).
+  - `.github/workflows/weather-cron.yml` — 단기 8회, 중기 2회 UTC 스케줄에서 curl로 `/api/cron/ingest-short-term`, `/api/cron/ingest-mid-term` 호출.
+  - 인증 헤더는 `secrets.WEATHER_CRON_SECRET`, 엔드포인트는 `secrets.WEATHER_BASE_URL`.
+  - `workflow_dispatch` 로 수동 실행도 지원(`short` / `mid` / `both`).
+- **GitHub Secrets 설정(사용자)**:
+  - `WEATHER_BASE_URL` = Vercel에 배포된 `apps/weather` URL (예: `https://weather-xxx.vercel.app`).
+  - `WEATHER_CRON_SECRET` = Vercel `CRON_SECRET` 과 동일 값.
+- **호출량 참고**: 격자 1만개를 수집하지 않고 **`tracked_grids` 에 등록된 격자만** 수집. 초기 사용자 수준 기준 하루 수십~수백 호출(기상청 일일 한도 대비 여유 많음).
+
+### 11-4. 다음 (W-review-3 / W9)
+
+- Vercel 프로덕션 배포 + GitHub Actions 첫 회차 실행 후 `ingest_runs` 증분 확인(W7-d).
 - `plan-my-route-app` 에서 `fetchAlongForecast` 및 일정 카드·브리핑(W9).
 - 선택: `/api/health`, 통합 테스트(W5-d/W6-e/W8-c), `mid-region-centroids` 와 공공데이터 코드표 정합성 점검.

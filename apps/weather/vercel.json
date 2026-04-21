@@ -1,9 +1,1 @@
-{
-	"crons": [
-		{
-			"path": "/api/cron/ingest-short-term",
-			"schedule": "10 17,20,23,2,5,8,11,14 * * *"
-		},
-		{ "path": "/api/cron/ingest-mid-term", "schedule": "10 21,9 * * *" }
-	]
-}
+{}
