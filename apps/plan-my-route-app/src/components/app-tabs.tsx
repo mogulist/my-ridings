@@ -10,15 +10,17 @@ export default function AppTabs() {
 
   return (
     <NativeTabs
+      minimizeBehavior="onScrollDown"
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
+        <NativeTabs.Trigger.Label>라우트</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="map.fill" md="map" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings">
+        <NativeTabs.Trigger.Label>설정</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="gear" md="settings" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

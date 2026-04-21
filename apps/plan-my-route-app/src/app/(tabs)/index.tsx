@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { Pressable, SectionList, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -11,7 +10,8 @@ import {
   getFavoritePlans,
   type RouteItem,
 } from '@/features/api/plan-my-route';
-import { clearStoredAccessToken, getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { useTheme } from '@/hooks/use-theme';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
 type FavoritePlanCard = {
@@ -21,13 +21,22 @@ type FavoritePlanCard = {
   planName: string;
 };
 
+type FavoriteRow = FavoritePlanCard & { rowKind: 'favorite' };
+type RouteRow = RouteItem & { rowKind: 'route' };
+type PlaceholderRow = { rowKind: 'loading' } | { rowKind: 'empty' };
+type RoutesSectionItem = RouteRow | PlaceholderRow;
+
+type Section =
+  | { title: string; data: FavoriteRow[]; sectionKind: 'favorites' }
+  | { title: string; data: RoutesSectionItem[]; sectionKind: 'routes' };
+
 export default function HomeScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [favoritePlans, setFavoritePlans] = useState<FavoritePlanCard[]>([]);
-  const apiOrigin = useMemo(getApiOrigin, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -38,6 +47,7 @@ export default function HomeScreen() {
           router.replace('/login');
           return;
         }
+        const apiOrigin = getApiOrigin();
         if (!apiOrigin) {
           setErrorMessage('EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.');
           return;
@@ -63,74 +73,129 @@ export default function HomeScreen() {
     return () => {
       isMounted = false;
     };
-  }, [apiOrigin, router]);
+  }, [router]);
+
+  const sections: Section[] = [];
+
+  if (favoritePlans.length > 0) {
+    sections.push({
+      title: '즐겨찾기한 나의 플랜',
+      sectionKind: 'favorites',
+      data: favoritePlans.map((fp) => ({ ...fp, rowKind: 'favorite' as const })),
+    });
+  }
+
+  const routesSectionData: RoutesSectionItem[] = (() => {
+    if (isLoading) return [{ rowKind: 'loading' }];
+    if (routes.length === 0) return [{ rowKind: 'empty' }];
+    return routes.map((r) => ({ ...r, rowKind: 'route' as const }));
+  })();
+
+  sections.push({
+    title: '나의 라우트',
+    sectionKind: 'routes',
+    data: routesSectionData,
+  });
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <ThemedText type="title" style={styles.pageTitle}>
-            Home
+      <SectionList<Section['data'][number]>
+        style={styles.list}
+        sections={sections}
+        keyExtractor={(item, index) => {
+          if ('rowKind' in item && item.rowKind === 'favorite') {
+            return `${item.routeId}:${item.planId}`;
+          }
+          if ('rowKind' in item && item.rowKind === 'route') {
+            return item.id;
+          }
+          return `placeholder-${index}`;
+        }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.listContent}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={({ section: { title } }) => (
+          <ThemedText type="subtitle" style={styles.sectionHeader}>
+            {title}
           </ThemedText>
+        )}
+        SectionSeparatorComponent={() => <View style={styles.sectionSpacer} />}
+        renderItem={({ item, section }) => {
+          if (section.sectionKind === 'favorites' && item.rowKind === 'favorite') {
+            return (
+              <Pressable
+                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/routes/[routeId]/plans/[planId]/schedule',
+                    params: { routeId: item.routeId, planId: item.planId },
+                  })
+                }>
+                <ThemedText type="smallBold" style={styles.routeTitle}>
+                  {item.planName}
+                </ThemedText>
+                <ThemedText
+                  type="caption"
+                  themeColor="textSecondary"
+                  style={[styles.routeMeta, { opacity: 0.78 }]}
+                  selectable>
+                  {item.routeName}
+                </ThemedText>
+              </Pressable>
+            );
+          }
 
-          {favoritePlans.length > 0 ? (
-            <ThemedView type="backgroundElement" style={styles.section}>
-              <ThemedText type="subtitle">즐겨찾기한 나의 플랜</ThemedText>
-              {favoritePlans.map((favoritePlan) => (
+          if (section.sectionKind === 'routes') {
+            if (item.rowKind === 'loading') {
+              return (
+                <ThemedText type="small" style={styles.row}>
+                  불러오는 중...
+                </ThemedText>
+              );
+            }
+            if (item.rowKind === 'empty') {
+              return (
+                <ThemedText type="small" style={styles.row}>
+                  저장된 라우트가 없습니다.
+                </ThemedText>
+              );
+            }
+            if (item.rowKind === 'route') {
+              return (
                 <Pressable
-                  key={`${favoritePlan.routeId}:${favoritePlan.planId}`}
-                  style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/routes/[routeId]/plans/[planId]/schedule',
-                      params: { routeId: favoritePlan.routeId, planId: favoritePlan.planId },
-                    })
-                  }>
-                  <ThemedText type="smallBold">{favoritePlan.planName}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {favoritePlan.routeName}
+                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  onPress={() => router.push(`/routes/${item.id}/plans`)}>
+                  <ThemedText type="smallBold" style={styles.routeTitle}>
+                    {item.name}
+                  </ThemedText>
+                  <ThemedText
+                    type="caption"
+                    themeColor="textSecondary"
+                    style={[styles.routeMeta, { opacity: 0.78 }]}
+                    selectable>
+                    {item.rwgps_url ?? ''}
                   </ThemedText>
                 </Pressable>
-              ))}
-            </ThemedView>
-          ) : null}
+              );
+            }
+          }
 
-          <ThemedView type="backgroundElement" style={styles.section}>
-            <ThemedText type="subtitle">나의 라우트</ThemedText>
-            {isLoading ? (
-              <ThemedText type="small">불러오는 중...</ThemedText>
-            ) : routes.length === 0 ? (
-              <ThemedText type="small">저장된 라우트가 없습니다.</ThemedText>
-            ) : (
-              routes.map((route) => (
-                <Pressable
-                  key={route.id}
-                  style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-                  onPress={() => router.push(`/routes/${route.id}/plans`)}>
-                  <ThemedText type="smallBold">{route.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {route.rwgps_url ?? ''}
-                  </ThemedText>
-                </Pressable>
-              ))
-            )}
-            {errorMessage ? (
-              <ThemedText type="small" style={styles.errorText}>
-                {errorMessage}
-              </ThemedText>
-            ) : null}
-          </ThemedView>
-
-          <Pressable
-            style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
-            onPress={async () => {
-              await clearStoredAccessToken();
-              router.replace('/login');
-            }}>
-            <ThemedText type="smallBold">로그아웃</ThemedText>
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
+          return null;
+        }}
+        ItemSeparatorComponent={() => (
+          <View style={[styles.separator, { backgroundColor: theme.separator }]} />
+        )}
+        ListFooterComponent={
+          errorMessage ? (
+            <ThemedText
+              type="small"
+              style={[styles.errorText, { color: theme.danger }]}
+              selectable>
+              {errorMessage}
+            </ThemedText>
+          ) : null
+        }
+      />
     </ThemedView>
   );
 }
@@ -141,49 +206,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
   },
-  safeArea: {
+  list: {
     flex: 1,
     width: '100%',
     maxWidth: MaxContentWidth,
   },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    gap: Spacing.three,
+  listContent: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.four,
+    gap: 0,
   },
-  pageTitle: {
-    fontSize: 40,
-    lineHeight: 44,
+  sectionHeader: {
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
-  section: {
-    gap: Spacing.two,
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
+  sectionSpacer: {
+    height: Spacing.three,
   },
-  card: {
+  row: {
     gap: Spacing.half,
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderWidth: 1,
-    borderColor: '#A0A4AE',
+    paddingVertical: Spacing.three,
+    paddingHorizontal: 0,
   },
-  signOutButton: {
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#A0A4AE',
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.two,
+  routeTitle: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  routeMeta: {
+    fontWeight: '400',
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
   },
   pressed: {
     opacity: 0.75,
   },
   errorText: {
-    color: '#D64545',
+    marginTop: Spacing.three,
   },
 });
