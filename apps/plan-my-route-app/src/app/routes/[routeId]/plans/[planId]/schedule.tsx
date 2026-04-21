@@ -22,6 +22,10 @@ import { PressableHaptic } from '@/components/ui/pressable-haptic';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import type { MobilePlanStageRow } from '@/features/api/plan-my-route';
 import { usePlanDetailQuery } from '@/features/plan-my-route/plan-detail-query';
+import {
+  formatStageForecastSummary,
+  usePlanStageForecastsQuery,
+} from '@/features/plan-my-route/plan-stage-forecast-query';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -100,6 +104,7 @@ export default function PlanScheduleScreen() {
   };
 
   const stages = detail?.stages ?? [];
+  const stageForecasts = usePlanStageForecastsQuery(planId, stages.length);
 
   return (
     <ThemedView style={styles.container}>
@@ -168,6 +173,10 @@ export default function PlanScheduleScreen() {
                     ? `${startName} → ${endName}`
                     : startName ?? endName ?? null;
                 const a11yLabel = `${a11yHeadline}, ${distanceKm.toFixed(1)} km, 획득고도 ${gainM} m`;
+                const fr = stageForecasts[index];
+                const forecastSummary = formatStageForecastSummary(fr?.data);
+                const forecastLoading = fr?.isPending ?? false;
+                const forecastFailed = fr?.isError ?? false;
 
                 return (
                   <Animated.View
@@ -232,6 +241,32 @@ export default function PlanScheduleScreen() {
                             <ThemedText type="caption" themeColor="textSecondary" style={styles.effectiveKm}>
                               ≈ {effectiveKm.toFixed(1)} km
                             </ThemedText>
+                          </View>
+                          <View style={styles.forecastRow}>
+                            <AppIcon name="cloud.sun" size={14} tintColor={theme.textSecondary} />
+                            {forecastLoading ? (
+                              <ActivityIndicator
+                                accessibilityLabel="스테이지 날씨 불러오는 중"
+                                color={theme.tint}
+                                style={styles.forecastSpinner}
+                              />
+                            ) : forecastFailed ? (
+                              <ThemedText type="caption" themeColor="textSecondary">
+                                날씨를 불러오지 못했습니다
+                              </ThemedText>
+                            ) : forecastSummary ? (
+                              <ThemedText
+                                type="caption"
+                                themeColor="textSecondary"
+                                selectable
+                                style={styles.forecastText}>
+                                {forecastSummary}
+                              </ThemedText>
+                            ) : (
+                              <ThemedText type="caption" themeColor="textSecondary">
+                                예보 데이터 없음
+                              </ThemedText>
+                            )}
                           </View>
                         </View>
                       </PressableHaptic>
@@ -343,6 +378,19 @@ const styles = StyleSheet.create({
   },
   effectiveKm: {
     fontVariant: ['tabular-nums'],
+  },
+  forecastRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  forecastSpinner: {
+    transform: [{ scale: 0.85 }],
+  },
+  forecastText: {
+    flex: 1,
+    minWidth: 0,
   },
   moreButton: {
     width: 36,
