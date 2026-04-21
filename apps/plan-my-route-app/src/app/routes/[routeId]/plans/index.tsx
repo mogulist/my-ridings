@@ -1,8 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
+import {
+	ActivityIndicator,
+	Pressable,
+	RefreshControl,
+	ScrollView,
+	StyleSheet,
+	View,
+} from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -10,142 +17,184 @@ import { ThemedView } from '@/components/themed-view';
 import { AppIcon } from '@/components/ui/icon';
 import { PressableHaptic } from '@/components/ui/pressable-haptic';
 import { MaxContentWidth, Radius, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
-import { fetchRouteDetail, type PlanItem } from '@/features/api/plan-my-route';
-import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { formatPlanMetaDate } from '@/features/plan-my-route/format-plan-meta-date';
+import { useRouteDetailQuery } from '@/features/plan-my-route/route-detail-query';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { safeImpactLight } from '@/lib/safe-haptics';
+
+function HeaderBackToHome() {
+	const router = useRouter();
+	const theme = useTheme();
+
+	const handlePress = () => {
+		if (process.env.EXPO_OS === 'ios') {
+			safeImpactLight();
+		}
+		if (router.canGoBack()) router.back();
+		else router.replace('/(tabs)');
+	};
+
+	return (
+		<Pressable
+			accessibilityRole="button"
+			accessibilityLabel="Home으로 돌아가기"
+			hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+			onPress={handlePress}
+			style={styles.headerBack}>
+			<AppIcon name="chevron.left" size={20} tintColor={theme.tint} />
+			<ThemedText style={styles.headerBackLabel} themeColor="text">
+				Home
+			</ThemedText>
+		</Pressable>
+	);
+}
 
 export default function RoutePlansScreen() {
 	const navigation = useNavigation();
 	const router = useRouter();
 	const theme = useTheme();
 	const colorScheme = useColorScheme();
-	const { routeId } = useLocalSearchParams<{ routeId: string }>();
-	const [isLoading, setIsLoading] = useState(true);
-	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [routeName, setRouteName] = useState('');
-	const [plans, setPlans] = useState<PlanItem[]>([]);
-	const apiOrigin = useMemo(getApiOrigin, []);
+	const insets = useSafeAreaInsets();
+	const { routeId: routeIdParam } = useLocalSearchParams<{ routeId: string | string[] }>();
+	const normalizedRouteId = useMemo(() => {
+		const r = routeIdParam;
+		if (typeof r === 'string' && r.length > 0) return r;
+		if (Array.isArray(r) && typeof r[0] === 'string' && r[0].length > 0) return r[0];
+		return undefined;
+	}, [routeIdParam]);
 
-	const title = routeName.trim() ? routeName : '플랜';
+	const { data, error, isPending, isRefetching, refetch } = useRouteDetailQuery(normalizedRouteId);
+
+	const routeName = data?.name ?? '';
+	const plans = data?.plans ?? [];
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
-			title,
+			title: '플랜',
+			headerLeft: () => <HeaderBackToHome />,
 		});
-	}, [navigation, title]);
+	}, [navigation, theme.tint]);
 
 	useEffect(() => {
-		let isMounted = true;
-		void (async () => {
-			if (!routeId) {
-				setErrorMessage('routeId가 필요합니다.');
-				setIsLoading(false);
-				return;
-			}
-			try {
-				const accessToken = await getStoredAccessToken();
-				if (!accessToken) {
-					router.replace('/login');
-					return;
-				}
-				if (!apiOrigin) throw new Error('EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.');
+		if (error?.message === 'UNAUTHENTICATED') {
+			router.replace('/login');
+		}
+	}, [error, router]);
 
-				const routeDetail = await fetchRouteDetail(apiOrigin, accessToken, routeId);
-				if (!isMounted) return;
-				setRouteName(routeDetail.name);
-				setPlans(routeDetail.plans);
-			} catch (error: unknown) {
-				if (!isMounted) return;
-				setErrorMessage(error instanceof Error ? error.message : '플랜 목록을 불러오지 못했습니다.');
-			} finally {
-				if (isMounted) setIsLoading(false);
-			}
-		})();
+	const errorMessage = !normalizedRouteId
+		? 'routeId가 필요합니다.'
+		: error && error.message !== 'UNAUTHENTICATED' && !data
+			? error.message
+			: null;
 
-		return () => {
-			isMounted = false;
-		};
-	}, [apiOrigin, routeId, router]);
+	const showLoading = Boolean(normalizedRouteId) && isPending && !data;
+
+	const scrollBottomPad = Math.max(insets.bottom, Spacing.four);
 
 	return (
 		<ThemedView style={styles.container}>
-			<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-				<ScrollView
-					contentContainerStyle={styles.scrollContent}
-					contentInsetAdjustmentBehavior="automatic">
-					<ThemedText type="small" themeColor="textSecondary">
-						라우트의 플랜을 선택하세요.
-					</ThemedText>
-
-					{isLoading ? (
-						<View style={styles.stateRow}>
-							<ActivityIndicator color={theme.tint} />
-							<ThemedText type="small" themeColor="textSecondary">
-								불러오는 중…
+			<ScrollView
+				style={styles.scroll}
+				contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
+				contentInsetAdjustmentBehavior="automatic"
+				refreshControl={
+					normalizedRouteId ? (
+						<RefreshControl
+							refreshing={isRefetching}
+							onRefresh={() => void refetch()}
+							tintColor={theme.tint}
+							colors={process.env.EXPO_OS === 'android' ? [theme.tint] : undefined}
+						/>
+					) : undefined
+				}>
+				{!showLoading ? (
+					<View style={styles.routeContext}>
+						{routeName.trim() ? (
+							<ThemedText selectable style={styles.routeContextTitle} themeColor="text">
+								{routeName.trim()}
 							</ThemedText>
-						</View>
-					) : plans.length === 0 ? (
-						<View style={styles.empty}>
-							<AppIcon name="calendar" size={48} tintColor={theme.textSecondary} />
-							<ThemedText type="small" themeColor="textSecondary">
-								플랜이 없습니다.
-							</ThemedText>
-						</View>
-					) : (
-						<View style={styles.list}>
-							{plans.map((plan, index) => {
-								const accent = STAGE_STROKE_COLORS[index % STAGE_STROKE_COLORS.length];
-								return (
-									<Animated.View
-										key={plan.id}
-										entering={FadeInDown.delay(index * 40).duration(280)}>
-										<View style={styles.planCardOuter}>
-											<View style={[styles.accentBar, { backgroundColor: accent }]} />
-											<PressableHaptic
-												style={styles.cardPressable}
-												onPress={() =>
-													router.push({
-														pathname: '/routes/[routeId]/plans/[planId]/schedule',
-														params: { routeId: routeId ?? '', planId: plan.id },
-													})
-												}>
-												<View
-													style={[
-														styles.planCardInner,
-														{
-															backgroundColor: theme.surfaceElevated,
-															boxShadow:
-																colorScheme === 'dark'
-																	? '0px 2px 12px rgba(0, 0, 0, 0.45)'
-																	: '0px 1px 2px rgba(0, 0, 0, 0.04), 0px 4px 16px rgba(0, 0, 0, 0.06)',
-														},
-													]}>
-													<View style={styles.cardText}>
-														<ThemedText type="smallBold" numberOfLines={2}>
-															{plan.name}
-														</ThemedText>
-														<ThemedText type="caption" themeColor="textSecondary">
-															{plan.start_date ?? plan.created_at ?? ''}
-														</ThemedText>
-													</View>
-													<AppIcon name="chevron.right" size={18} tintColor={theme.textSecondary} />
-												</View>
-											</PressableHaptic>
-										</View>
-									</Animated.View>
-								);
-							})}
-						</View>
-					)}
-
-					{errorMessage ? (
-						<ThemedText type="small" style={{ color: theme.danger }}>
-							{errorMessage}
+						) : null}
+						<ThemedText selectable type="small" themeColor="textSecondary">
+							라우트의 플랜을 선택하세요.
 						</ThemedText>
-					) : null}
-				</ScrollView>
-			</SafeAreaView>
+					</View>
+				) : null}
+
+				{showLoading ? (
+					<View style={styles.stateRow}>
+						<ActivityIndicator color={theme.tint} />
+						<ThemedText type="small" themeColor="textSecondary">
+							불러오는 중…
+						</ThemedText>
+					</View>
+				) : errorMessage ? null : plans.length === 0 ? (
+					<View style={styles.empty}>
+						<AppIcon name="calendar" size={48} tintColor={theme.textSecondary} />
+						<ThemedText type="small" themeColor="textSecondary">
+							플랜이 없습니다.
+						</ThemedText>
+					</View>
+				) : (
+					<View style={styles.list}>
+						{plans.map((plan, index) => {
+							const accent = STAGE_STROKE_COLORS[index % STAGE_STROKE_COLORS.length];
+							const meta = formatPlanMetaDate(plan.start_date, plan.created_at);
+							return (
+								<Animated.View
+									key={plan.id}
+									entering={FadeInDown.delay(index * 40).duration(280)}>
+									<View style={styles.planCardOuter}>
+										<View style={[styles.accentBar, { backgroundColor: accent }]} />
+										<PressableHaptic
+											style={styles.cardPressable}
+											onPress={() =>
+												router.push({
+													pathname: '/routes/[routeId]/plans/[planId]/schedule',
+													params: { routeId: normalizedRouteId ?? '', planId: plan.id },
+												})
+											}>
+											<View
+												style={[
+													styles.planCardInner,
+													{
+														backgroundColor: theme.surfaceElevated,
+														boxShadow:
+															colorScheme === 'dark'
+																? '0px 1px 8px rgba(0, 0, 0, 0.35)'
+																: '0px 1px 3px rgba(0, 0, 0, 0.08)',
+													},
+												]}>
+												<View style={styles.cardText}>
+													<ThemedText selectable type="smallBold">
+														{plan.name}
+													</ThemedText>
+													{meta ? (
+														<ThemedText
+															selectable
+															type="caption"
+															themeColor="textSecondary"
+															style={styles.metaDate}>
+															{meta}
+														</ThemedText>
+													) : null}
+												</View>
+												<AppIcon name="chevron.right" size={18} tintColor={theme.textSecondary} />
+											</View>
+										</PressableHaptic>
+									</View>
+								</Animated.View>
+							);
+						})}
+					</View>
+				)}
+
+				{errorMessage ? (
+					<ThemedText selectable type="small" style={{ color: theme.danger }}>
+						{errorMessage}
+					</ThemedText>
+				) : null}
+			</ScrollView>
 		</ThemedView>
 	);
 }
@@ -156,15 +205,37 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'center',
 	},
-	safeArea: {
+	headerBack: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: Spacing.half,
+		paddingVertical: Spacing.two,
+		paddingRight: Spacing.two,
+		minHeight: 44,
+		justifyContent: 'center',
+	},
+	headerBackLabel: {
+		fontSize: 17,
+		fontWeight: '400',
+	},
+	scroll: {
 		flex: 1,
 		width: '100%',
 		maxWidth: MaxContentWidth,
 	},
 	scrollContent: {
 		paddingHorizontal: Spacing.four,
-		paddingVertical: Spacing.two,
+		paddingVertical: Spacing.three,
 		gap: Spacing.three,
+		flexGrow: 1,
+	},
+	routeContext: {
+		gap: Spacing.two,
+	},
+	routeContextTitle: {
+		fontSize: 22,
+		lineHeight: 30,
+		fontWeight: '600',
 	},
 	stateRow: {
 		flexDirection: 'row',
@@ -211,5 +282,8 @@ const styles = StyleSheet.create({
 		flex: 1,
 		minWidth: 0,
 		gap: Spacing.half,
+	},
+	metaDate: {
+		fontVariant: ['tabular-nums'],
 	},
 });

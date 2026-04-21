@@ -10,6 +10,7 @@ export const SF_ANDROID_MAP: Record<string, string> = {
   'exclamationmark.triangle': 'warning',
   'chart.bar.xaxis': 'bar_chart',
   'chevron.right': 'chevron_right',
+  'chevron.left': 'chevron_left',
   'location.fill': 'my_location',
   bicycle: 'directions_bike',
   'flag.checkered': 'flag',

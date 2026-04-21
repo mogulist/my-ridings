@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect } from 'react';
 import { LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -13,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Shadow } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { safeSelection } from '@/lib/safe-haptics';
 
 export type PlanDetailTabKey = 'summary' | 'schedule' | 'map';
 
@@ -90,7 +90,7 @@ export function PlanDetailFloatingTabs({
 							]}
 							onPress={() => {
 								if (Platform.OS === 'ios') {
-									void Haptics.selectionAsync();
+									safeSelection();
 								}
 								onSelectTab(tab);
 							}}>

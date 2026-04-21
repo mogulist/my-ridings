@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, View } from 'react-native';
@@ -11,6 +12,7 @@ import {
   type RouteItem,
 } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { seedRouteDetailCache } from '@/features/plan-my-route/route-detail-query';
 import { useTheme } from '@/hooks/use-theme';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
@@ -32,6 +34,7 @@ type Section =
 
 export default function HomeScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -61,6 +64,10 @@ export default function HomeScreen() {
           routeItems.map((route) => fetchRouteDetail(apiOrigin, accessToken, route.id)),
         );
         if (!isMounted) return;
+        routeDetails.forEach((detail, i) => {
+          const id = routeItems[i]?.id;
+          if (id) seedRouteDetailCache(queryClient, id, detail);
+        });
         setFavoritePlans(getFavoritePlans(routeDetails));
       } catch (error: unknown) {
         if (!isMounted) return;
@@ -73,7 +80,7 @@ export default function HomeScreen() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, [queryClient, router]);
 
   const sections: Section[] = [];
 

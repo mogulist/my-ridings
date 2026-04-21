@@ -1,6 +1,7 @@
-import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
 import { Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+
+import { safeImpactLight } from '@/lib/safe-haptics';
 
 export type PressableHapticProps = PressableProps & {
   children: ReactNode | ((state: { pressed: boolean }) => ReactNode);
@@ -21,7 +22,7 @@ export function PressableHaptic({ children, onPressIn, style, ...rest }: Pressab
       }}
       onPressIn={(e) => {
         if (Platform.OS === 'ios') {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          safeImpactLight();
         }
         onPressIn?.(e);
       }}
