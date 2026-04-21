@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { fetchVilageFcst } from "./fetch-short-term";
 
-const mockFetch = (payload: unknown, ok = true, status = 200): typeof fetch =>
+const mockFetch = (payload: unknown, _ok = true, status = 200): typeof fetch =>
 	(async () =>
 		new Response(JSON.stringify(payload), {
 			status,
