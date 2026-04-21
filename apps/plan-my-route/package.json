@@ -15,6 +15,7 @@
 		"@my-ridings/design-tokens": "workspace:*",
 		"@my-ridings/plan-geometry": "workspace:*",
 		"@my-ridings/ui": "workspace:*",
+		"@my-ridings/weather-types": "workspace:*",
 		"@supabase/supabase-js": "^2.99.0",
 		"@vercel/blob": "^2.3.3",
 		"jose": "^6.1.0",

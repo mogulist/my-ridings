@@ -23,6 +23,7 @@ export const SF_ANDROID_MAP: Record<string, string> = {
   'arrow.clockwise': 'refresh',
   'flame.fill': 'local_fire_department',
   bolt: 'bolt',
+  'cloud.sun': 'partly_cloudy_day',
   straighten: 'straighten',
   'arrow.left.and.right': 'compare_arrows',
 };

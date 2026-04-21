@@ -1,3 +1,5 @@
+import type { AlongForecastResponse } from '@my-ridings/weather-types';
+
 export type RouteItem = {
   id: string;
   name: string;
@@ -140,6 +142,40 @@ export const fetchRouteDetail = async (
     ...json,
     plans: Array.isArray(json.plans) ? json.plans : [],
   };
+};
+
+export type PlanStageForecastBody = {
+  dayNumber: number;
+  segments?: number;
+  paceKmh?: number;
+  departAt?: string;
+};
+
+export const fetchPlanStageForecastAlong = async (
+  apiOrigin: string,
+  accessToken: string,
+  planId: string,
+  body: PlanStageForecastBody,
+): Promise<AlongForecastResponse> => {
+  const response = await fetch(`${apiOrigin}/api/mobile/plans/${planId}/forecast-along`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let message = `POST /api/mobile/plans/${planId}/forecast-along failed (${response.status})`;
+    try {
+      const errJson = (await response.json()) as { error?: string };
+      if (typeof errJson.error === 'string' && errJson.error.trim()) message = errJson.error.trim();
+    } catch {
+      /* ignore body parse errors */
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as AlongForecastResponse;
 };
 
 export const fetchPlanDetail = async (
