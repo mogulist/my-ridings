@@ -19,7 +19,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AppIcon } from '@/components/ui/icon';
 import { ListRefreshControl } from '@/components/ui/list-refresh-control';
 import { PressableHaptic } from '@/components/ui/pressable-haptic';
-import { MaxContentWidth, Radius, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import type { MobilePlanStageRow } from '@/features/api/plan-my-route';
 import { usePlanDetailQuery } from '@/features/plan-my-route/plan-detail-query';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -116,7 +116,7 @@ export default function PlanScheduleScreen() {
             ) : undefined
           }>
           {detail?.plan.name ? (
-            <ThemedText type="caption" themeColor="textSecondary" style={styles.planName}>
+            <ThemedText selectable style={styles.planName}>
               {detail.plan.name}
             </ThemedText>
           ) : null}
@@ -156,89 +156,92 @@ export default function PlanScheduleScreen() {
               {stages.map((stage, index) => {
                 const dayNumber = index + 1;
                 const datePart = stageDayLabel(dayNumber, detail?.plan.start_date ?? null);
-                const headline = datePart ? `D${dayNumber} · ${datePart}` : `D${dayNumber}`;
+                const stageLabel = `Stage ${dayNumber}`;
+                const a11yHeadline = datePart ? `${stageLabel}, ${datePart}` : stageLabel;
                 const distanceKm = stageDistanceKm(stage);
                 const gainM = Math.round(Number(stage.elevation_gain) || 0);
-                const titleExtra = stage.title?.trim();
-                const a11yLabel = titleExtra
-                  ? `${headline}, ${distanceKm.toFixed(1)} km, 획득고도 ${gainM} m, ${titleExtra}`
-                  : `${headline}, ${distanceKm.toFixed(1)} km, 획득고도 ${gainM} m`;
-                const accent = STAGE_STROKE_COLORS[(dayNumber - 1) % STAGE_STROKE_COLORS.length];
+                const effectiveKm = calcEffectiveDistanceKm(distanceKm, gainM);
+                const startName = stage.start_name?.trim();
+                const endName = stage.end_name?.trim();
+                const routeDesc =
+                  startName && endName
+                    ? `${startName} → ${endName}`
+                    : startName ?? endName ?? null;
+                const a11yLabel = `${a11yHeadline}, ${distanceKm.toFixed(1)} km, 획득고도 ${gainM} m`;
 
                 return (
                   <Animated.View
                     key={stage.id}
                     entering={FadeInDown.delay(index * 50).duration(320)}>
-                    <View style={styles.stageCardOuter}>
-                      <View style={[styles.accentBar, { backgroundColor: accent }]} />
+                    <View
+                      style={[
+                        styles.cardShell,
+                        {
+                          backgroundColor: theme.surfaceElevated,
+                          boxShadow:
+                            colorScheme === 'dark'
+                              ? '0px 2px 8px rgba(0, 0, 0, 0.4)'
+                              : '0px 1px 2px rgba(0, 0, 0, 0.04), 0px 2px 8px rgba(0, 0, 0, 0.05)',
+                        },
+                      ]}>
                       <PressableHaptic
                         accessibilityRole="button"
                         accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
                         style={styles.cardPressable}
                         onPress={() => routerPushStage(dayNumber)}>
-                        <View
-                          style={[
-                            styles.cardInner,
-                            {
-                              backgroundColor: theme.surfaceElevated,
-                              boxShadow:
-                                colorScheme === 'dark'
-                                  ? '0px 2px 12px rgba(0, 0, 0, 0.45)'
-                                  : '0px 1px 2px rgba(0, 0, 0, 0.04), 0px 4px 16px rgba(0, 0, 0, 0.06)',
-                            },
-                          ]}>
+                        <View style={styles.cardContent}>
                           <View style={styles.cardTopRow}>
-                            <ThemedText type="metric" style={styles.dayMetric}>
-                              D{dayNumber}
+                            <ThemedText type="smallBold" style={styles.stageLabel}>
+                              {stageLabel}
                             </ThemedText>
                             {datePart ? (
-                              <ThemedText type="headline" numberOfLines={1} style={styles.dateHeadline}>
+                              <ThemedText type="caption" themeColor="textSecondary" style={styles.dateLabel}>
                                 {datePart}
                               </ThemedText>
                             ) : null}
                           </View>
-                          <View style={styles.metricsRow}>
-                            <View style={styles.metricCell}>
-                              <AppIcon name="figure.outdoor.cycle" size={18} tintColor={theme.tint} />
-                              <View style={styles.metricTextRow}>
-                                <ThemedText type="metricSm" style={styles.metricValue}>
-                                  {distanceKm.toFixed(1)}
-                                </ThemedText>
-                                <ThemedText type="caption" themeColor="textSecondary">
-                                  {' '}
-                                  km
-                                </ThemedText>
-                              </View>
-                            </View>
-                            <View style={styles.metricCell}>
-                              <AppIcon name="arrow.up.forward" size={18} tintColor={theme.gain} />
-                              <View style={styles.metricTextRow}>
-                                <ThemedText
-                                  type="metricSm"
-                                  style={[styles.metricValue, { color: theme.gain }]}>
-                                  +{gainM.toLocaleString()}
-                                </ThemedText>
-                                <ThemedText type="caption" themeColor="textSecondary">
-                                  {' '}
-                                  m
-                                </ThemedText>
-                              </View>
-                            </View>
-                          </View>
-                          {titleExtra ? (
-                            <ThemedText type="caption" themeColor="textSecondary" numberOfLines={2}>
-                              {titleExtra}
+                          {routeDesc ? (
+                            <ThemedText
+                              type="caption"
+                              themeColor="textSecondary"
+                              numberOfLines={1}
+                              selectable>
+                              {routeDesc}
                             </ThemedText>
                           ) : null}
+                          <View style={styles.metricsRow}>
+                            <View style={styles.metricCell}>
+                              <AppIcon name="figure.outdoor.cycle" size={14} tintColor={theme.tint} />
+                              <ThemedText type="small" style={styles.metricValue}>
+                                {distanceKm.toFixed(1)}
+                              </ThemedText>
+                              <ThemedText type="caption" themeColor="textSecondary">
+                                {' km'}
+                              </ThemedText>
+                            </View>
+                            <View style={styles.metricCell}>
+                              <AppIcon name="arrow.up.forward" size={14} tintColor={theme.gain} />
+                              <ThemedText type="small" style={[styles.metricValue, { color: theme.gain }]}>
+                                +{gainM.toLocaleString()}
+                              </ThemedText>
+                              <ThemedText type="caption" themeColor="textSecondary">
+                                {' m'}
+                              </ThemedText>
+                            </View>
+                            <View style={styles.metricSpacer} />
+                            <ThemedText type="caption" themeColor="textSecondary" style={styles.effectiveKm}>
+                              ≈ {effectiveKm.toFixed(1)} km
+                            </ThemedText>
+                          </View>
                         </View>
                       </PressableHaptic>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`${headline}, 더보기 메뉴`}
-                        hitSlop={12}
-                        style={styles.moreHit}
-                        onPress={() => openStageOverflowMenu(dayNumber, headline)}>
-                        <AppIcon name="ellipsis.circle" size={24} tintColor={theme.textSecondary} />
+                        accessibilityLabel={`${a11yHeadline}, 더보기 메뉴`}
+                        hitSlop={8}
+                        style={styles.moreButton}
+                        onPress={() => openStageOverflowMenu(dayNumber, stageLabel)}>
+                        <AppIcon name="ellipsis" size={16} tintColor={theme.textSecondary} />
                       </Pressable>
                     </View>
                   </Animated.View>
@@ -265,12 +268,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
+    paddingTop: Spacing.two,
     paddingBottom: Spacing.four + FLOATING_TAB_BAR_CLEARANCE,
     gap: Spacing.three,
   },
   planName: {
-    marginBottom: Spacing.half,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   stateBlock: {
     gap: Spacing.two,
@@ -289,72 +294,63 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
   },
   cardList: {
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
-  stageCardOuter: {
+  cardShell: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
     borderRadius: Radius.lg,
     borderCurve: 'continuous',
-    overflow: 'visible',
-  },
-  accentBar: {
-    width: 4,
-    borderTopLeftRadius: Radius.lg,
-    borderBottomLeftRadius: Radius.lg,
+    overflow: 'hidden',
   },
   cardPressable: {
     flex: 1,
     minWidth: 0,
   },
-  cardInner: {
-    flex: 1,
+  cardContent: {
     paddingLeft: Spacing.three,
-    paddingRight: Spacing.two,
-    paddingVertical: Spacing.three,
-    borderTopRightRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
-    borderCurve: 'continuous',
-    gap: Spacing.two,
+    paddingRight: Spacing.one,
+    paddingVertical: 12,
+    gap: 6,
   },
   cardTopRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: Spacing.two,
   },
-  dayMetric: {
+  stageLabel: {
     flexShrink: 0,
   },
-  dateHeadline: {
+  dateLabel: {
     flex: 1,
-    textAlign: 'right',
-    minWidth: 0,
   },
   metricsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: 2,
   },
   metricCell: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    minWidth: '40%',
+    gap: 4,
   },
-  metricTextRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
+  metricSpacer: {
+    flex: 1,
   },
   metricValue: {
     fontVariant: ['tabular-nums'],
   },
-  moreHit: {
-    width: 44,
+  effectiveKm: {
+    fontVariant: ['tabular-nums'],
+  },
+  moreButton: {
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: Spacing.two,
+    marginTop: Spacing.one,
+    flexShrink: 0,
   },
 });
 
@@ -362,4 +358,9 @@ function stageDistanceKm(stage: MobilePlanStageRow): number {
   const startM = stage.start_distance ?? 0;
   const endM = stage.end_distance ?? startM;
   return (endM - startM) / 1000;
+}
+
+/** 환산 거리: 거리(km) + 획득고도(m) / 100 × 1.2 */
+function calcEffectiveDistanceKm(distanceKm: number, gainM: number): number {
+  return Math.round((distanceKm + (gainM / 100) * 1.2) * 10) / 10;
 }
