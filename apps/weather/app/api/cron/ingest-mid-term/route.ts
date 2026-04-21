@@ -31,6 +31,15 @@ const hasDayData = (d: {
 export async function GET(req: NextRequest) {
 	const deny = requireCronAuth(req);
 	if (deny) return deny;
+	try {
+		return await runIngestMidTerm(req);
+	} catch (e) {
+		const message = e instanceof Error ? e.message : String(e);
+		return Response.json({ error: message }, { status: 500 });
+	}
+}
+
+async function runIngestMidTerm(req: NextRequest) {
 	const authKey = process.env.KMA_API_KEY;
 	if (!authKey) {
 		return Response.json({ error: "KMA_API_KEY missing" }, { status: 500 });
