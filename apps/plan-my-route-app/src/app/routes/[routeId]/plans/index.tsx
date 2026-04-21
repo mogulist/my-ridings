@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useLayoutEffect, useMemo } from 'react';
 import {
 	ActivityIndicator,
-	Pressable,
 	RefreshControl,
 	ScrollView,
 	StyleSheet,
@@ -15,39 +14,23 @@ import { useNavigation } from '@react-navigation/native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { AppIcon } from '@/components/ui/icon';
+import { HeaderBack } from '@/components/ui/header-back';
 import { PressableHaptic } from '@/components/ui/pressable-haptic';
 import { MaxContentWidth, Radius, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
 import { formatPlanMetaDate } from '@/features/plan-my-route/format-plan-meta-date';
 import { useRouteDetailQuery } from '@/features/plan-my-route/route-detail-query';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
-import { safeImpactLight } from '@/lib/safe-haptics';
 
 function HeaderBackToHome() {
 	const router = useRouter();
-	const theme = useTheme();
 
 	const handlePress = () => {
-		if (process.env.EXPO_OS === 'ios') {
-			safeImpactLight();
-		}
 		if (router.canGoBack()) router.back();
 		else router.replace('/(tabs)');
 	};
 
-	return (
-		<Pressable
-			accessibilityRole="button"
-			accessibilityLabel="Home으로 돌아가기"
-			hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-			onPress={handlePress}
-			style={styles.headerBack}>
-			<AppIcon name="chevron.left" size={20} tintColor={theme.tint} />
-			<ThemedText style={styles.headerBackLabel} themeColor="text">
-				Home
-			</ThemedText>
-		</Pressable>
-	);
+	return <HeaderBack label="Home" onPress={handlePress} />;
 }
 
 export default function RoutePlansScreen() {
@@ -204,19 +187,6 @@ const styles = StyleSheet.create({
 		flex: 1,
 		flexDirection: 'row',
 		justifyContent: 'center',
-	},
-	headerBack: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: Spacing.half,
-		paddingVertical: Spacing.two,
-		paddingRight: Spacing.two,
-		minHeight: 44,
-		justifyContent: 'center',
-	},
-	headerBackLabel: {
-		fontSize: 17,
-		fontWeight: '400',
 	},
 	scroll: {
 		flex: 1,
