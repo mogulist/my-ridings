@@ -1,11 +1,22 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import {
+	ActivityIndicator,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	View,
+} from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { AppIcon } from '@/components/ui/icon';
+import { Card } from '@/components/ui/card';
+import { ListRow } from '@/components/ui/list-row';
+import { Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import {
 	fetchPlanDetail,
 	type MobilePlanStageRow,
@@ -13,17 +24,17 @@ import {
 	type TrackPoint,
 } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 
 /** 플로팅 pill·탭바와 겹치지 않도록 하단 여백 */
 const FLOATING_TAB_BAR_CLEARANCE = 96;
 
 export default function PlanSummaryScreen() {
+	const navigation = useNavigation();
 	const router = useRouter();
+	const theme = useTheme();
 	const { planId } = useLocalSearchParams<{ planId: string }>();
 	const apiOrigin = useMemo(getApiOrigin, []);
-	const colorScheme = useColorScheme();
-	const elevationGainColor = colorScheme === 'dark' ? '#4ade80' : '#15803d';
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -72,24 +83,30 @@ export default function PlanSummaryScreen() {
 
 	const stats = useMemo(() => (detail ? computePlanSummaryStats(detail) : null), [detail]);
 
+	const title = detail?.plan.name?.trim() ? detail.plan.name : '요약';
+
+	useLayoutEffect(() => {
+		navigation.setOptions({
+			title,
+		});
+	}, [navigation, title]);
+
 	return (
 		<ThemedView style={styles.container}>
-			<SafeAreaView style={styles.safeArea}>
+			<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
 				<ScrollView
 					contentContainerStyle={styles.scrollContent}
 					contentInsetAdjustmentBehavior="automatic">
-					<ThemedText type="subtitle">요약</ThemedText>
-
 					{isLoading ? (
 						<View style={styles.loadingBlock}>
-							<ActivityIndicator accessibilityLabel="요약 불러오는 중" />
+							<ActivityIndicator accessibilityLabel="요약 불러오는 중" color={theme.tint} />
 							<ThemedText type="small" themeColor="textSecondary">
 								플랜 정보를 불러오는 중…
 							</ThemedText>
 						</View>
 					) : errorMessage ? (
 						<View style={styles.placeholderBlock}>
-							<ThemedText type="small" style={styles.errorText}>
+							<ThemedText type="small" style={{ color: theme.danger }}>
 								{errorMessage}
 							</ThemedText>
 							<Pressable
@@ -107,34 +124,57 @@ export default function PlanSummaryScreen() {
 							</ThemedText>
 						</View>
 					) : (
-						<>
-							{detail.plan.name ? (
-								<ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
-									{detail.plan.name}
-								</ThemedText>
-							) : null}
-
-							<SectionPlaceholder
-								title="스테이지 요약"
-								description="일자별 카드 요약(가로 스크롤)을 곧 추가합니다."
-							/>
-
-							<SectionPlaceholder
-								title="전체 고도 프로필"
-								description="플랜 전체 고도 곡선(mini)을 곧 추가합니다."
-							/>
-
-							<KeyStatsSection stats={stats} elevationGainColor={elevationGainColor} />
-
-							<SectionPlaceholder
-								title="루트 설명"
-								description="루트 설명 텍스트 영역을 곧 추가합니다."
-							/>
-						</>
+						<Animated.View entering={FadeIn.duration(280)}>
+							<HeroMetrics stats={stats} />
+							<KeyStatsSection stats={stats} />
+						</Animated.View>
 					)}
 				</ScrollView>
 			</SafeAreaView>
 		</ThemedView>
+	);
+}
+
+type HeroMetricsProps = {
+	stats: PlanSummaryStats;
+};
+
+function HeroMetrics({ stats }: HeroMetricsProps) {
+	const theme = useTheme();
+
+	return (
+		<View style={styles.hero}>
+			<View style={styles.heroRow}>
+				<View style={styles.heroCol}>
+					<AppIcon name="map" size={28} tintColor={theme.tint} />
+					<ThemedText
+						type="title"
+						style={[styles.heroMetric, { fontFamily: Fonts.rounded, color: theme.text }]}>
+						{Math.round(stats.totalDistanceKm).toLocaleString()}
+					</ThemedText>
+					<ThemedText type="caption" themeColor="textSecondary">
+						총 거리 (km)
+					</ThemedText>
+				</View>
+				<View style={[styles.heroVertSep, { backgroundColor: theme.separator }]} />
+				<View style={styles.heroCol}>
+					<AppIcon name="arrow.up.forward" size={28} tintColor={theme.gain} />
+					<ThemedText
+						type="title"
+						style={[styles.heroMetric, { fontFamily: Fonts.rounded, color: theme.gain }]}>
+						+{stats.totalElevationGainM.toLocaleString()}
+					</ThemedText>
+					<ThemedText type="caption" themeColor="textSecondary">
+						총 획득고도 (m)
+					</ThemedText>
+				</View>
+			</View>
+			<View style={styles.heroMeta}>
+				<ThemedText type="caption" themeColor="textSecondary">
+					{stats.dayCount}일 · {stats.startDateLabel}
+				</ThemedText>
+			</View>
+		</View>
 	);
 }
 
@@ -143,41 +183,47 @@ type KeyStatRow = {
 	value: string;
 	sub: string;
 	emphasizeColor?: string;
+	iconName: string;
 };
 
 type KeyStatsSectionProps = {
 	stats: PlanSummaryStats;
-	elevationGainColor: string;
 };
 
-function KeyStatsSection({ stats, elevationGainColor }: KeyStatsSectionProps) {
+function KeyStatsSection({ stats }: KeyStatsSectionProps) {
+	const theme = useTheme();
 	const rows: KeyStatRow[] = [
 		{
 			label: '전체 거리',
 			value: `${Math.round(stats.totalDistanceKm).toLocaleString()} km`,
 			sub: '총 라이딩 거리',
+			iconName: 'map',
 		},
 		{
 			label: '전체 획득고도',
 			value: `+${stats.totalElevationGainM.toLocaleString()} m`,
 			sub: '누적 상승고도',
-			emphasizeColor: elevationGainColor,
+			emphasizeColor: theme.gain,
+			iconName: 'arrow.up.forward',
 		},
 		{
 			label: '최고 고도',
 			value: stats.maxElevationM != null ? `${stats.maxElevationM.toLocaleString()} m` : '—',
 			sub: stats.maxElevationM != null ? '트랙 기준 최고점' : '트랙 미로드',
+			iconName: 'mountain.2.fill',
 		},
 		{
 			label: '일평균 거리',
 			value: `${stats.avgDailyKm.toLocaleString()} km`,
 			sub: '하루 평균',
+			iconName: 'chart.bar.xaxis',
 		},
 		{
 			label: '일평균 획득고도',
 			value: `+${stats.avgDailyElevationGainM.toLocaleString()} m`,
 			sub: '하루 평균 상승',
-			emphasizeColor: elevationGainColor,
+			emphasizeColor: theme.gain,
+			iconName: 'arrow.up.forward',
 		},
 		{
 			label: '가장 힘든 날',
@@ -185,68 +231,52 @@ function KeyStatsSection({ stats, elevationGainColor }: KeyStatsSectionProps) {
 			sub: stats.hardestDay
 				? `+${Math.round(stats.hardestDay.elevationGainM).toLocaleString()} m`
 				: '스테이지 없음',
+			iconName: 'bolt',
 		},
 		{
 			label: '가장 긴 날',
 			value: stats.longestDay ? `${stats.longestDay.distanceKm.toFixed(1)} km` : '—',
 			sub: stats.longestDay ? `Day ${stats.longestDay.dayNumber}` : '스테이지 없음',
+			iconName: 'straighten',
 		},
 		{
 			label: '시작일',
 			value: stats.startDateLabel,
 			sub: `${stats.dayCount}일 일정`,
+			iconName: 'calendar',
 		},
 	];
 
 	return (
 		<View style={styles.section}>
-			<ThemedText type="smallBold" style={styles.sectionTitle}>
+			<ThemedText type="smallBold" style={styles.sectionTitle} themeColor="textSecondary">
 				핵심 통계
 			</ThemedText>
-			<View style={styles.statsCard}>
+			<Card style={styles.statsCard}>
 				{rows.map((r, i) => (
-					<View
+					<ListRow
 						key={r.label}
-						style={[styles.statRow, i < rows.length - 1 ? styles.statRowDivider : null]}>
-						<ThemedText type="small" themeColor="textSecondary" style={styles.statLabel}>
-							{r.label}
-						</ThemedText>
-						<View style={styles.statRight}>
-							<ThemedText
-								type="smallBold"
-								style={[
-									styles.statValue,
-									r.emphasizeColor ? { color: r.emphasizeColor } : null,
-								]}>
-								{r.value}
-							</ThemedText>
-							<ThemedText type="small" themeColor="textSecondary" style={styles.statSub}>
-								{r.sub}
-							</ThemedText>
-						</View>
-					</View>
+						iconName={r.iconName}
+						label={r.label}
+						isLast={i === rows.length - 1}
+						value={
+							<View style={styles.statValueCol}>
+								<ThemedText
+									type="smallBold"
+									style={[
+										styles.statValueText,
+										r.emphasizeColor ? { color: r.emphasizeColor } : null,
+									]}>
+									{r.value}
+								</ThemedText>
+								<ThemedText type="caption" themeColor="textSecondary" numberOfLines={2}>
+									{r.sub}
+								</ThemedText>
+							</View>
+						}
+					/>
 				))}
-			</View>
-		</View>
-	);
-}
-
-type SectionPlaceholderProps = {
-	title: string;
-	description: string;
-};
-
-function SectionPlaceholder({ title, description }: SectionPlaceholderProps) {
-	return (
-		<View style={styles.section}>
-			<ThemedText type="smallBold" style={styles.sectionTitle}>
-				{title}
-			</ThemedText>
-			<View style={styles.placeholderCard}>
-				<ThemedText type="small" themeColor="textSecondary">
-					{description}
-				</ThemedText>
-			</View>
+			</Card>
 		</View>
 	);
 }
@@ -264,9 +294,38 @@ const styles = StyleSheet.create({
 	},
 	scrollContent: {
 		paddingHorizontal: Spacing.four,
-		paddingVertical: Spacing.four,
+		paddingVertical: Spacing.two,
 		paddingBottom: Spacing.four + FLOATING_TAB_BAR_CLEARANCE,
 		gap: Spacing.three,
+	},
+	hero: {
+		gap: Spacing.three,
+		marginBottom: Spacing.two,
+	},
+	heroRow: {
+		flexDirection: 'row',
+		alignItems: 'stretch',
+		gap: Spacing.three,
+	},
+	heroCol: {
+		flex: 1,
+		gap: Spacing.half,
+		minWidth: 0,
+	},
+	heroVertSep: {
+		width: StyleSheet.hairlineWidth,
+		alignSelf: 'stretch',
+	},
+	heroMetric: {
+		fontSize: 36,
+		lineHeight: 40,
+		fontWeight: '700',
+		fontVariant: ['tabular-nums'],
+		flex: 1,
+		minWidth: 120,
+	},
+	heroMeta: {
+		marginTop: Spacing.half,
 	},
 	loadingBlock: {
 		gap: Spacing.two,
@@ -276,9 +335,6 @@ const styles = StyleSheet.create({
 	placeholderBlock: {
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
-	},
-	errorText: {
-		color: '#D64545',
 	},
 	retryButton: {
 		alignSelf: 'flex-start',
@@ -298,44 +354,17 @@ const styles = StyleSheet.create({
 		marginBottom: Spacing.half,
 	},
 	statsCard: {
-		borderWidth: 1,
-		borderColor: '#A0A4AE',
-		borderRadius: Spacing.two,
+		paddingVertical: Spacing.half,
 		overflow: 'hidden',
 	},
-	statRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.two + 2,
-		gap: Spacing.three,
-	},
-	statRowDivider: {
-		borderBottomWidth: StyleSheet.hairlineWidth,
-		borderBottomColor: '#A0A4AE',
-	},
-	statLabel: {
-		flex: 1,
-	},
-	statRight: {
+	statValueCol: {
 		alignItems: 'flex-end',
 		gap: 2,
+		maxWidth: 220,
 	},
-	statValue: {
+	statValueText: {
 		fontVariant: ['tabular-nums'],
-	},
-	statSub: {
-		fontVariant: ['tabular-nums'],
-	},
-	placeholderCard: {
-		borderWidth: 1,
-		borderStyle: 'dashed',
-		borderColor: '#A0A4AE',
-		borderRadius: Spacing.two,
-		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.three,
-		minHeight: 64,
-		justifyContent: 'center',
+		textAlign: 'right',
 	},
 });
 

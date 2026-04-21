@@ -2,14 +2,25 @@ import {
 	NaverMapMarkerOverlay,
 	NaverMapPathOverlay,
 	NaverMapView,
+	type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+	ActivityIndicator,
+	Platform,
+	Pressable,
+	StyleSheet,
+	View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppIcon } from '@/components/ui/icon';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Radius, Shadow, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
 import {
 	fetchPlanDetail,
 	type CpMarkerOnRoute,
@@ -19,9 +30,8 @@ import {
 	type TrackPoint,
 } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import { useTheme } from '@/hooks/use-theme';
 
-/** 웹 `STAGE_COLORS`(types/plan.ts)와 동일한 2색 순환 */
-const STAGE_STROKE_COLORS = ['#3B82F6', '#8B5CF6'] as const;
 const UNPLANNED_STROKE_COLOR = '#9CA3AF';
 
 function stageStrokeColor(dayNumber: number): string {
@@ -48,6 +58,9 @@ const FALLBACK_CAMERA: MapCamera = {
 
 export default function PlanMapScreen() {
 	const router = useRouter();
+	const theme = useTheme();
+	const insets = useSafeAreaInsets();
+	const mapRef = useRef<NaverMapViewRef>(null);
 	const { planId } = useLocalSearchParams<{ planId: string }>();
 	const apiOrigin = useMemo(getApiOrigin, []);
 
@@ -55,6 +68,7 @@ export default function PlanMapScreen() {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [detail, setDetail] = useState<PlanDetail | null>(null);
 	const [retryNonce, setRetryNonce] = useState(0);
+	const [isLocating, setIsLocating] = useState(false);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -100,10 +114,29 @@ export default function PlanMapScreen() {
 		[detail],
 	);
 
+	const handleMyLocation = async () => {
+		setIsLocating(true);
+		try {
+			const { status } = await Location.requestForegroundPermissionsAsync();
+			if (status !== 'granted') return;
+			const pos = await Location.getCurrentPositionAsync({
+				accuracy: Location.Accuracy.Balanced,
+			});
+			mapRef.current?.animateCameraTo({
+				latitude: pos.coords.latitude,
+				longitude: pos.coords.longitude,
+				zoom: 14,
+				duration: 400,
+			});
+		} finally {
+			setIsLocating(false);
+		}
+	};
+
 	if (isLoading) {
 		return (
 			<ThemedView style={styles.loadingContainer}>
-				<ActivityIndicator />
+				<ActivityIndicator color={theme.tint} />
 			</ThemedView>
 		);
 	}
@@ -112,7 +145,7 @@ export default function PlanMapScreen() {
 		return (
 			<ThemedView style={styles.messageContainer}>
 				<SafeAreaView style={styles.messageInner}>
-					<ThemedText type="default" style={styles.errorText}>
+					<ThemedText type="default" style={{ color: theme.danger }}>
 						{errorMessage}
 					</ThemedText>
 					<Pressable
@@ -138,46 +171,129 @@ export default function PlanMapScreen() {
 	}
 
 	const initialCamera = getInitialCamera(validTrack);
+	const useGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 	return (
 		<View style={styles.root}>
-			<NaverMapView style={styles.map} initialCamera={initialCamera}>
+			<NaverMapView ref={mapRef} style={styles.map} initialCamera={initialCamera}>
 				{stageSegments.length > 0 ? (
 					stageSegments.map((seg) => (
-						<NaverMapPathOverlay
-							key={`stage-${seg.dayNumber}`}
-							coords={seg.coords}
-							width={5}
-							color={seg.color}
-							outlineWidth={1}
-							outlineColor="#1F2937"
-						/>
+						<Fragment key={`stage-${seg.dayNumber}`}>
+							<NaverMapPathOverlay
+								coords={seg.coords}
+								width={9}
+								color="#FFFFFF"
+								outlineWidth={0}
+								zIndex={1}
+							/>
+							<NaverMapPathOverlay
+								coords={seg.coords}
+								width={5}
+								color={seg.color}
+								outlineWidth={0}
+								zIndex={2}
+							/>
+						</Fragment>
 					))
 				) : (
-					<NaverMapPathOverlay
-						coords={validTrack}
-						width={4}
-						color="#2D7EF7"
-						outlineWidth={1}
-						outlineColor="#174AA0"
-					/>
+					<>
+						<NaverMapPathOverlay
+							coords={validTrack}
+							width={8}
+							color="#FFFFFF"
+							outlineWidth={0}
+							zIndex={1}
+						/>
+						<NaverMapPathOverlay
+							coords={validTrack}
+							width={5}
+							color="#2D7EF7"
+							outlineWidth={0}
+							zIndex={2}
+						/>
+					</>
 				)}
 
-				{detail.planPois.map((poi) => (
+				{detail.planPois.map((poi, i) => (
 					<NaverMapMarkerOverlay
 						key={`poi-${poi.id}`}
 						latitude={poi.lat}
 						longitude={poi.lng}
-						width={28}
-						height={36}
-						image={{ symbol: 'green' }}
+						width={22}
+						height={22}
+						image={{ symbol: 'blue' }}
 						caption={{ text: poi.name?.trim() || 'POI', textSize: 11 }}
+						zIndex={10 + i}
 					/>
 				))}
 
 				{renderCpMarkers(detail.cpMarkers, detail.trackPoints)}
 				{renderSummitMarkers(detail.summitMarkers, detail.trackPoints)}
 			</NaverMapView>
+
+			<View
+				pointerEvents="box-none"
+				style={[styles.legendAnchor, { top: insets.top + Spacing.two, left: Spacing.three }]}>
+				{useGlass ? (
+					<GlassView glassEffectStyle="regular" isInteractive style={styles.legendChrome}>
+						<StageLegend stages={detail.stages} />
+					</GlassView>
+				) : (
+					<View
+						style={[
+							styles.legendChrome,
+							{
+								backgroundColor: theme.surfaceElevated,
+								boxShadow: Shadow.floating,
+							},
+						]}>
+						<StageLegend stages={detail.stages} />
+					</View>
+				)}
+			</View>
+
+			<View style={[styles.fabAnchor, { bottom: insets.bottom + 88, right: Spacing.three }]}>
+				<Pressable
+					accessibilityRole="button"
+					accessibilityLabel="현재 위치로 이동"
+					disabled={isLocating}
+					style={({ pressed }) => [
+						styles.fab,
+						{
+							backgroundColor: theme.tint,
+							boxShadow: Shadow.floating,
+							opacity: pressed ? 0.9 : isLocating ? 0.7 : 1,
+						},
+					]}
+					onPress={() => {
+						void handleMyLocation();
+					}}>
+					{isLocating ? (
+						<ActivityIndicator color="#fff" />
+					) : (
+						<AppIcon name="location.fill" size={26} tintColor="#FFFFFF" />
+					)}
+				</Pressable>
+			</View>
+		</View>
+	);
+}
+
+function StageLegend({ stages }: { stages: MobilePlanStageRow[] }) {
+	return (
+		<View style={styles.legendInner}>
+			{stages.map((_, index) => {
+				const dayNumber = index + 1;
+				const color = stageStrokeColor(dayNumber);
+				return (
+					<View key={`leg-${dayNumber}`} style={styles.legendRow}>
+						<View style={[styles.legendDot, { backgroundColor: color }]} />
+						<ThemedText type="small" numberOfLines={1}>
+							D{dayNumber}
+						</ThemedText>
+					</View>
+				);
+			})}
 		</View>
 	);
 }
@@ -192,10 +308,10 @@ function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]
 					key={`cp-${cp.id}`}
 					latitude={tp.y}
 					longitude={tp.x}
-					width={28}
-					height={36}
+					width={24}
+					height={24}
 					image={{ symbol: 'gray' }}
-					caption={{ text: cp.name?.trim() || 'CP', textSize: 11 }}
+					caption={{ text: cp.name?.trim() || 'CP', textSize: 10 }}
 				/>
 			);
 		})
@@ -212,10 +328,10 @@ function renderSummitMarkers(summitMarkers: SummitMarkerOnRoute[], trackPoints: 
 					key={`summit-${s.id}`}
 					latitude={tp.y}
 					longitude={tp.x}
-					width={28}
-					height={36}
+					width={24}
+					height={24}
 					image={{ symbol: 'red' }}
-					caption={{ text: s.name?.trim() || '정상', textSize: 11 }}
+					caption={{ text: s.name?.trim() || '정상', textSize: 10 }}
 				/>
 			);
 		})
@@ -228,6 +344,42 @@ const styles = StyleSheet.create({
 	},
 	map: {
 		flex: 1,
+	},
+	legendAnchor: {
+		position: 'absolute',
+		zIndex: 20,
+	},
+	legendChrome: {
+		borderRadius: Radius.lg,
+		borderCurve: 'continuous',
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.two,
+		overflow: 'hidden',
+	},
+	legendInner: {
+		gap: Spacing.one,
+	},
+	legendRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: Spacing.two,
+	},
+	legendDot: {
+		width: 10,
+		height: 10,
+		borderRadius: 5,
+	},
+	fabAnchor: {
+		position: 'absolute',
+		zIndex: 20,
+	},
+	fab: {
+		width: 56,
+		height: 56,
+		borderRadius: Radius.pill,
+		borderCurve: 'continuous',
+		alignItems: 'center',
+		justifyContent: 'center',
 	},
 	loadingContainer: {
 		flex: 1,
@@ -243,10 +395,6 @@ const styles = StyleSheet.create({
 	messageInner: {
 		gap: 12,
 		alignItems: 'center',
-	},
-	errorText: {
-		color: '#D64545',
-		textAlign: 'center',
 	},
 	retryButton: {
 		alignSelf: 'center',

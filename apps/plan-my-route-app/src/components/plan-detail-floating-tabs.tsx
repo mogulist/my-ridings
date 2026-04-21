@@ -1,8 +1,18 @@
+import * as Haptics from 'expo-haptics';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Fragment } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+	useAnimatedStyle,
+	useSharedValue,
+	withSpring,
+} from 'react-native-reanimated';
 
+import { AppIcon } from '@/components/ui/icon';
 import { ThemedText } from '@/components/themed-text';
+import { Shadow } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 
 export type PlanDetailTabKey = 'summary' | 'schedule' | 'map';
 
@@ -20,45 +30,94 @@ const LABELS: Record<PlanDetailTabKey, string> = {
 	map: '맵',
 };
 
+const ICONS: Record<PlanDetailTabKey, string> = {
+	summary: 'chart.bar.xaxis',
+	schedule: 'calendar',
+	map: 'map',
+};
+
 export function PlanDetailFloatingTabs({
 	activeTab,
 	bottomInset,
 	onSelectTab,
 }: PlanDetailFloatingTabsProps) {
+	const theme = useTheme();
+	const colorScheme = useColorScheme();
 	const useGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+	const isDark = colorScheme === 'dark';
+
+	const segmentWidth = useSharedValue(0);
+	const activeIndex = useSharedValue(TABS.indexOf(activeTab));
+
+	useEffect(() => {
+		activeIndex.value = withSpring(TABS.indexOf(activeTab), { damping: 18, stiffness: 180 });
+	}, [activeIndex, activeTab]);
+
+	const onRowLayout = (e: LayoutChangeEvent) => {
+		const w = e.nativeEvent.layout.width;
+		segmentWidth.value = w / TABS.length;
+	};
+
+	const indicatorStyle = useAnimatedStyle(() => {
+		const seg = segmentWidth.value;
+		const idx = activeIndex.value;
+		return {
+			width: seg,
+			transform: [{ translateX: idx * seg }],
+		};
+	});
 
 	const row = (
-		<View style={styles.row}>
-			{TABS.map((tab, index) => (
-				<Fragment key={tab}>
-					{index > 0 ? (
-						<ThemedText style={styles.dot} type="small" themeColor="textSecondary">
-							{' · '}
-						</ThemedText>
-					) : null}
-					<Pressable
-						accessibilityRole="tab"
-						accessibilityState={{ selected: activeTab === tab }}
-						style={({ pressed }) => [
-							styles.pressable,
-							activeTab === tab ? styles.pressableSelected : null,
-							pressed ? styles.pressablePressed : null,
-						]}
-						onPress={() => {
-							onSelectTab(tab);
-						}}>
-						<ThemedText
-							type={activeTab === tab ? 'smallBold' : 'small'}
-							themeColor={activeTab === tab ? 'text' : 'textSecondary'}>
-							{LABELS[tab]}
-						</ThemedText>
-					</Pressable>
-				</Fragment>
-			))}
+		<View style={styles.rowWrap} onLayout={onRowLayout}>
+			<Animated.View
+				style={[
+					styles.indicator,
+					{ backgroundColor: `${theme.tint}24` },
+					indicatorStyle,
+				]}
+			/>
+			<View style={styles.row}>
+				{TABS.map((tab) => {
+					const selected = activeTab === tab;
+					return (
+						<Pressable
+							key={tab}
+							accessibilityRole="tab"
+							accessibilityState={{ selected }}
+							style={({ pressed }) => [
+								styles.tabCell,
+								pressed ? styles.pressablePressed : null,
+							]}
+							onPress={() => {
+								if (Platform.OS === 'ios') {
+									void Haptics.selectionAsync();
+								}
+								onSelectTab(tab);
+							}}>
+							<AppIcon
+								name={ICONS[tab]}
+								size={16}
+								tintColor={selected ? theme.tint : theme.textSecondary}
+							/>
+							<ThemedText
+								type={selected ? 'smallBold' : 'small'}
+								themeColor={selected ? 'text' : 'textSecondary'}>
+								{LABELS[tab]}
+							</ThemedText>
+						</Pressable>
+					);
+				})}
+			</View>
 		</View>
 	);
 
-	const chromeStyle = [styles.pillChrome, styles.fallbackFill, styles.chromeShadow];
+	const fallbackFill = isDark ? 'rgba(28, 28, 30, 0.72)' : 'rgba(255, 255, 255, 0.88)';
+	const chromeShadow = isDark ? Shadow.floatingDark : Shadow.floating;
+
+	const chromeStyle = [
+		styles.pillChrome,
+		{ backgroundColor: fallbackFill, boxShadow: chromeShadow },
+	];
 
 	return (
 		<View style={[styles.anchor, { paddingBottom: bottomInset + 16 }]} pointerEvents="box-none">
@@ -84,36 +143,35 @@ const styles = StyleSheet.create({
 	pillChrome: {
 		borderRadius: 999,
 		borderCurve: 'continuous',
-		paddingVertical: 10,
-		paddingHorizontal: 18,
+		paddingVertical: 9,
+		paddingHorizontal: 14,
 		overflow: 'hidden',
 	},
-	fallbackFill: {
-		backgroundColor:
-			Platform.OS === 'ios' ? 'rgba(255, 255, 255, 0.74)' : 'rgba(249, 249, 251, 0.94)',
+	rowWrap: {
+		position: 'relative',
+		minWidth: 220,
 	},
-	chromeShadow:
-		Platform.OS === 'ios'
-			? {
-					boxShadow: '0px 6px 24px rgba(0, 0, 0, 0.12)',
-				}
-			: {
-					boxShadow: '0px 4px 18px rgba(0, 0, 0, 0.14)',
-				},
 	row: {
 		flexDirection: 'row',
 		alignItems: 'center',
 	},
-	dot: {
-		opacity: 0.85,
-	},
-	pressable: {
-		paddingVertical: 4,
-		paddingHorizontal: 6,
+	indicator: {
+		position: 'absolute',
+		left: 0,
+		top: 0,
+		bottom: 0,
 		borderRadius: 999,
+		borderCurve: 'continuous',
 	},
-	pressableSelected: {
-		backgroundColor: 'rgba(0, 0, 0, 0.06)',
+	tabCell: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+		paddingVertical: 6,
+		paddingHorizontal: 4,
+		minWidth: 0,
 	},
 	pressablePressed: {
 		opacity: 0.88,

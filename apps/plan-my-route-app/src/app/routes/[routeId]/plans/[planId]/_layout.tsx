@@ -1,5 +1,5 @@
 import { Stack, useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -40,14 +40,54 @@ export default function PlanDetailLayout() {
 
 	return (
 		<View style={styles.shell}>
-			<Stack screenOptions={{ headerShown: true }}>
-				<Stack.Screen name="summary" options={{ title: '요약' }} />
-				<Stack.Screen name="schedule" options={{ title: '일정' }} />
-				<Stack.Screen name="map" options={{ title: '맵' }} />
+			<Stack
+				screenOptions={{
+					headerShown: true,
+					headerBackButtonDisplayMode: 'minimal',
+				}}>
+				<Stack.Screen
+					name="summary"
+					options={{
+						title: '요약',
+						headerLargeTitle: true,
+						headerTransparent: true,
+						...(Platform.OS === 'ios'
+							? { headerBlurEffect: 'systemMaterial' as const }
+							: {}),
+					}}
+				/>
+				<Stack.Screen
+					name="schedule"
+					options={{
+						title: '일정',
+						headerLargeTitle: true,
+						headerTransparent: true,
+						...(Platform.OS === 'ios'
+							? { headerBlurEffect: 'systemMaterial' as const }
+							: {}),
+					}}
+				/>
+				<Stack.Screen
+					name="map"
+					options={{
+						title: '맵',
+						headerTransparent: true,
+						...(Platform.OS === 'ios'
+							? { headerBlurEffect: 'systemMaterial' as const }
+							: {}),
+					}}
+				/>
 				<Stack.Screen name="stages/[dayNumber]/index" options={{ title: '스테이지' }} />
 				<Stack.Screen
 					name="stages/[dayNumber]/edit"
-					options={{ presentation: 'modal', title: '스테이지 편집' }}
+					options={{
+						presentation: 'modal',
+						title: '스테이지 편집',
+						headerTransparent: Platform.OS === 'ios',
+						...(Platform.OS === 'ios'
+							? { headerBlurEffect: 'systemThinMaterial' as const }
+							: {}),
+					}}
 				/>
 			</Stack>
 

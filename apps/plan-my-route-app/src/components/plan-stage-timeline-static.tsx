@@ -1,16 +1,12 @@
 import { snapPlanPoisToTrack, type PlanPoiSnapInput } from '@my-ridings/plan-geometry';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import {
-	Animated,
-	Easing,
-	ScrollView,
-	StyleSheet,
-	View,
-	type RefObject,
-} from 'react-native';
+import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { AppIcon } from '@/components/ui/icon';
+import { Card } from '@/components/ui/card';
+import { PressableHaptic } from '@/components/ui/pressable-haptic';
+import { Fonts, Spacing } from '@/constants/theme';
 import type {
 	CpMarkerOnRoute,
 	MobilePlanStageRow,
@@ -226,7 +222,7 @@ export function PlanStageTimelineStatic({
 			<ThemedText type="smallBold" style={styles.sectionTitle}>
 				타임라인
 			</ThemedText>
-			<View style={styles.card}>
+			<Card style={styles.card}>
 				<View style={styles.columnHeader}>
 					<ThemedText
 						type="small"
@@ -245,6 +241,82 @@ export function PlanStageTimelineStatic({
 						const isWaypoint = m.kind === 'poi' || m.kind === 'cp' || m.kind === 'summit';
 						const passed =
 							isWaypoint && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
+						const segmentPassed =
+							currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
+						const tintMuted = hexToRgba(theme.tint, 0.22);
+
+						const milestoneRow = (
+							<View style={styles.milestoneRow}>
+								<ThemedText
+									type="caption"
+									style={[
+										styles.kmCell,
+										{ width: LEFT_KM_WIDTH, color: theme.text, fontFamily: Fonts.rounded },
+									]}>
+									{formatStageKm(m.relKm)}
+								</ThemedText>
+
+								<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
+									{m.kind === 'cp' ? (
+										<AppIcon
+											name="flag.checkered"
+											size={16}
+											tintColor={passed ? theme.tint : theme.separator}
+										/>
+									) : m.kind === 'summit' ? (
+										<AppIcon
+											name="mountain.2.fill"
+											size={16}
+											tintColor={passed ? theme.tint : theme.separator}
+										/>
+									) : m.kind === 'poi' ? (
+										passed ? (
+											<View style={[styles.poiDot, { backgroundColor: theme.tint }]} />
+										) : (
+											<View
+												style={[
+													styles.poiDot,
+													{
+														backgroundColor: 'transparent',
+														borderWidth: 2,
+														borderColor: theme.separator,
+													},
+												]}
+											/>
+										)
+									) : m.kind === 'current' ? (
+										<View style={styles.currentDotWrap}>
+											<View style={[styles.currentRing, { borderColor: tintMuted }]} />
+											<Animated.View
+												style={[
+													styles.currentDotPulse,
+													{
+														transform: [{ scale: pulse }],
+														backgroundColor: theme.tint,
+														boxShadow: `0 0 10px ${hexToRgba(theme.tint, 0.55)}`,
+													},
+												]}
+											/>
+										</View>
+									) : (
+										<View
+											style={[styles.endpointBar, { backgroundColor: theme.separator }]}
+										/>
+									)}
+								</View>
+
+								<View style={styles.labelBlock}>
+									<ThemedText type="smallBold" numberOfLines={2}>
+										{m.title}
+									</ThemedText>
+									{m.sub ? (
+										<ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+											{m.sub}
+										</ThemedText>
+									) : null}
+								</View>
+							</View>
+						);
 
 						return (
 							<View
@@ -255,87 +327,30 @@ export function PlanStageTimelineStatic({
 									<View style={[styles.gapRow, { height: FIXED_SEGMENT_GAP_PX }]}>
 										<View style={{ width: LEFT_KM_WIDTH }} />
 										<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
-											<View style={styles.axisSegment} />
+											<View
+												style={[
+													styles.axisSegment,
+													{
+														backgroundColor: segmentPassed ? theme.tint : theme.separator,
+														opacity: segmentPassed ? 0.85 : 0.4,
+													},
+												]}
+											/>
 										</View>
 										<View style={styles.flex1} />
 									</View>
 								) : null}
 
-								<View style={styles.milestoneRow}>
-									<ThemedText
-										type="small"
-										style={[styles.kmCell, { width: LEFT_KM_WIDTH, color: theme.text }]}>
-										{formatStageKm(m.relKm)}
-									</ThemedText>
-
-									<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
-										{m.kind === 'cp' ? (
-											<View
-												style={[
-													styles.cpDot,
-													passed
-														? { backgroundColor: theme.text }
-														: {
-																backgroundColor: 'transparent',
-																borderWidth: 2,
-																borderColor: theme.text,
-														  },
-												]}
-											/>
-										) : m.kind === 'summit' ? (
-											<View
-												style={[
-													styles.summitDot,
-													{ borderBottomColor: theme.text, opacity: passed ? 1 : 0.35 },
-												]}
-											/>
-										) : m.kind === 'poi' ? (
-											passed ? (
-												<View style={[styles.poiDot, { backgroundColor: theme.text }]} />
-											) : (
-												<View
-													style={[
-														styles.poiDot,
-														{
-															backgroundColor: 'transparent',
-															borderWidth: 2,
-															borderColor: theme.text,
-														},
-													]}
-												/>
-											)
-										) : m.kind === 'current' ? (
-											<Animated.View
-												style={[
-													styles.currentDotPulse,
-													{
-														transform: [{ scale: pulse }],
-														backgroundColor: theme.text,
-														shadowColor: theme.text,
-													},
-												]}
-											/>
-										) : (
-											<View style={[styles.endpointBar, { backgroundColor: theme.text }]} />
-										)}
-									</View>
-
-									<View style={styles.labelBlock}>
-										<ThemedText type="smallBold" numberOfLines={2}>
-											{m.title}
-										</ThemedText>
-										{m.sub ? (
-											<ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-												{m.sub}
-											</ThemedText>
-										) : null}
-									</View>
-								</View>
+								{isWaypoint ? (
+									<PressableHaptic onPress={() => {}}>{milestoneRow}</PressableHaptic>
+								) : (
+									milestoneRow
+								)}
 							</View>
 						);
 					})}
 				</View>
-			</View>
+			</Card>
 		</View>
 	);
 }
@@ -348,9 +363,6 @@ const styles = StyleSheet.create({
 		marginBottom: Spacing.half,
 	},
 	card: {
-		borderWidth: 1,
-		borderColor: '#A0A4AE',
-		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
 		gap: 0,
@@ -382,8 +394,6 @@ const styles = StyleSheet.create({
 		width: BAR_WIDTH,
 		flex: 1,
 		borderRadius: 1,
-		backgroundColor: '#A0A4AE',
-		opacity: 0.45,
 	},
 	flex1: {
 		flex: 1,
@@ -405,18 +415,18 @@ const styles = StyleSheet.create({
 		height: DOT_SIZE,
 		borderRadius: DOT_SIZE / 2,
 	},
-	cpDot: {
-		width: DOT_SIZE,
-		height: DOT_SIZE,
+	currentDotWrap: {
+		width: CURRENT_DOT_SIZE + 8,
+		height: CURRENT_DOT_SIZE + 8,
+		alignItems: 'center',
+		justifyContent: 'center',
 	},
-	summitDot: {
-		width: 0,
-		height: 0,
-		borderLeftWidth: DOT_SIZE / 2 + 2,
-		borderRightWidth: DOT_SIZE / 2 + 2,
-		borderBottomWidth: DOT_SIZE + 2,
-		borderLeftColor: 'transparent',
-		borderRightColor: 'transparent',
+	currentRing: {
+		position: 'absolute',
+		width: CURRENT_DOT_SIZE + 6,
+		height: CURRENT_DOT_SIZE + 6,
+		borderRadius: (CURRENT_DOT_SIZE + 6) / 2,
+		borderWidth: 2,
 	},
 	endpointBar: {
 		width: BAR_WIDTH,
@@ -434,11 +444,18 @@ const styles = StyleSheet.create({
 		height: CURRENT_DOT_SIZE,
 		borderRadius: CURRENT_DOT_SIZE / 2,
 		opacity: 0.95,
-		shadowOpacity: 0.35,
-		shadowRadius: 4,
-		shadowOffset: { width: 0, height: 0 },
 	},
 });
+
+function hexToRgba(hex: string, alpha: number): string {
+	if (hex.startsWith('#') && hex.length === 7) {
+		const r = Number.parseInt(hex.slice(1, 3), 16);
+		const g = Number.parseInt(hex.slice(3, 5), 16);
+		const b = Number.parseInt(hex.slice(5, 7), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+	return hex;
+}
 
 function kindOrder(k: TimelineKind): number {
 	if (k === 'start') return 0;
@@ -491,7 +508,7 @@ function maybeAutoScroll({
 	 */
 	row.measureLayout(
 		outer as unknown as Parameters<View['measureLayout']>[0],
-		(_x, y) => {
+		(_x: number, y: number) => {
 			outer.scrollTo({
 				y: Math.max(0, y - SCROLL_LEAD_PX),
 				animated: hasAutoScrolledRef.current,

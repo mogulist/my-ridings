@@ -3,19 +3,20 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AppIcon } from '@/components/ui/icon';
+import { Card } from '@/components/ui/card';
 import { Spacing } from '@/constants/theme';
 import type {
 	MobilePlanStageRow,
 	SummitMarkerOnRoute,
 	TrackPoint,
 } from '@/features/api/plan-my-route';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 
 export type PlanStageHudProps = {
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
 	summitMarkers: SummitMarkerOnRoute[];
-	/** 스테이지 기준 상대 km (0…stageLenKm). 없으면 HUD 비표시 */
 	currentRelKm: number | null;
 };
 
@@ -25,9 +26,9 @@ export function PlanStageHud({
 	summitMarkers,
 	currentRelKm,
 }: PlanStageHudProps) {
-	const colorScheme = useColorScheme();
-	const gainColor = colorScheme === 'dark' ? '#4ade80' : '#15803d';
-	const lossColor = colorScheme === 'dark' ? '#f87171' : '#b91c1c';
+	const theme = useTheme();
+	const gainColor = theme.gain;
+	const lossColor = theme.loss;
 
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
@@ -62,19 +63,23 @@ export function PlanStageHud({
 
 	return (
 		<View style={styles.wrap}>
-			<ThemedText type="smallBold" style={styles.sectionTitle}>
-				HUD
-			</ThemedText>
-			<View style={styles.card}>
+			<Card style={styles.card}>
 				<View style={styles.row}>
+					<AppIcon name="bicycle" size={20} tintColor={theme.tint} />
 					<ThemedText type="small" themeColor="textSecondary" style={styles.label}>
 						탔음
 					</ThemedText>
-					<ThemedText type="smallBold" style={styles.kmCell}>
-						{currentRelKm.toFixed(1)} km
-					</ThemedText>
+					<View style={styles.metricTextRow}>
+						<ThemedText type="metric" style={styles.kmCell}>
+							{currentRelKm.toFixed(1)}
+						</ThemedText>
+						<ThemedText type="caption" themeColor="textSecondary">
+							{' '}
+							km
+						</ThemedText>
+					</View>
 					{segments ? (
-						<ThemedText type="small" style={[styles.gainCell, { color: gainColor }]}>
+						<ThemedText type="metricSm" style={[styles.gainCell, { color: gainColor }]}>
 							+{segments.ridden.gain.toLocaleString()} m
 						</ThemedText>
 					) : (
@@ -85,14 +90,21 @@ export function PlanStageHud({
 				</View>
 
 				<View style={styles.row}>
+					<AppIcon name="flag.checkered" size={20} tintColor={theme.tint} />
 					<ThemedText type="small" themeColor="textSecondary" style={styles.label}>
 						남음
 					</ThemedText>
-					<ThemedText type="smallBold" style={styles.kmCell}>
-						{remainingKm.toFixed(1)} km
-					</ThemedText>
+					<View style={styles.metricTextRow}>
+						<ThemedText type="metric" style={styles.kmCell}>
+							{remainingKm.toFixed(1)}
+						</ThemedText>
+						<ThemedText type="caption" themeColor="textSecondary">
+							{' '}
+							km
+						</ThemedText>
+					</View>
 					{segments ? (
-						<ThemedText type="small" style={[styles.gainCell, { color: gainColor }]}>
+						<ThemedText type="metricSm" style={[styles.gainCell, { color: gainColor }]}>
 							+{segments.remaining.gain.toLocaleString()} m
 						</ThemedText>
 					) : (
@@ -103,15 +115,22 @@ export function PlanStageHud({
 				</View>
 
 				<View style={[styles.row, styles.summitRow]}>
+					<AppIcon name="mountain.2.fill" size={20} tintColor={theme.tint} />
 					<ThemedText type="small" themeColor="textSecondary" style={styles.label}>
 						다음 서밋
 					</ThemedText>
 					{nextSummit ? (
 						<>
-							<ThemedText type="smallBold" style={styles.kmCell}>
-								{nextSummit.deltaKm.toFixed(1)} km
-							</ThemedText>
-							<ThemedText type="small" style={[styles.gainCell, { color: lossColor }]}>
+							<View style={styles.metricTextRow}>
+								<ThemedText type="metric" style={styles.kmCell}>
+									{nextSummit.deltaKm.toFixed(1)}
+								</ThemedText>
+								<ThemedText type="caption" themeColor="textSecondary">
+									{' '}
+									km
+								</ThemedText>
+							</View>
+							<ThemedText type="metricSm" style={[styles.gainCell, { color: lossColor }]}>
 								↑ {Math.round(nextSummit.elevation).toLocaleString()} m
 							</ThemedText>
 						</>
@@ -130,7 +149,7 @@ export function PlanStageHud({
 						{nextSummit.name}
 					</ThemedText>
 				) : null}
-			</View>
+			</Card>
 		</View>
 	);
 }
@@ -139,40 +158,40 @@ const styles = StyleSheet.create({
 	wrap: {
 		gap: Spacing.two,
 	},
-	sectionTitle: {
-		marginBottom: Spacing.half,
-	},
 	card: {
-		borderWidth: 1,
-		borderColor: '#A0A4AE',
-		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
-		gap: Spacing.two,
+		gap: Spacing.three,
 	},
 	row: {
 		flexDirection: 'row',
-		alignItems: 'baseline',
-		columnGap: Spacing.three,
+		alignItems: 'center',
+		columnGap: Spacing.two,
+		flexWrap: 'wrap',
 	},
 	summitRow: {
-		marginTop: Spacing.one,
+		marginTop: Spacing.half,
 	},
 	label: {
-		width: 64,
+		width: 52,
+	},
+	metricTextRow: {
+		flexDirection: 'row',
+		alignItems: 'baseline',
+		minWidth: 88,
 	},
 	kmCell: {
-		minWidth: 70,
 		fontVariant: ['tabular-nums'],
+		flexShrink: 0,
 	},
 	gainCell: {
 		fontVariant: ['tabular-nums'],
-		fontWeight: '600',
+		marginLeft: 'auto',
 	},
 	summitEmpty: {
 		flex: 1,
 	},
 	summitName: {
-		paddingLeft: 64 + Spacing.three,
+		paddingLeft: 28 + 52 + Spacing.two,
 	},
 });

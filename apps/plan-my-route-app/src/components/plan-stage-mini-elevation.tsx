@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { StyleSheet, type ViewStyle, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Card } from '@/components/ui/card';
 import { Spacing } from '@/constants/theme';
 import type { MobilePlanStageRow, TrackPoint } from '@/features/api/plan-my-route';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 const CHART_HEIGHT = 76;
@@ -14,7 +14,6 @@ const CURRENT_DOT_SIZE = 10;
 export type PlanStageMiniElevationProps = {
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
-	/** 스테이지 기준 상대 km. 범위 안일 때만 마커 표시 */
 	currentRelKm?: number | null;
 };
 
@@ -23,16 +22,12 @@ export function PlanStageMiniElevation({
 	trackPoints,
 	currentRelKm,
 }: PlanStageMiniElevationProps) {
-	const colorScheme = useColorScheme();
 	const theme = useTheme();
 
 	const chart = useMemo(
 		() => buildStageElevationBins(trackPoints, stage),
 		[stage, trackPoints],
 	);
-
-	const barColor =
-		colorScheme === 'dark' ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)';
 
 	const stageStartM = stage.start_distance ?? 0;
 	const stageEndM = stage.end_distance ?? stageStartM;
@@ -42,69 +37,98 @@ export function PlanStageMiniElevation({
 			? null
 			: Math.min(Math.max((currentRelKm * 1000) / stageLenM, 0), 1);
 
+	const startKmLabel = (stageStartM / 1000).toFixed(1);
+	const endKmLabel = (stageEndM / 1000).toFixed(1);
+
 	return (
 		<View style={styles.wrap}>
 			<ThemedText type="smallBold" style={styles.sectionTitle}>
 				고도
 			</ThemedText>
-			<View style={[styles.card, { borderColor: '#A0A4AE' }]}>
+			<Card style={styles.card}>
 				{chart == null ? (
 					<ThemedText type="small" themeColor="textSecondary">
 						이 구간 고도 샘플이 없습니다.
 					</ThemedText>
 				) : (
-					<View style={styles.chartOuter}>
-						<View style={[styles.chartInner, { height: CHART_HEIGHT }]}>
-							{chart.bins.map((elev, i) => {
-								const flat = chart.maxM === chart.minM;
-								const h = flat
-									? CHART_HEIGHT * 0.45
-									: ((elev - chart.minM) / chart.rangeM) * CHART_HEIGHT;
-								const barH = Math.max(2, Math.min(CHART_HEIGHT, h));
-								return (
-									<View key={i} style={styles.barSlot}>
-										<View
-											style={[
-												styles.bar,
-												{
-													height: barH,
-													backgroundColor: barColor,
-												},
-											]}
-										/>
-									</View>
-								);
-							})}
-							{markerRatio != null ? (
-								<View
-									pointerEvents="none"
-									style={[
-										styles.markerLine,
-										{
-											left: `${markerRatio * 100}%`,
-											backgroundColor: theme.text,
-										},
-									]}
-								/>
-							) : null}
-							{markerRatio != null ? (
-								<View
-									pointerEvents="none"
-									style={[
-										styles.markerDot,
-										{
-											left: `${markerRatio * 100}%`,
-											backgroundColor: theme.text,
-										},
-									]}
-								/>
-							) : null}
+					<>
+						<View style={styles.chartOuter}>
+							<View style={[styles.chartInner, { height: CHART_HEIGHT }]}>
+								{chart.bins.map((elev, i) => {
+									const flat = chart.maxM === chart.minM;
+									const h = flat
+										? CHART_HEIGHT * 0.45
+										: ((elev - chart.minM) / chart.rangeM) * CHART_HEIGHT;
+									const barH = Math.max(2, Math.min(CHART_HEIGHT, h));
+									const t = (i + 0.5) / BIN_COUNT;
+									const isBeforeMarker = markerRatio == null || t <= markerRatio + 0.001;
+									const fill = isBeforeMarker
+										? withAlpha(theme.tint, 0.72)
+										: withAlpha(theme.textSecondary, 0.22);
+									return (
+										<View key={i} style={styles.barSlot}>
+											<View
+												style={[
+													styles.bar,
+													{
+														height: barH,
+														backgroundColor: fill,
+													},
+												]}
+											/>
+										</View>
+									);
+								})}
+								{markerRatio != null ? (
+									<View
+										pointerEvents="none"
+										style={[
+											styles.markerLine,
+											{
+												left: `${markerRatio * 100}%`,
+												backgroundColor: theme.tint,
+											},
+										]}
+									/>
+								) : null}
+								{markerRatio != null ? (
+									<View
+										pointerEvents="none"
+										style={[
+											styles.markerDot,
+											{
+												left: `${markerRatio * 100}%`,
+												backgroundColor: theme.tint,
+												boxShadow: `0 0 8px ${withAlpha(theme.tint, 0.55)}`,
+											},
+										]}
+									/>
+								) : null}
+							</View>
 						</View>
-					</View>
+						<View style={styles.axisLabels}>
+							<ThemedText type="caption" themeColor="textSecondary" style={styles.axisKm}>
+								{startKmLabel} km
+							</ThemedText>
+							<ThemedText type="caption" themeColor="textSecondary" style={styles.axisKm}>
+								{endKmLabel} km
+							</ThemedText>
+						</View>
+					</>
 				)}
-			</View>
+			</Card>
 		</View>
 	);
+}
+
+function withAlpha(hex: string, alpha: number): string {
+	if (hex.startsWith('#') && hex.length === 7) {
+		const r = Number.parseInt(hex.slice(1, 3), 16);
+		const g = Number.parseInt(hex.slice(3, 5), 16);
+		const b = Number.parseInt(hex.slice(5, 7), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+	return hex;
 }
 
 const styles = StyleSheet.create({
@@ -115,8 +139,6 @@ const styles = StyleSheet.create({
 		marginBottom: Spacing.half,
 	},
 	card: {
-		borderWidth: 1,
-		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
 	},
@@ -138,7 +160,7 @@ const styles = StyleSheet.create({
 	},
 	bar: {
 		width: '100%',
-		borderRadius: 1,
+		borderRadius: 2,
 	},
 	markerLine: {
 		position: 'absolute',
@@ -156,7 +178,15 @@ const styles = StyleSheet.create({
 		borderRadius: CURRENT_DOT_SIZE / 2,
 		marginLeft: -CURRENT_DOT_SIZE / 2,
 	},
-}) satisfies Record<string, ViewStyle>;
+	axisLabels: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		marginTop: Spacing.two,
+	},
+	axisKm: {
+		fontVariant: ['tabular-nums'],
+	},
+});
 
 type BinChart = {
 	bins: number[];
@@ -209,7 +239,6 @@ function buildStageElevationBins(
 	};
 }
 
-/** 빈 버킷: 직전 고도 유지(전방 채움)으로 스텝형 실루엣 */
 function fillElevationBuckets(bucketMax: (number | undefined)[], seedMinM: number): number[] {
 	const out: number[] = [];
 	let carry = seedMinM;

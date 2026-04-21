@@ -12,10 +12,12 @@ import { PlanStageHud } from '@/components/plan-stage-hud';
 import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
 import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
 import { Snackbar } from '@/components/snackbar';
+import { AppIcon } from '@/components/ui/icon';
+import { Card } from '@/components/ui/card';
 import { useCurrentLocationKm } from '@/hooks/use-current-location-km';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import {
 	fetchPlanDetail,
 	type MobilePlanStageRow,
@@ -23,7 +25,6 @@ import {
 	type TrackPoint,
 } from '@/features/api/plan-my-route';
 import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function StageDetailScreen() {
@@ -31,9 +32,6 @@ export default function StageDetailScreen() {
 	const navigation = useNavigation();
 	const router = useRouter();
 	const theme = useTheme();
-	const colorScheme = useColorScheme();
-	const elevationGainColor =
-		colorScheme === 'dark' ? '#4ade80' : '#15803d';
 	const { routeId, planId, dayNumber: dayNumberParam } = useLocalSearchParams<{
 		routeId: string;
 		planId: string;
@@ -132,7 +130,7 @@ export default function StageDetailScreen() {
 							web: 'edit',
 						}}
 						size={22}
-						tintColor={theme.text}
+						tintColor={theme.tint}
 					/>
 				</HeaderButton>
 			),
@@ -144,7 +142,7 @@ export default function StageDetailScreen() {
 		planId,
 		dayNumberParam,
 		headerTitle,
-		theme.text,
+		theme.tint,
 	]);
 
 	const handleRetry = () => {
@@ -183,7 +181,7 @@ export default function StageDetailScreen() {
 							</View>
 						) : errorMessage ? (
 							<View style={styles.placeholderBlock}>
-								<ThemedText type="small" style={styles.errorText}>
+								<ThemedText type="small" style={{ color: theme.danger }}>
 									{errorMessage}
 								</ThemedText>
 								<Pressable
@@ -205,7 +203,6 @@ export default function StageDetailScreen() {
 								detail={detail}
 								stage={stage}
 								maxElevationM={maxElevationM}
-								elevationGainColor={elevationGainColor}
 								location={location}
 								scrollRef={scrollRef}
 							/>
@@ -225,7 +222,6 @@ type StageSummaryBodyProps = {
 	detail: PlanDetail;
 	stage: MobilePlanStageRow;
 	maxElevationM: number | null;
-	elevationGainColor: string;
 	location: ReturnType<typeof useCurrentLocationKm>;
 	scrollRef: RefObject<ScrollView | null>;
 };
@@ -234,10 +230,10 @@ function StageSummaryBody({
 	detail,
 	stage,
 	maxElevationM,
-	elevationGainColor,
 	location,
 	scrollRef,
 }: StageSummaryBodyProps) {
+	const theme = useTheme();
 	const routeLabel = stageRouteLine(stage);
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
@@ -252,29 +248,45 @@ function StageSummaryBody({
 
 	return (
 		<>
-			<View style={styles.summaryCard}>
+			<Card style={styles.summaryCard}>
 				{routeLabel ? (
-					<ThemedText
-						type="small"
-						themeColor="textSecondary"
-						numberOfLines={3}
-						style={styles.routeLine}>
+					<ThemedText type="headline" numberOfLines={2} style={styles.routeLine}>
 						{routeLabel}
 					</ThemedText>
 				) : null}
-				<View style={styles.statsRow}>
-					<ThemedText type="smallBold" style={styles.statPrimary}>
-						{stageDistanceKm(stage).toFixed(1)} km
-					</ThemedText>
-					<ThemedText type="small" style={[styles.statGain, { color: elevationGainColor }]}>
-						+{Math.round(Number(stage.elevation_gain) || 0).toLocaleString()} m
-					</ThemedText>
-					<ThemedText type="small" themeColor="textSecondary">
-						최고 {maxElevationM != null ? `${maxElevationM.toLocaleString()} m` : '—'}
-					</ThemedText>
+				<View style={styles.metricGrid}>
+					<View style={styles.metricCol}>
+						<AppIcon name="figure.outdoor.cycle" size={20} tintColor={theme.tint} />
+						<ThemedText type="metric" style={styles.metricNum}>
+							{stageDistanceKm(stage).toFixed(1)}
+						</ThemedText>
+						<ThemedText type="caption" themeColor="textSecondary">
+							거리 (km)
+						</ThemedText>
+					</View>
+					<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
+					<View style={styles.metricCol}>
+						<AppIcon name="arrow.up.forward" size={20} tintColor={theme.gain} />
+						<ThemedText type="metric" style={[styles.metricNum, { color: theme.gain }]}>
+							+{Math.round(Number(stage.elevation_gain) || 0).toLocaleString()}
+						</ThemedText>
+						<ThemedText type="caption" themeColor="textSecondary">
+							획득고도 (m)
+						</ThemedText>
+					</View>
+					<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
+					<View style={styles.metricCol}>
+						<AppIcon name="mountain.2.fill" size={20} tintColor={theme.tint} />
+						<ThemedText type="metric" style={styles.metricNum}>
+							{maxElevationM != null ? maxElevationM.toLocaleString() : '—'}
+						</ThemedText>
+						<ThemedText type="caption" themeColor="textSecondary">
+							최고 (m)
+						</ThemedText>
+					</View>
 				</View>
 				<CurrentLocationKmLine location={location} />
-			</View>
+			</Card>
 			<PlanStageMiniElevation
 				stage={stage}
 				trackPoints={detail.trackPoints}
@@ -304,39 +316,54 @@ type CurrentLocationKmLineProps = {
 };
 
 function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
-	const kmText =
-		location.currentKm != null
-			? `현재 ${location.currentKm.toFixed(1)} km (경로 기준)`
-			: '현재 위치: —';
+	const theme = useTheme();
+	const hasKm = location.currentKm != null;
+	const kmText = hasKm
+		? `${location.currentKm!.toFixed(1)} km (경로 기준)`
+		: '위치 없음';
 
 	return (
 		<View style={styles.locationBlock}>
-			<ThemedText type="small" themeColor="textSecondary">
-				{location.permission === 'denied' ? '위치 권한이 거부되어 있어요.' : kmText}
-			</ThemedText>
-			{location.error ? (
-				<ThemedText type="small" style={styles.errorText}>
-					{location.error}
-				</ThemedText>
-			) : null}
-			<Pressable
-				accessibilityRole="button"
-				accessibilityLabel="현재 위치 갱신"
-				disabled={!location.canRefresh || location.isRefreshing}
-				style={({ pressed }) => [
-					styles.locationRefreshButton,
-					(!location.canRefresh || location.isRefreshing) && styles.locationRefreshButtonDisabled,
-					pressed && location.canRefresh && !location.isRefreshing && styles.pressed,
-				]}
-				onPress={() => {
-					void location.refresh();
-				}}>
-				{location.isRefreshing ? (
-					<ThemedText type="smallBold">가져오는 중…</ThemedText>
-				) : (
-					<ThemedText type="smallBold">현재 위치 갱신</ThemedText>
-				)}
-			</Pressable>
+			<View style={styles.locationRow}>
+				<AppIcon
+					name="location.fill"
+					size={22}
+					tintColor={hasKm ? theme.tint : theme.textSecondary}
+				/>
+				<View style={styles.locationTextBlock}>
+					<ThemedText type="smallBold" numberOfLines={2}>
+						{location.permission === 'denied' ? '위치 권한이 거부되어 있어요.' : `현재 ${kmText}`}
+					</ThemedText>
+					{location.error ? (
+						<ThemedText type="caption" style={{ color: theme.danger }}>
+							{location.error}
+						</ThemedText>
+					) : null}
+				</View>
+				<Pressable
+					accessibilityRole="button"
+					accessibilityLabel="현재 위치 갱신"
+					disabled={!location.canRefresh || location.isRefreshing}
+					style={({ pressed }) => [
+						styles.locationRefreshPill,
+						{ backgroundColor: `${theme.tint}18` },
+						(!location.canRefresh || location.isRefreshing) && styles.locationRefreshButtonDisabled,
+						pressed && location.canRefresh && !location.isRefreshing && styles.pressed,
+					]}
+					onPress={() => {
+						void location.refresh();
+					}}>
+					{location.isRefreshing ? (
+						<ThemedText type="smallBold" themeColor="tint">
+							가져오는 중…
+						</ThemedText>
+					) : (
+						<ThemedText type="smallBold" themeColor="tint">
+							갱신
+						</ThemedText>
+					)}
+				</Pressable>
+			</View>
 		</View>
 	);
 }
@@ -360,29 +387,29 @@ const styles = StyleSheet.create({
 		gap: Spacing.three,
 	},
 	summaryCard: {
-		borderWidth: 1,
-		borderColor: '#A0A4AE',
-		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
-		gap: Spacing.two,
+		gap: Spacing.three,
 	},
 	routeLine: {
-		lineHeight: 20,
+		marginBottom: Spacing.half,
 	},
-	statsRow: {
+	metricGrid: {
 		flexDirection: 'row',
-		flexWrap: 'wrap',
-		alignItems: 'baseline',
-		columnGap: Spacing.three,
-		rowGap: Spacing.one,
+		alignItems: 'stretch',
 	},
-	statPrimary: {
-		fontVariant: ['tabular-nums'],
+	metricCol: {
+		flex: 1,
+		alignItems: 'center',
+		gap: Spacing.half,
+		minWidth: 0,
 	},
-	statGain: {
+	metricSep: {
+		width: StyleSheet.hairlineWidth,
+		marginVertical: Spacing.one,
+	},
+	metricNum: {
 		fontVariant: ['tabular-nums'],
-		fontWeight: 600,
 	},
 	loadingBlock: {
 		gap: Spacing.two,
@@ -392,9 +419,6 @@ const styles = StyleSheet.create({
 	placeholderBlock: {
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
-	},
-	errorText: {
-		color: '#D64545',
 	},
 	retryButton: {
 		alignSelf: 'flex-start',
@@ -408,16 +432,23 @@ const styles = StyleSheet.create({
 		opacity: 0.75,
 	},
 	locationBlock: {
-		gap: Spacing.two,
 		marginTop: Spacing.half,
 	},
-	locationRefreshButton: {
-		alignSelf: 'flex-start',
-		borderWidth: 1,
-		borderColor: '#A0A4AE',
-		borderRadius: Spacing.two,
+	locationRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: Spacing.two,
+	},
+	locationTextBlock: {
+		flex: 1,
+		minWidth: 0,
+		gap: Spacing.half,
+	},
+	locationRefreshPill: {
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.two,
+		borderRadius: Radius.pill,
+		borderCurve: 'continuous',
 	},
 	locationRefreshButtonDisabled: {
 		opacity: 0.5,

@@ -4,7 +4,19 @@ import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?:
+    | 'default'
+    | 'title'
+    | 'small'
+    | 'smallBold'
+    | 'subtitle'
+    | 'link'
+    | 'linkPrimary'
+    | 'code'
+    | 'metric'
+    | 'metricSm'
+    | 'caption'
+    | 'headline';
   themeColor?: ThemeColor;
 };
 
@@ -23,6 +35,10 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
         type === 'link' && styles.link,
         type === 'linkPrimary' && styles.linkPrimary,
         type === 'code' && styles.code,
+        type === 'metric' && styles.metric,
+        type === 'metricSm' && styles.metricSm,
+        type === 'caption' && styles.caption,
+        type === 'headline' && styles.headline,
         style,
       ]}
       {...rest}
@@ -69,5 +85,29 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontWeight: Platform.select({ android: 700 }) ?? 500,
     fontSize: 12,
+  },
+  metric: {
+    fontFamily: Fonts.rounded,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: 700,
+    fontVariant: ['tabular-nums'],
+  },
+  metricSm: {
+    fontFamily: Fonts.rounded,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: 600,
+    fontVariant: ['tabular-nums'],
+  },
+  caption: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: 500,
+  },
+  headline: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: 600,
   },
 });
