@@ -4,7 +4,6 @@ import { Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { AppIcon } from '@/components/ui/icon';
-import { Card } from '@/components/ui/card';
 import { PressableHaptic } from '@/components/ui/pressable-haptic';
 import { Fonts, Spacing } from '@/constants/theme';
 import type {
@@ -40,6 +39,7 @@ type TimelineMilestone = {
 	relKm: number;
 	title: string;
 	sub?: string;
+	memo?: string | null;
 };
 
 export type PlanStageTimelineStaticProps = {
@@ -131,6 +131,7 @@ export function PlanStageTimelineStatic({
 				relKm: Math.max(0, p.distanceKm - stageStartKm),
 				title: p.name?.trim() || 'POI',
 				sub: poiTypeLabel(p.poiType),
+				memo: p.memo?.trim() || null,
 			})),
 			...cpRows,
 			...summitRows,
@@ -220,18 +221,18 @@ export function PlanStageTimelineStatic({
 	return (
 		<View style={styles.wrap}>
 			<ThemedText type="smallBold" style={styles.sectionTitle}>
-				타임라인
+				경유 포인트
 			</ThemedText>
-			<Card style={styles.card}>
+			<View style={styles.timelineContainer}>
 				<View style={styles.columnHeader}>
 					<ThemedText
-						type="small"
+						type="caption"
 						themeColor="textSecondary"
 						style={[styles.leftColHeader, { width: LEFT_KM_WIDTH }]}>
 						거리
 					</ThemedText>
 					<View style={{ width: AXIS_WIDTH }} />
-					<ThemedText type="small" themeColor="textSecondary" style={styles.rightColHeader}>
+					<ThemedText type="caption" themeColor="textSecondary" style={styles.rightColHeader}>
 						일정
 					</ThemedText>
 				</View>
@@ -305,16 +306,21 @@ export function PlanStageTimelineStatic({
 									)}
 								</View>
 
-								<View style={styles.labelBlock}>
-									<ThemedText type="smallBold" numberOfLines={2}>
-										{m.title}
+							<View style={styles.labelBlock}>
+								<ThemedText type="smallBold" numberOfLines={2}>
+									{m.title}
+								</ThemedText>
+								{m.sub ? (
+									<ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
+										{m.sub}
 									</ThemedText>
-									{m.sub ? (
-										<ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-											{m.sub}
-										</ThemedText>
-									) : null}
-								</View>
+								) : null}
+								{m.memo ? (
+									<ThemedText type="caption" themeColor="textSecondary" selectable style={styles.memoText}>
+										{m.memo}
+									</ThemedText>
+								) : null}
+							</View>
 							</View>
 						);
 
@@ -350,7 +356,7 @@ export function PlanStageTimelineStatic({
 						);
 					})}
 				</View>
-			</Card>
+			</View>
 		</View>
 	);
 }
@@ -359,13 +365,9 @@ const styles = StyleSheet.create({
 	wrap: {
 		gap: Spacing.two,
 	},
-	sectionTitle: {
-		marginBottom: Spacing.half,
-	},
-	card: {
-		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.three,
-		gap: 0,
+	sectionTitle: {},
+	timelineContainer: {
+		paddingTop: Spacing.two,
 	},
 	columnHeader: {
 		flexDirection: 'row',
@@ -438,6 +440,10 @@ const styles = StyleSheet.create({
 		paddingLeft: Spacing.two,
 		minWidth: 0,
 		gap: 2,
+	},
+	memoText: {
+		marginTop: 2,
+		lineHeight: 16,
 	},
 	currentDotPulse: {
 		width: CURRENT_DOT_SIZE,

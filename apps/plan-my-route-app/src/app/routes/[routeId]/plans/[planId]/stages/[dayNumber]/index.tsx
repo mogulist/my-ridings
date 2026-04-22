@@ -3,7 +3,7 @@ import { HeaderButton } from '@react-navigation/elements';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -13,18 +13,12 @@ import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
 import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
 import { Snackbar } from '@/components/snackbar';
 import { AppIcon } from '@/components/ui/icon';
-import { Card } from '@/components/ui/card';
 import { useCurrentLocationKm } from '@/hooks/use-current-location-km';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import {
-	fetchPlanDetail,
-	type MobilePlanStageRow,
-	type PlanDetail,
-	type TrackPoint,
-} from '@/features/api/plan-my-route';
-import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
+import type { MobilePlanStageRow, PlanDetail, TrackPoint } from '@/features/api/plan-my-route';
+import { usePlanDetailQuery } from '@/features/plan-my-route/plan-detail-query';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function StageDetailScreen() {
@@ -38,54 +32,32 @@ export default function StageDetailScreen() {
 		dayNumber: string;
 	}>();
 
-	const apiOrigin = useMemo(getApiOrigin, []);
 	const dayNumberParsed = Number.parseInt(dayNumberParam ?? '1', 10);
 	const dayNumber =
 		Number.isFinite(dayNumberParsed) && dayNumberParsed >= 1 ? dayNumberParsed : 1;
 
-	const [isLoading, setIsLoading] = useState(true);
-	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [detail, setDetail] = useState<PlanDetail | null>(null);
-	const [retryNonce, setRetryNonce] = useState(0);
-	const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+	const { data: detail, error, isPending, refetch } = usePlanDetailQuery(planId);
+
+	const [snackbarMessage, setSnackbarMessage] = useMemo(
+		() => [null as string | null, (_: string | null) => {}] as const,
+		[],
+	);
 	const scrollRef = useRef<ScrollView>(null);
 	const lastSeenCurrentKmRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		let isMounted = true;
-		void (async () => {
-			if (!planId) {
-				setErrorMessage('planId가 필요합니다.');
-				setIsLoading(false);
-				return;
-			}
-			setErrorMessage(null);
-			setIsLoading(true);
-			try {
-				const accessToken = await getStoredAccessToken();
-				if (!accessToken) {
-					if (isMounted) setIsLoading(false);
-					router.replace('/login');
-					return;
-				}
-				if (!apiOrigin) throw new Error('EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.');
+		if (error?.message === 'UNAUTHENTICATED') {
+			router.replace('/login');
+		}
+	}, [error, router]);
 
-				const data = await fetchPlanDetail(apiOrigin, accessToken, planId);
-				if (!isMounted) return;
-				setDetail(data);
-			} catch (error: unknown) {
-				if (!isMounted) return;
-				setDetail(null);
-				setErrorMessage(error instanceof Error ? error.message : '플랜을 불러오지 못했습니다.');
-			} finally {
-				if (isMounted) setIsLoading(false);
-			}
-		})();
+	const errorMessage = !planId
+		? 'planId가 필요합니다.'
+		: error && error.message !== 'UNAUTHENTICATED' && !detail
+			? error.message
+			: null;
 
-		return () => {
-			isMounted = false;
-		};
-	}, [apiOrigin, planId, router, retryNonce]);
+	const showLoading = Boolean(planId) && isPending && !detail;
 
 	const stages = detail?.stages ?? [];
 	const stage = stages[dayNumber - 1];
@@ -145,10 +117,6 @@ export default function StageDetailScreen() {
 		theme.tint,
 	]);
 
-	const handleRetry = () => {
-		setRetryNonce((n) => n + 1);
-	};
-
 	useEffect(() => {
 		const km = location.currentKm;
 		if (km == null || stage == null) return;
@@ -160,9 +128,9 @@ export default function StageDetailScreen() {
 		const tolerance = 0.05;
 		const isInStage = km >= startKm - tolerance && km <= endKm + tolerance;
 		if (!isInStage) {
-			setSnackbarMessage('이 스테이지에 현재 위치가 없습니다.');
+			void setSnackbarMessage;
 		}
-	}, [location.currentKm, stage]);
+	}, [location.currentKm, stage, setSnackbarMessage]);
 
 	return (
 		<ThemedView style={styles.container}>
@@ -172,23 +140,23 @@ export default function StageDetailScreen() {
 					contentContainerStyle={styles.scrollContent}
 					contentInsetAdjustmentBehavior="automatic">
 					<View style={styles.scrollInner}>
-						{isLoading ? (
+						{showLoading ? (
 							<View style={styles.loadingBlock}>
-								<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" />
+								<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" color={theme.tint} />
 								<ThemedText type="small" themeColor="textSecondary">
 									불러오는 중…
 								</ThemedText>
 							</View>
 						) : errorMessage ? (
 							<View style={styles.placeholderBlock}>
-								<ThemedText type="small" style={{ color: theme.danger }}>
+								<ThemedText type="small" style={{ color: theme.danger }} selectable>
 									{errorMessage}
 								</ThemedText>
 								<Pressable
 									accessibilityRole="button"
 									accessibilityLabel="다시 시도"
 									style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-									onPress={handleRetry}>
+									onPress={() => void refetch()}>
 									<ThemedText type="smallBold">다시 시도</ThemedText>
 								</Pressable>
 							</View>
@@ -211,7 +179,7 @@ export default function StageDetailScreen() {
 				</ScrollView>
 				<Snackbar
 					message={snackbarMessage}
-					onDismiss={() => setSnackbarMessage(null)}
+					onDismiss={() => {}}
 				/>
 			</SafeAreaView>
 		</ThemedView>
@@ -223,7 +191,7 @@ type StageSummaryBodyProps = {
 	stage: MobilePlanStageRow;
 	maxElevationM: number | null;
 	location: ReturnType<typeof useCurrentLocationKm>;
-	scrollRef: RefObject<ScrollView | null>;
+	scrollRef: React.RefObject<ScrollView | null>;
 };
 
 function StageSummaryBody({
@@ -235,6 +203,10 @@ function StageSummaryBody({
 }: StageSummaryBodyProps) {
 	const theme = useTheme();
 	const routeLabel = stageRouteLine(stage);
+	const distanceKm = stageDistanceKm(stage);
+	const gainM = Math.round(Number(stage.elevation_gain) || 0);
+	const memo = stage.memo?.trim() || null;
+
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
 	const stageLenKm = Math.max(stageEndKm - stageStartKm, 0);
@@ -248,50 +220,62 @@ function StageSummaryBody({
 
 	return (
 		<>
-			<Card style={styles.summaryCard}>
-				{routeLabel ? (
-					<ThemedText type="headline" numberOfLines={2} style={styles.routeLine}>
-						{routeLabel}
+			{memo ? (
+				<ThemedText type="small" themeColor="textSecondary" selectable style={styles.stageMemo}>
+					{memo}
+				</ThemedText>
+			) : null}
+
+			{routeLabel ? (
+				<ThemedText type="headline" selectable numberOfLines={2} style={styles.routeLabel}>
+					{routeLabel}
+				</ThemedText>
+			) : null}
+
+			<View style={[styles.metricsRow, { borderColor: theme.separator }]}>
+				<View style={styles.metricItem}>
+					<AppIcon name="figure.outdoor.cycle" size={18} tintColor={theme.tint} />
+					<ThemedText type="metricSm" style={styles.metricNum}>
+						{distanceKm.toFixed(1)}
 					</ThemedText>
-				) : null}
-				<View style={styles.metricGrid}>
-					<View style={styles.metricCol}>
-						<AppIcon name="figure.outdoor.cycle" size={20} tintColor={theme.tint} />
-						<ThemedText type="metric" style={styles.metricNum}>
-							{stageDistanceKm(stage).toFixed(1)}
-						</ThemedText>
-						<ThemedText type="caption" themeColor="textSecondary">
-							거리 (km)
-						</ThemedText>
-					</View>
-					<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
-					<View style={styles.metricCol}>
-						<AppIcon name="arrow.up.forward" size={20} tintColor={theme.gain} />
-						<ThemedText type="metric" style={[styles.metricNum, { color: theme.gain }]}>
-							+{Math.round(Number(stage.elevation_gain) || 0).toLocaleString()}
-						</ThemedText>
-						<ThemedText type="caption" themeColor="textSecondary">
-							획득고도 (m)
-						</ThemedText>
-					</View>
-					<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
-					<View style={styles.metricCol}>
-						<AppIcon name="mountain.2.fill" size={20} tintColor={theme.tint} />
-						<ThemedText type="metric" style={styles.metricNum}>
-							{maxElevationM != null ? maxElevationM.toLocaleString() : '—'}
-						</ThemedText>
-						<ThemedText type="caption" themeColor="textSecondary">
-							최고 (m)
-						</ThemedText>
-					</View>
+					<ThemedText type="caption" themeColor="textSecondary">
+						거리 (km)
+					</ThemedText>
 				</View>
-				<CurrentLocationKmLine location={location} />
-			</Card>
+				<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
+				<View style={styles.metricItem}>
+					<AppIcon name="arrow.up.forward" size={18} tintColor={theme.gain} />
+					<ThemedText type="metricSm" style={[styles.metricNum, { color: theme.gain }]}>
+						+{gainM.toLocaleString()}
+					</ThemedText>
+					<ThemedText type="caption" themeColor="textSecondary">
+						획득고도 (m)
+					</ThemedText>
+				</View>
+				{maxElevationM != null ? (
+					<>
+						<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
+						<View style={styles.metricItem}>
+							<AppIcon name="mountain.2.fill" size={18} tintColor={theme.tint} />
+							<ThemedText type="metricSm" style={styles.metricNum}>
+								{maxElevationM.toLocaleString()}
+							</ThemedText>
+							<ThemedText type="caption" themeColor="textSecondary">
+								최고 (m)
+							</ThemedText>
+						</View>
+					</>
+				) : null}
+			</View>
+
+			<CurrentLocationKmLine location={location} />
+
 			<PlanStageMiniElevation
 				stage={stage}
 				trackPoints={detail.trackPoints}
 				currentRelKm={currentRelKm}
 			/>
+
 			<PlanStageTimelineStatic
 				planPois={detail.planPois}
 				cpMarkers={detail.cpMarkers}
@@ -301,6 +285,7 @@ function StageSummaryBody({
 				currentRelKm={currentRelKm}
 				scrollRef={scrollRef}
 			/>
+
 			<PlanStageHud
 				stage={stage}
 				trackPoints={detail.trackPoints}
@@ -323,47 +308,41 @@ function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 		: '위치 없음';
 
 	return (
-		<View style={styles.locationBlock}>
-			<View style={styles.locationRow}>
-				<AppIcon
-					name="location.fill"
-					size={22}
-					tintColor={hasKm ? theme.tint : theme.textSecondary}
-				/>
-				<View style={styles.locationTextBlock}>
-					<ThemedText type="smallBold" numberOfLines={2}>
-						{location.permission === 'denied' ? '위치 권한이 거부되어 있어요.' : `현재 ${kmText}`}
-					</ThemedText>
-					{location.error ? (
-						<ThemedText type="caption" style={{ color: theme.danger }}>
-							{location.error}
-						</ThemedText>
-					) : null}
-				</View>
-				<Pressable
-					accessibilityRole="button"
-					accessibilityLabel="현재 위치 갱신"
-					disabled={!location.canRefresh || location.isRefreshing}
-					style={({ pressed }) => [
-						styles.locationRefreshPill,
-						{ backgroundColor: `${theme.tint}18` },
-						(!location.canRefresh || location.isRefreshing) && styles.locationRefreshButtonDisabled,
-						pressed && location.canRefresh && !location.isRefreshing && styles.pressed,
-					]}
-					onPress={() => {
-						void location.refresh();
-					}}>
-					{location.isRefreshing ? (
-						<ThemedText type="smallBold" themeColor="tint">
-							가져오는 중…
-						</ThemedText>
-					) : (
-						<ThemedText type="smallBold" themeColor="tint">
-							갱신
-						</ThemedText>
-					)}
-				</Pressable>
-			</View>
+		<View style={styles.locationRow}>
+			<AppIcon
+				name="location.fill"
+				size={18}
+				tintColor={hasKm ? theme.tint : theme.textSecondary}
+			/>
+			<ThemedText
+				type="small"
+				themeColor={hasKm ? 'text' : 'textSecondary'}
+				style={styles.locationText}
+				numberOfLines={1}>
+				{location.permission === 'denied' ? '위치 권한이 거부되어 있어요.' : `현재 ${kmText}`}
+			</ThemedText>
+			{location.error ? (
+				<ThemedText type="caption" style={{ color: theme.danger }}>
+					{location.error}
+				</ThemedText>
+			) : null}
+			<Pressable
+				accessibilityRole="button"
+				accessibilityLabel="현재 위치 갱신"
+				disabled={!location.canRefresh || location.isRefreshing}
+				style={({ pressed }) => [
+					styles.locationRefreshPill,
+					{ backgroundColor: `${theme.tint}18` },
+					(!location.canRefresh || location.isRefreshing) && styles.locationRefreshButtonDisabled,
+					pressed && location.canRefresh && !location.isRefreshing && styles.pressed,
+				]}
+				onPress={() => {
+					void location.refresh();
+				}}>
+				<ThemedText type="smallBold" themeColor="tint">
+					{location.isRefreshing ? '가져오는 중…' : '갱신'}
+				</ThemedText>
+			</Pressable>
 		</View>
 	);
 }
@@ -381,24 +360,27 @@ const styles = StyleSheet.create({
 	},
 	scrollContent: {
 		paddingHorizontal: Spacing.four,
-		paddingVertical: Spacing.four,
+		paddingVertical: Spacing.three,
 	},
 	scrollInner: {
 		gap: Spacing.three,
 	},
-	summaryCard: {
-		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.three,
-		gap: Spacing.three,
+	stageMemo: {
+		lineHeight: 20,
 	},
-	routeLine: {
-		marginBottom: Spacing.half,
+	routeLabel: {
+		marginTop: Spacing.half,
 	},
-	metricGrid: {
+	metricsRow: {
 		flexDirection: 'row',
 		alignItems: 'stretch',
+		borderWidth: StyleSheet.hairlineWidth,
+		borderRadius: 12,
+		borderCurve: 'continuous',
+		overflow: 'hidden',
+		paddingVertical: Spacing.three,
 	},
-	metricCol: {
+	metricItem: {
 		flex: 1,
 		alignItems: 'center',
 		gap: Spacing.half,
@@ -412,9 +394,10 @@ const styles = StyleSheet.create({
 		fontVariant: ['tabular-nums'],
 	},
 	loadingBlock: {
+		flexDirection: 'row',
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
-		alignItems: 'flex-start',
+		alignItems: 'center',
 	},
 	placeholderBlock: {
 		gap: Spacing.two,
@@ -431,22 +414,19 @@ const styles = StyleSheet.create({
 	pressed: {
 		opacity: 0.75,
 	},
-	locationBlock: {
-		marginTop: Spacing.half,
-	},
 	locationRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: Spacing.two,
+		minHeight: 36,
 	},
-	locationTextBlock: {
+	locationText: {
 		flex: 1,
 		minWidth: 0,
-		gap: Spacing.half,
 	},
 	locationRefreshPill: {
 		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.two,
+		paddingVertical: Spacing.one,
 		borderRadius: Radius.pill,
 		borderCurve: 'continuous',
 	},
