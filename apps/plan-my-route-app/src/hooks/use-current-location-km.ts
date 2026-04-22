@@ -1,10 +1,10 @@
-import { snapLatLngToTrack } from '@my-ridings/plan-geometry';
-import * as Location from 'expo-location';
-import { useCallback, useState } from 'react';
+import { snapLatLngToTrack } from "@my-ridings/plan-geometry";
+import * as Location from "expo-location";
+import { useCallback, useState } from "react";
 
-import type { TrackPoint } from '@/features/api/plan-my-route';
+import type { TrackPoint } from "@/features/api/plan-my-route";
 
-export type LocationPermissionStatus = 'unknown' | 'granted' | 'denied';
+export type LocationPermissionStatus = "unknown" | "granted" | "denied";
 
 export type CurrentLocationKmState = {
 	permission: LocationPermissionStatus;
@@ -25,7 +25,7 @@ export type CurrentLocationKmState = {
 export function useCurrentLocationKm(
 	trackPoints: TrackPoint[] | null | undefined,
 ): CurrentLocationKmState {
-	const [permission, setPermission] = useState<LocationPermissionStatus>('unknown');
+	const [permission, setPermission] = useState<LocationPermissionStatus>("unknown");
 	const [lat, setLat] = useState<number | null>(null);
 	const [lng, setLng] = useState<number | null>(null);
 	const [currentKm, setCurrentKm] = useState<number | null>(null);
@@ -38,18 +38,18 @@ export function useCurrentLocationKm(
 	const refresh = useCallback(async () => {
 		const track = trackPoints ?? [];
 		if (track.length === 0) {
-			setError('트랙 데이터가 없어 위치를 표시할 수 없습니다.');
+			setError("트랙 데이터가 없어 위치를 표시할 수 없습니다.");
 			return;
 		}
 		setError(null);
 		setIsRefreshing(true);
 		try {
 			const { status } = await Location.requestForegroundPermissionsAsync();
-			if (status !== 'granted') {
-				setPermission('denied');
+			if (status !== "granted") {
+				setPermission("denied");
 				return;
 			}
-			setPermission('granted');
+			setPermission("granted");
 
 			const loc = await Location.getCurrentPositionAsync({
 				accuracy: Location.Accuracy.Balanced,
@@ -61,7 +61,7 @@ export function useCurrentLocationKm(
 			const snapped = snapLatLngToTrack(track, nextLat, nextLng);
 			setCurrentKm(snapped ? snapped.distanceKm : null);
 		} catch (e: unknown) {
-			setError(e instanceof Error ? e.message : '위치를 가져오지 못했습니다.');
+			setError(e instanceof Error ? e.message : "위치를 가져오지 못했습니다.");
 		} finally {
 			setIsRefreshing(false);
 		}

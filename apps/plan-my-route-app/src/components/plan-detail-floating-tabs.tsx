@@ -1,20 +1,15 @@
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useEffect } from 'react';
-import { LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from 'react-native';
-import Animated, {
-	useAnimatedStyle,
-	useSharedValue,
-	withSpring,
-} from 'react-native-reanimated';
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { useEffect } from "react";
+import { type LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import { ThemedText } from "@/components/themed-text";
+import { AppIcon } from "@/components/ui/icon";
+import { Shadow } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useTheme } from "@/hooks/use-theme";
+import { safeSelection } from "@/lib/safe-haptics";
 
-import { AppIcon } from '@/components/ui/icon';
-import { ThemedText } from '@/components/themed-text';
-import { Shadow } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useTheme } from '@/hooks/use-theme';
-import { safeSelection } from '@/lib/safe-haptics';
-
-export type PlanDetailTabKey = 'summary' | 'schedule' | 'map';
+export type PlanDetailTabKey = "summary" | "schedule" | "map";
 
 type PlanDetailFloatingTabsProps = {
 	activeTab: PlanDetailTabKey;
@@ -22,18 +17,18 @@ type PlanDetailFloatingTabsProps = {
 	onSelectTab: (tab: PlanDetailTabKey) => void;
 };
 
-const TABS: PlanDetailTabKey[] = ['summary', 'schedule', 'map'];
+const TABS: PlanDetailTabKey[] = ["summary", "schedule", "map"];
 
 const LABELS: Record<PlanDetailTabKey, string> = {
-	summary: '요약',
-	schedule: '일정',
-	map: '맵',
+	summary: "요약",
+	schedule: "일정",
+	map: "맵",
 };
 
 const ICONS: Record<PlanDetailTabKey, string> = {
-	summary: 'chart.bar.xaxis',
-	schedule: 'calendar',
-	map: 'map',
+	summary: "chart.bar.xaxis",
+	schedule: "calendar",
+	map: "map",
 };
 
 export function PlanDetailFloatingTabs({
@@ -43,8 +38,8 @@ export function PlanDetailFloatingTabs({
 }: PlanDetailFloatingTabsProps) {
 	const theme = useTheme();
 	const colorScheme = useColorScheme();
-	const useGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
-	const isDark = colorScheme === 'dark';
+	const useGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
+	const isDark = colorScheme === "dark";
 
 	const segmentWidth = useSharedValue(0);
 	const activeIndex = useSharedValue(TABS.indexOf(activeTab));
@@ -70,11 +65,7 @@ export function PlanDetailFloatingTabs({
 	const row = (
 		<View style={styles.rowWrap} onLayout={onRowLayout}>
 			<Animated.View
-				style={[
-					styles.indicator,
-					{ backgroundColor: `${theme.tint}24` },
-					indicatorStyle,
-				]}
+				style={[styles.indicator, { backgroundColor: `${theme.tint}24` }, indicatorStyle]}
 			/>
 			<View style={styles.row}>
 				{TABS.map((tab) => {
@@ -84,24 +75,23 @@ export function PlanDetailFloatingTabs({
 							key={tab}
 							accessibilityRole="tab"
 							accessibilityState={{ selected }}
-							style={({ pressed }) => [
-								styles.tabCell,
-								pressed ? styles.pressablePressed : null,
-							]}
+							style={({ pressed }) => [styles.tabCell, pressed ? styles.pressablePressed : null]}
 							onPress={() => {
-								if (Platform.OS === 'ios') {
+								if (Platform.OS === "ios") {
 									safeSelection();
 								}
 								onSelectTab(tab);
-							}}>
+							}}
+						>
 							<AppIcon
 								name={ICONS[tab]}
 								size={16}
 								tintColor={selected ? theme.tint : theme.textSecondary}
 							/>
 							<ThemedText
-								type={selected ? 'smallBold' : 'small'}
-								themeColor={selected ? 'text' : 'textSecondary'}>
+								type={selected ? "smallBold" : "small"}
+								themeColor={selected ? "text" : "textSecondary"}
+							>
 								{LABELS[tab]}
 							</ThemedText>
 						</Pressable>
@@ -111,7 +101,7 @@ export function PlanDetailFloatingTabs({
 		</View>
 	);
 
-	const fallbackFill = isDark ? 'rgba(28, 28, 30, 0.72)' : 'rgba(255, 255, 255, 0.88)';
+	const fallbackFill = isDark ? "rgba(28, 28, 30, 0.72)" : "rgba(255, 255, 255, 0.88)";
 	const chromeShadow = isDark ? Shadow.floatingDark : Shadow.floating;
 
 	const chromeStyle = [
@@ -134,40 +124,40 @@ export function PlanDetailFloatingTabs({
 
 const styles = StyleSheet.create({
 	anchor: {
-		position: 'absolute',
+		position: "absolute",
 		left: 0,
 		right: 0,
 		bottom: 0,
-		alignItems: 'center',
+		alignItems: "center",
 	},
 	pillChrome: {
 		borderRadius: 999,
-		borderCurve: 'continuous',
+		borderCurve: "continuous",
 		paddingVertical: 9,
 		paddingHorizontal: 14,
-		overflow: 'hidden',
+		overflow: "hidden",
 	},
 	rowWrap: {
-		position: 'relative',
+		position: "relative",
 		minWidth: 220,
 	},
 	row: {
-		flexDirection: 'row',
-		alignItems: 'center',
+		flexDirection: "row",
+		alignItems: "center",
 	},
 	indicator: {
-		position: 'absolute',
+		position: "absolute",
 		left: 0,
 		top: 0,
 		bottom: 0,
 		borderRadius: 999,
-		borderCurve: 'continuous',
+		borderCurve: "continuous",
 	},
 	tabCell: {
 		flex: 1,
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
 		gap: 6,
 		paddingVertical: 6,
 		paddingHorizontal: 4,

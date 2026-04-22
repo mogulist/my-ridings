@@ -1,37 +1,37 @@
-import { snapPlanPoisToTrack, type PlanPoiSnapInput } from '@my-ridings/plan-geometry';
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
+import { type PlanPoiSnapInput, snapPlanPoisToTrack } from "@my-ridings/plan-geometry";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Animated, Easing, type ScrollView, StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { AppIcon } from '@/components/ui/icon';
-import { PressableHaptic } from '@/components/ui/pressable-haptic';
-import { Fonts, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { AppIcon } from "@/components/ui/icon";
+import { PressableHaptic } from "@/components/ui/pressable-haptic";
+import { Fonts, Spacing } from "@/constants/theme";
 import type {
 	CpMarkerOnRoute,
 	MobilePlanStageRow,
 	PlanPoiRow,
 	SummitMarkerOnRoute,
 	TrackPoint,
-} from '@/features/api/plan-my-route';
-import { useTheme } from '@/hooks/use-theme';
+} from "@/features/api/plan-my-route";
+import { useTheme } from "@/hooks/use-theme";
 
 /** 웹 `PoiEditDialog` / 공유 탭과 동일 라벨 세트 */
 const POI_TYPE_LABEL_KO: Record<string, string> = {
-	convenience: '편의점',
-	mart: '마트',
-	accommodation: '숙소',
-	cafe: '카페',
-	restaurant: '식당',
+	convenience: "편의점",
+	mart: "마트",
+	accommodation: "숙소",
+	cafe: "카페",
+	restaurant: "식당",
 };
 
 function poiTypeLabel(poiType: string): string {
 	return POI_TYPE_LABEL_KO[poiType] ?? poiType;
 }
 
-type TimelineKind = 'start' | 'poi' | 'cp' | 'summit' | 'end' | 'current';
+type TimelineKind = "start" | "poi" | "cp" | "summit" | "end" | "current";
 
-const CP_LABEL_KO = '체크포인트';
-const SUMMIT_LABEL_KO = '정상';
+const CP_LABEL_KO = "체크포인트";
+const SUMMIT_LABEL_KO = "정상";
 
 type TimelineMilestone = {
 	id: string;
@@ -94,14 +94,14 @@ export function PlanStageTimelineStatic({
 			(p) => p.distanceKm >= stageStartKm && p.distanceKm <= stageEndKm,
 		);
 
-		const startTitle = stage.start_name?.trim() ?? '출발';
-		const endTitle = stage.end_name?.trim() ?? '도착';
+		const startTitle = stage.start_name?.trim() ?? "출발";
+		const endTitle = stage.end_name?.trim() ?? "도착";
 
 		const cpRows: TimelineMilestone[] = cpMarkers
 			.filter((c) => c.distanceKm >= stageStartKm && c.distanceKm <= stageEndKm)
 			.map((c) => ({
 				id: `cp-${c.id}`,
-				kind: 'cp' as const,
+				kind: "cp" as const,
 				relKm: Math.max(0, c.distanceKm - stageStartKm),
 				title: c.name?.trim() || CP_LABEL_KO,
 				sub: `${CP_LABEL_KO} · ${Math.round(c.elevation).toLocaleString()} m`,
@@ -111,7 +111,7 @@ export function PlanStageTimelineStatic({
 			.filter((s) => s.distanceKm >= stageStartKm && s.distanceKm <= stageEndKm)
 			.map((s) => ({
 				id: `summit-${s.id}`,
-				kind: 'summit' as const,
+				kind: "summit" as const,
 				relKm: Math.max(0, s.distanceKm - stageStartKm),
 				title: s.name?.trim() || SUMMIT_LABEL_KO,
 				sub: `${SUMMIT_LABEL_KO} · ${Math.round(s.elevation).toLocaleString()} m`,
@@ -119,37 +119,37 @@ export function PlanStageTimelineStatic({
 
 		const rows: TimelineMilestone[] = [
 			{
-				id: 'start',
-				kind: 'start',
+				id: "start",
+				kind: "start",
 				relKm: 0,
 				title: startTitle,
-				sub: '시작',
+				sub: "시작",
 			},
 			...inStage.map((p) => ({
 				id: `poi-${p.id}`,
-				kind: 'poi' as const,
+				kind: "poi" as const,
 				relKm: Math.max(0, p.distanceKm - stageStartKm),
-				title: p.name?.trim() || 'POI',
+				title: p.name?.trim() || "POI",
 				sub: poiTypeLabel(p.poiType),
 				memo: p.memo?.trim() || null,
 			})),
 			...cpRows,
 			...summitRows,
 			{
-				id: 'end',
-				kind: 'end',
+				id: "end",
+				kind: "end",
 				relKm: stageLenKm,
 				title: endTitle,
-				sub: '종료',
+				sub: "종료",
 			},
 		];
 
 		if (currentRelKm != null) {
 			rows.push({
-				id: 'current',
-				kind: 'current',
+				id: "current",
+				kind: "current",
 				relKm: Math.min(Math.max(currentRelKm, 0), stageLenKm),
-				title: '현재 위치',
+				title: "현재 위치",
 			});
 		}
 
@@ -228,7 +228,8 @@ export function PlanStageTimelineStatic({
 					<ThemedText
 						type="caption"
 						themeColor="textSecondary"
-						style={[styles.leftColHeader, { width: LEFT_KM_WIDTH }]}>
+						style={[styles.leftColHeader, { width: LEFT_KM_WIDTH }]}
+					>
 						거리
 					</ThemedText>
 					<View style={{ width: AXIS_WIDTH }} />
@@ -239,11 +240,9 @@ export function PlanStageTimelineStatic({
 
 				<View style={styles.timelineBody} collapsable={false}>
 					{milestones.map((m, index) => {
-						const isWaypoint = m.kind === 'poi' || m.kind === 'cp' || m.kind === 'summit';
-						const passed =
-							isWaypoint && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
-						const segmentPassed =
-							currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
+						const isWaypoint = m.kind === "poi" || m.kind === "cp" || m.kind === "summit";
+						const passed = isWaypoint && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
+						const segmentPassed = currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 						const tintMuted = hexToRgba(theme.tint, 0.22);
 
 						const milestoneRow = (
@@ -253,24 +252,25 @@ export function PlanStageTimelineStatic({
 									style={[
 										styles.kmCell,
 										{ width: LEFT_KM_WIDTH, color: theme.text, fontFamily: Fonts.rounded },
-									]}>
+									]}
+								>
 									{formatStageKm(m.relKm)}
 								</ThemedText>
 
 								<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
-									{m.kind === 'cp' ? (
+									{m.kind === "cp" ? (
 										<AppIcon
 											name="flag.checkered"
 											size={16}
 											tintColor={passed ? theme.tint : theme.separator}
 										/>
-									) : m.kind === 'summit' ? (
+									) : m.kind === "summit" ? (
 										<AppIcon
 											name="mountain.2.fill"
 											size={16}
 											tintColor={passed ? theme.tint : theme.separator}
 										/>
-									) : m.kind === 'poi' ? (
+									) : m.kind === "poi" ? (
 										passed ? (
 											<View style={[styles.poiDot, { backgroundColor: theme.tint }]} />
 										) : (
@@ -278,14 +278,14 @@ export function PlanStageTimelineStatic({
 												style={[
 													styles.poiDot,
 													{
-														backgroundColor: 'transparent',
+														backgroundColor: "transparent",
 														borderWidth: 2,
 														borderColor: theme.separator,
 													},
 												]}
 											/>
 										)
-									) : m.kind === 'current' ? (
+									) : m.kind === "current" ? (
 										<View style={styles.currentDotWrap}>
 											<View style={[styles.currentRing, { borderColor: tintMuted }]} />
 											<Animated.View
@@ -300,35 +300,39 @@ export function PlanStageTimelineStatic({
 											/>
 										</View>
 									) : (
-										<View
-											style={[styles.endpointBar, { backgroundColor: theme.separator }]}
-										/>
+										<View style={[styles.endpointBar, { backgroundColor: theme.separator }]} />
 									)}
 								</View>
 
-							<View style={styles.labelBlock}>
-								<ThemedText type="smallBold" numberOfLines={2}>
-									{m.title}
-								</ThemedText>
-								{m.sub ? (
-									<ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
-										{m.sub}
+								<View style={styles.labelBlock}>
+									<ThemedText type="smallBold" numberOfLines={2}>
+										{m.title}
 									</ThemedText>
-								) : null}
-								{m.memo ? (
-									<ThemedText type="caption" themeColor="textSecondary" selectable style={styles.memoText}>
-										{m.memo}
-									</ThemedText>
-								) : null}
-							</View>
+									{m.sub ? (
+										<ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
+											{m.sub}
+										</ThemedText>
+									) : null}
+									{m.memo ? (
+										<ThemedText
+											type="caption"
+											themeColor="textSecondary"
+											selectable
+											style={styles.memoText}
+										>
+											{m.memo}
+										</ThemedText>
+									) : null}
+								</View>
 							</View>
 						);
 
 						return (
 							<View
 								key={m.id}
-								ref={m.kind === 'current' ? currentRowRef : undefined}
-								onLayout={m.kind === 'current' ? handleCurrentRowLayout : undefined}>
+								ref={m.kind === "current" ? currentRowRef : undefined}
+								onLayout={m.kind === "current" ? handleCurrentRowLayout : undefined}
+							>
 								{index > 0 ? (
 									<View style={[styles.gapRow, { height: FIXED_SEGMENT_GAP_PX }]}>
 										<View style={{ width: LEFT_KM_WIDTH }} />
@@ -370,12 +374,12 @@ const styles = StyleSheet.create({
 		paddingTop: Spacing.two,
 	},
 	columnHeader: {
-		flexDirection: 'row',
-		alignItems: 'center',
+		flexDirection: "row",
+		alignItems: "center",
 		marginBottom: Spacing.two,
 	},
 	leftColHeader: {
-		textAlign: 'right',
+		textAlign: "right",
 		paddingRight: Spacing.one,
 	},
 	rightColHeader: {
@@ -383,14 +387,14 @@ const styles = StyleSheet.create({
 		paddingLeft: Spacing.two,
 	},
 	timelineBody: {
-		position: 'relative',
+		position: "relative",
 	},
 	gapRow: {
-		flexDirection: 'row',
-		alignItems: 'stretch',
+		flexDirection: "row",
+		alignItems: "stretch",
 	},
 	axisSlot: {
-		alignItems: 'center',
+		alignItems: "center",
 	},
 	axisSegment: {
 		width: BAR_WIDTH,
@@ -401,14 +405,14 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	milestoneRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
+		flexDirection: "row",
+		alignItems: "center",
 		minHeight: 44,
 	},
 	kmCell: {
-		textAlign: 'right',
+		textAlign: "right",
 		paddingRight: Spacing.one,
-		fontVariant: ['tabular-nums'],
+		fontVariant: ["tabular-nums"],
 		fontSize: 13,
 		lineHeight: 18,
 	},
@@ -420,11 +424,11 @@ const styles = StyleSheet.create({
 	currentDotWrap: {
 		width: CURRENT_DOT_SIZE + 8,
 		height: CURRENT_DOT_SIZE + 8,
-		alignItems: 'center',
-		justifyContent: 'center',
+		alignItems: "center",
+		justifyContent: "center",
 	},
 	currentRing: {
-		position: 'absolute',
+		position: "absolute",
 		width: CURRENT_DOT_SIZE + 6,
 		height: CURRENT_DOT_SIZE + 6,
 		borderRadius: (CURRENT_DOT_SIZE + 6) / 2,
@@ -454,7 +458,7 @@ const styles = StyleSheet.create({
 });
 
 function hexToRgba(hex: string, alpha: number): string {
-	if (hex.startsWith('#') && hex.length === 7) {
+	if (hex.startsWith("#") && hex.length === 7) {
 		const r = Number.parseInt(hex.slice(1, 3), 16);
 		const g = Number.parseInt(hex.slice(3, 5), 16);
 		const b = Number.parseInt(hex.slice(5, 7), 16);
@@ -464,11 +468,11 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 function kindOrder(k: TimelineKind): number {
-	if (k === 'start') return 0;
-	if (k === 'poi') return 1;
-	if (k === 'cp') return 2;
-	if (k === 'summit') return 3;
-	if (k === 'current') return 4;
+	if (k === "start") return 0;
+	if (k === "poi") return 1;
+	if (k === "cp") return 2;
+	if (k === "summit") return 3;
+	if (k === "current") return 4;
 	return 5;
 }
 
@@ -513,7 +517,7 @@ function maybeAutoScroll({
 	 * ScrollView의 경우 내부 스크롤 콘텐츠 기준 y를 반환하므로 그대로 scrollTo 가능.
 	 */
 	row.measureLayout(
-		outer as unknown as Parameters<View['measureLayout']>[0],
+		outer as unknown as Parameters<View["measureLayout"]>[0],
 		(_x: number, y: number) => {
 			outer.scrollTo({
 				y: Math.max(0, y - SCROLL_LEAD_PX),

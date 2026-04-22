@@ -1,14 +1,14 @@
-import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
-import { Stack } from 'expo-router/stack';
-import { Platform, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
+import { Stack } from "expo-router/stack";
+import { Platform, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
 	PlanDetailFloatingTabs,
 	type PlanDetailTabKey,
-} from '@/components/plan-detail-floating-tabs';
-import { HeaderBack } from '@/components/ui/header-back';
-import { useTheme } from '@/hooks/use-theme';
+} from "@/components/plan-detail-floating-tabs";
+import { HeaderBack } from "@/components/ui/header-back";
+import { useTheme } from "@/hooks/use-theme";
 
 function parsePlanDetailTab(pathname: string): PlanDetailTabKey | null {
 	const match = pathname.match(/\/plans\/[^/]+\/(summary|schedule|map)\/?$/);
@@ -19,7 +19,7 @@ function parsePlanDetailTab(pathname: string): PlanDetailTabKey | null {
 function HeaderBackToPlans() {
 	const router = useRouter();
 	const params = useGlobalSearchParams<{ routeId?: string }>();
-	const routeId = typeof params.routeId === 'string' ? params.routeId : '';
+	const routeId = typeof params.routeId === "string" ? params.routeId : "";
 
 	const handlePress = () => {
 		if (router.canGoBack()) {
@@ -27,9 +27,9 @@ function HeaderBackToPlans() {
 			return;
 		}
 		if (routeId) {
-			router.replace({ pathname: '/routes/[routeId]/plans', params: { routeId } });
+			router.replace({ pathname: "/routes/[routeId]/plans", params: { routeId } });
 		} else {
-			router.replace('/(tabs)');
+			router.replace("/(tabs)");
 		}
 	};
 
@@ -42,8 +42,8 @@ export default function PlanDetailLayout() {
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 	const params = useGlobalSearchParams<{ routeId?: string; planId?: string }>();
-	const routeId = typeof params.routeId === 'string' ? params.routeId : '';
-	const planId = typeof params.planId === 'string' ? params.planId : '';
+	const routeId = typeof params.routeId === "string" ? params.routeId : "";
+	const planId = typeof params.planId === "string" ? params.planId : "";
 
 	const tabFromPath = parsePlanDetailTab(pathname);
 	const showFloatingTabs = tabFromPath !== null && routeId.length > 0 && planId.length > 0;
@@ -51,11 +51,11 @@ export default function PlanDetailLayout() {
 	const navigateTab = (tab: PlanDetailTabKey) => {
 		if (!routeId || !planId) return;
 		const pathname =
-			tab === 'summary'
-				? '/routes/[routeId]/plans/[planId]/summary'
-				: tab === 'schedule'
-					? '/routes/[routeId]/plans/[planId]/schedule'
-					: '/routes/[routeId]/plans/[planId]/map';
+			tab === "summary"
+				? "/routes/[routeId]/plans/[planId]/summary"
+				: tab === "schedule"
+					? "/routes/[routeId]/plans/[planId]/schedule"
+					: "/routes/[routeId]/plans/[planId]/map";
 		router.replace({
 			pathname,
 			params: { routeId, planId },
@@ -77,39 +77,39 @@ export default function PlanDetailLayout() {
 			<Stack
 				screenOptions={{
 					headerShown: true,
-					headerBackButtonDisplayMode: 'minimal',
-				}}>
+					headerBackButtonDisplayMode: "minimal",
+				}}
+			>
 				<Stack.Screen
 					name="summary"
 					options={{
-						title: '요약',
+						title: "요약",
 						...solidHeader,
 					}}
 				/>
 				<Stack.Screen
 					name="schedule"
 					options={{
-						title: '일정',
+						title: "일정",
 						...solidHeader,
 					}}
 				/>
 				<Stack.Screen
 					name="map"
 					options={{
-						title: '맵',
+						title: "맵",
 						...solidHeader,
 					}}
 				/>
-				<Stack.Screen name="stages/[dayNumber]/index" options={{ title: '스테이지' }} />
+				<Stack.Screen name="stages/[dayNumber]/index" options={{ title: "스테이지" }} />
+				<Stack.Screen name="stages/[dayNumber]/weather" options={{ title: "날씨 브리핑" }} />
 				<Stack.Screen
 					name="stages/[dayNumber]/edit"
 					options={{
-						presentation: 'modal',
-						title: '스테이지 편집',
-						headerTransparent: Platform.OS === 'ios',
-						...(Platform.OS === 'ios'
-							? { headerBlurEffect: 'systemThinMaterial' as const }
-							: {}),
+						presentation: "modal",
+						title: "스테이지 편집",
+						headerTransparent: Platform.OS === "ios",
+						...(Platform.OS === "ios" ? { headerBlurEffect: "systemThinMaterial" as const } : {}),
 					}}
 				/>
 			</Stack>

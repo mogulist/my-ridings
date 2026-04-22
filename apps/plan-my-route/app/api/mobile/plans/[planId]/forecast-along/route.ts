@@ -1,4 +1,4 @@
-import { alongForecastResponseSchema } from "@my-ridings/weather-types";
+import { stageBriefingResponseSchema } from "@my-ridings/weather-types";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import {
@@ -28,21 +28,36 @@ type PlanRowWithRoute = {
 	stages: PlanStageRow[];
 };
 
-function resolveDepartAtIso(
-	planStartDate: string | null,
-	dayNumber: number,
-	departAtRaw: unknown,
-): string {
-	if (typeof departAtRaw === "string" && departAtRaw.trim()) {
-		const t = Date.parse(departAtRaw.trim());
-		if (!Number.isNaN(t)) return new Date(t).toISOString();
+const kstTodayYmd = (): string => {
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		timeZone: "Asia/Seoul",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).formatToParts(new Date());
+	const y = parts.find((p) => p.type === "year")?.value;
+	const m = parts.find((p) => p.type === "month")?.value;
+	const d = parts.find((p) => p.type === "day")?.value;
+	if (!y || !m || !d) return new Date().toISOString().slice(0, 10);
+	return `${y}-${m}-${d}`;
+};
+
+/** 플랜 `start_date` + `dayNumber` → 스테이지 달력 날짜(Asia/Seoul). */
+const stageTargetYmd = (planStartDate: string | null, dayNumber: number): string => {
+	if (planStartDate && /^\d{4}-\d{2}-\d{2}$/.test(planStartDate.trim())) {
+		const base = new Date(`${planStartDate.trim()}T12:00:00+09:00`);
+		if (!Number.isNaN(base.getTime())) {
+			const shifted = new Date(base.getTime() + (dayNumber - 1) * 86400000);
+			return new Intl.DateTimeFormat("en-CA", {
+				timeZone: "Asia/Seoul",
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+			}).format(shifted);
+		}
 	}
-	if (!planStartDate) return new Date().toISOString();
-	const dt = new Date(`${planStartDate}T07:00:00+09:00`);
-	if (Number.isNaN(dt.getTime())) return new Date().toISOString();
-	dt.setDate(dt.getDate() + (dayNumber - 1));
-	return dt.toISOString();
-}
+	return kstTodayYmd();
+};
 
 export async function POST(request: Request, { params }: { params: Promise<{ planId: string }> }) {
 	const user = await getAuthenticatedUser(request);
@@ -63,17 +78,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 	}
 	const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
 	const dayNumber = Number(b.dayNumber);
-	const segments = b.segments === undefined ? 4 : Number(b.segments);
-	const paceKmh = b.paceKmh === undefined ? 22 : Number(b.paceKmh);
 
 	if (!Number.isInteger(dayNumber) || dayNumber < 1) {
 		return NextResponse.json({ error: "Invalid dayNumber" }, { status: 400 });
-	}
-	if (!Number.isFinite(segments) || segments < 1 || segments > 24 || !Number.isInteger(segments)) {
-		return NextResponse.json({ error: "Invalid segments" }, { status: 400 });
-	}
-	if (!Number.isFinite(paceKmh) || paceKmh <= 0 || paceKmh > 80) {
-		return NextResponse.json({ error: "Invalid paceKmh" }, { status: 400 });
 	}
 
 	const { data, error } = await supabaseAdmin
@@ -142,15 +149,39 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 		return NextResponse.json({ error: "Stage polyline too short" }, { status: 422 });
 	}
 
-	const departAt = resolveDepartAtIso(row.start_date, dayNumber, b.departAt);
+	const targetDate = stageTargetYmd(row.start_date, dayNumber);
 
-	const weatherOrigin = process.env.WEATHER_SERVICE_ORIGIN?.trim().replace(/\/+$/, "");
+	const weatherOriginRaw = process.env.WEATHER_SERVICE_ORIGIN?.trim().replace(/\/+$/, "") ?? "";
 	const weatherKey = process.env.WEATHER_INTERNAL_API_KEY?.trim();
-	if (!weatherOrigin || !weatherKey) {
+	if (!weatherOriginRaw || !weatherKey) {
 		return NextResponse.json({ error: "Weather service not configured" }, { status: 503 });
 	}
 
-	const wRes = await fetch(`${weatherOrigin}/api/v1/forecast/along`, {
+	/** 플레이스홀더만 넣은 경우(Vercel에 리터럴 `WEATHER_SERVICE_ORIGIN` 등) 조기 차단 */
+	if (/^WEATHER_SERVICE_ORIGIN$/i.test(weatherOriginRaw)) {
+		return NextResponse.json(
+			{
+				error:
+					"WEATHER_SERVICE_ORIGIN must be the weather app URL (e.g. https://your-weather.vercel.app), not the variable name.",
+			},
+			{ status: 503 },
+		);
+	}
+
+	let weatherStageUrl: string;
+	try {
+		const base = /^https?:\/\//i.test(weatherOriginRaw)
+			? weatherOriginRaw
+			: `https://${weatherOriginRaw}`;
+		weatherStageUrl = new URL("/api/v1/forecast/stage", base).href;
+	} catch {
+		return NextResponse.json(
+			{ error: "Invalid WEATHER_SERVICE_ORIGIN (must be a valid http(s) origin)" },
+			{ status: 503 },
+		);
+	}
+
+	const wRes = await fetch(weatherStageUrl, {
 		method: "POST",
 		headers: {
 			Authorization: `Bearer ${weatherKey}`,
@@ -158,9 +189,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 		},
 		body: JSON.stringify({
 			polyline,
-			segments,
-			departAt,
-			paceKmh,
+			targetDate,
 		}),
 	});
 
@@ -176,7 +205,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 	}
 
 	const wJson: unknown = await wRes.json();
-	const parsed = alongForecastResponseSchema.safeParse(wJson);
+	const parsed = stageBriefingResponseSchema.safeParse(wJson);
 	if (!parsed.success) {
 		return NextResponse.json({ error: "Invalid weather response" }, { status: 502 });
 	}

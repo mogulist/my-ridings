@@ -1,16 +1,16 @@
-import { HeaderButton } from '@react-navigation/elements';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useLayoutEffect } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { HeaderButton } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLayoutEffect } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { AppIcon } from '@/components/ui/icon';
-import { Card } from '@/components/ui/card';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { Card } from "@/components/ui/card";
+import { AppIcon } from "@/components/ui/icon";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function StageEditScreen() {
 	const navigation = useNavigation();
@@ -22,7 +22,7 @@ export default function StageEditScreen() {
 		dayNumber: string;
 	}>();
 
-	const dayLabel = dayNumber ? `D${dayNumber}` : '스테이지';
+	const dayLabel = dayNumber ? `D${dayNumber}` : "스테이지";
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
@@ -32,7 +32,8 @@ export default function StageEditScreen() {
 					accessibilityLabel="닫기"
 					onPress={() => {
 						router.back();
-					}}>
+					}}
+				>
 					<AppIcon name="xmark" size={20} tintColor={theme.tint} />
 				</HeaderButton>
 			),
@@ -41,10 +42,11 @@ export default function StageEditScreen() {
 
 	return (
 		<ThemedView style={styles.container}>
-			<SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+			<SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
 				<ScrollView
 					contentContainerStyle={styles.scrollContent}
-					contentInsetAdjustmentBehavior="automatic">
+					contentInsetAdjustmentBehavior="automatic"
+				>
 					<View style={styles.emptyHero}>
 						<AppIcon name="square.and.pencil" size={56} tintColor={theme.tint} />
 						<ThemedText type="headline" style={styles.emptyTitle}>
@@ -96,12 +98,12 @@ export default function StageEditScreen() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		flexDirection: 'row',
-		justifyContent: 'center',
+		flexDirection: "row",
+		justifyContent: "center",
 	},
 	safeArea: {
 		flex: 1,
-		width: '100%',
+		width: "100%",
 		maxWidth: MaxContentWidth,
 	},
 	scrollContent: {
@@ -110,15 +112,15 @@ const styles = StyleSheet.create({
 		gap: Spacing.four,
 	},
 	emptyHero: {
-		alignItems: 'center',
+		alignItems: "center",
 		gap: Spacing.two,
 		paddingVertical: Spacing.five,
 	},
 	emptyTitle: {
-		textAlign: 'center',
+		textAlign: "center",
 	},
 	emptySub: {
-		textAlign: 'center',
+		textAlign: "center",
 		maxWidth: 280,
 	},
 	sectionGap: {
@@ -128,6 +130,6 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
 		minHeight: 72,
-		justifyContent: 'center',
+		justifyContent: "center",
 	},
 });

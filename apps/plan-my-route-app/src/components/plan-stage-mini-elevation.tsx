@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useMemo } from "react";
+import { StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { Card } from '@/components/ui/card';
-import { Spacing } from '@/constants/theme';
-import type { MobilePlanStageRow, TrackPoint } from '@/features/api/plan-my-route';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemedText } from "@/components/themed-text";
+import { Card } from "@/components/ui/card";
+import { Spacing } from "@/constants/theme";
+import type { MobilePlanStageRow, TrackPoint } from "@/features/api/plan-my-route";
+import { useTheme } from "@/hooks/use-theme";
 
 const CHART_HEIGHT = 76;
 const BIN_COUNT = 72;
@@ -24,10 +24,7 @@ export function PlanStageMiniElevation({
 }: PlanStageMiniElevationProps) {
 	const theme = useTheme();
 
-	const chart = useMemo(
-		() => buildStageElevationBins(trackPoints, stage),
-		[stage, trackPoints],
-	);
+	const chart = useMemo(() => buildStageElevationBins(trackPoints, stage), [stage, trackPoints]);
 
 	const stageStartM = stage.start_distance ?? 0;
 	const stageEndM = stage.end_distance ?? stageStartM;
@@ -122,7 +119,7 @@ export function PlanStageMiniElevation({
 }
 
 function withAlpha(hex: string, alpha: number): string {
-	if (hex.startsWith('#') && hex.length === 7) {
+	if (hex.startsWith("#") && hex.length === 7) {
 		const r = Number.parseInt(hex.slice(1, 3), 16);
 		const g = Number.parseInt(hex.slice(3, 5), 16);
 		const b = Number.parseInt(hex.slice(5, 7), 16);
@@ -143,27 +140,27 @@ const styles = StyleSheet.create({
 		paddingVertical: Spacing.three,
 	},
 	chartOuter: {
-		width: '100%',
+		width: "100%",
 	},
 	chartInner: {
-		flexDirection: 'row',
-		alignItems: 'flex-end',
-		width: '100%',
-		position: 'relative',
+		flexDirection: "row",
+		alignItems: "flex-end",
+		width: "100%",
+		position: "relative",
 	},
 	barSlot: {
 		flex: 1,
-		alignItems: 'stretch',
-		justifyContent: 'flex-end',
+		alignItems: "stretch",
+		justifyContent: "flex-end",
 		paddingHorizontal: 0.25,
 		minWidth: 0,
 	},
 	bar: {
-		width: '100%',
+		width: "100%",
 		borderRadius: 2,
 	},
 	markerLine: {
-		position: 'absolute',
+		position: "absolute",
 		top: 0,
 		bottom: 0,
 		width: 2,
@@ -171,7 +168,7 @@ const styles = StyleSheet.create({
 		opacity: 0.85,
 	},
 	markerDot: {
-		position: 'absolute',
+		position: "absolute",
 		top: -CURRENT_DOT_SIZE / 2,
 		width: CURRENT_DOT_SIZE,
 		height: CURRENT_DOT_SIZE,
@@ -179,12 +176,12 @@ const styles = StyleSheet.create({
 		marginLeft: -CURRENT_DOT_SIZE / 2,
 	},
 	axisLabels: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
+		flexDirection: "row",
+		justifyContent: "space-between",
 		marginTop: Spacing.two,
 	},
 	axisKm: {
-		fontVariant: ['tabular-nums'],
+		fontVariant: ["tabular-nums"],
 	},
 });
 

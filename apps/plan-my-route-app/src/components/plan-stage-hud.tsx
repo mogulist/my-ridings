@@ -1,17 +1,17 @@
-import { computeTrackElevationGainLoss } from '@my-ridings/plan-geometry';
-import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { computeTrackElevationGainLoss } from "@my-ridings/plan-geometry";
+import { useMemo } from "react";
+import { StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { AppIcon } from '@/components/ui/icon';
-import { Card } from '@/components/ui/card';
-import { Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { Card } from "@/components/ui/card";
+import { AppIcon } from "@/components/ui/icon";
+import { Spacing } from "@/constants/theme";
 import type {
 	MobilePlanStageRow,
 	SummitMarkerOnRoute,
 	TrackPoint,
-} from '@/features/api/plan-my-route';
-import { useTheme } from '@/hooks/use-theme';
+} from "@/features/api/plan-my-route";
+import { useTheme } from "@/hooks/use-theme";
 
 export type PlanStageHudProps = {
 	stage: MobilePlanStageRow;
@@ -74,7 +74,7 @@ export function PlanStageHud({
 							{currentRelKm.toFixed(1)}
 						</ThemedText>
 						<ThemedText type="caption" themeColor="textSecondary">
-							{' '}
+							{" "}
 							km
 						</ThemedText>
 					</View>
@@ -99,7 +99,7 @@ export function PlanStageHud({
 							{remainingKm.toFixed(1)}
 						</ThemedText>
 						<ThemedText type="caption" themeColor="textSecondary">
-							{' '}
+							{" "}
 							km
 						</ThemedText>
 					</View>
@@ -126,7 +126,7 @@ export function PlanStageHud({
 									{nextSummit.deltaKm.toFixed(1)}
 								</ThemedText>
 								<ThemedText type="caption" themeColor="textSecondary">
-									{' '}
+									{" "}
 									km
 								</ThemedText>
 							</View>
@@ -145,7 +145,8 @@ export function PlanStageHud({
 						type="small"
 						themeColor="textSecondary"
 						numberOfLines={1}
-						style={styles.summitName}>
+						style={styles.summitName}
+					>
 						{nextSummit.name}
 					</ThemedText>
 				) : null}
@@ -164,10 +165,10 @@ const styles = StyleSheet.create({
 		gap: Spacing.three,
 	},
 	row: {
-		flexDirection: 'row',
-		alignItems: 'center',
+		flexDirection: "row",
+		alignItems: "center",
 		columnGap: Spacing.two,
-		flexWrap: 'wrap',
+		flexWrap: "wrap",
 	},
 	summitRow: {
 		marginTop: Spacing.half,
@@ -176,17 +177,17 @@ const styles = StyleSheet.create({
 		width: 52,
 	},
 	metricTextRow: {
-		flexDirection: 'row',
-		alignItems: 'baseline',
+		flexDirection: "row",
+		alignItems: "baseline",
 		minWidth: 88,
 	},
 	kmCell: {
-		fontVariant: ['tabular-nums'],
+		fontVariant: ["tabular-nums"],
 		flexShrink: 0,
 	},
 	gainCell: {
-		fontVariant: ['tabular-nums'],
-		marginLeft: 'auto',
+		fontVariant: ["tabular-nums"],
+		marginLeft: "auto",
 	},
 	summitEmpty: {
 		flex: 1,

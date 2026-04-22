@@ -1,30 +1,24 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import {
-	ActivityIndicator,
-	Pressable,
-	ScrollView,
-	StyleSheet,
-	View,
-} from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "@react-navigation/native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { AppIcon } from '@/components/ui/icon';
-import { Card } from '@/components/ui/card';
-import { ListRow } from '@/components/ui/list-row';
-import { Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { Card } from "@/components/ui/card";
+import { AppIcon } from "@/components/ui/icon";
+import { ListRow } from "@/components/ui/list-row";
+import { Fonts, MaxContentWidth, Spacing } from "@/constants/theme";
 import {
 	fetchPlanDetail,
 	type MobilePlanStageRow,
 	type PlanDetail,
 	type TrackPoint,
-} from '@/features/api/plan-my-route';
-import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
-import { useTheme } from '@/hooks/use-theme';
+} from "@/features/api/plan-my-route";
+import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
+import { useTheme } from "@/hooks/use-theme";
 
 /** 플로팅 pill·탭바와 겹치지 않도록 하단 여백 */
 const FLOATING_TAB_BAR_CLEARANCE = 96;
@@ -45,7 +39,7 @@ export default function PlanSummaryScreen() {
 		let isMounted = true;
 		void (async () => {
 			if (!planId) {
-				setErrorMessage('planId가 필요합니다.');
+				setErrorMessage("planId가 필요합니다.");
 				setIsLoading(false);
 				return;
 			}
@@ -55,10 +49,10 @@ export default function PlanSummaryScreen() {
 				const accessToken = await getStoredAccessToken();
 				if (!accessToken) {
 					if (isMounted) setIsLoading(false);
-					router.replace('/login');
+					router.replace("/login");
 					return;
 				}
-				if (!apiOrigin) throw new Error('EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.');
+				if (!apiOrigin) throw new Error("EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.");
 
 				const data = await fetchPlanDetail(apiOrigin, accessToken, planId);
 				if (!isMounted) return;
@@ -66,7 +60,7 @@ export default function PlanSummaryScreen() {
 			} catch (error: unknown) {
 				if (!isMounted) return;
 				setDetail(null);
-				setErrorMessage(error instanceof Error ? error.message : '플랜을 불러오지 못했습니다.');
+				setErrorMessage(error instanceof Error ? error.message : "플랜을 불러오지 못했습니다.");
 			} finally {
 				if (isMounted) setIsLoading(false);
 			}
@@ -83,7 +77,7 @@ export default function PlanSummaryScreen() {
 
 	const stats = useMemo(() => (detail ? computePlanSummaryStats(detail) : null), [detail]);
 
-	const title = detail?.plan.name?.trim() ? detail.plan.name : '요약';
+	const title = detail?.plan.name?.trim() ? detail.plan.name : "요약";
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
@@ -93,10 +87,11 @@ export default function PlanSummaryScreen() {
 
 	return (
 		<ThemedView style={styles.container}>
-			<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+			<SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
 				<ScrollView
 					contentContainerStyle={styles.scrollContent}
-					contentInsetAdjustmentBehavior="automatic">
+					contentInsetAdjustmentBehavior="automatic"
+				>
 					{isLoading ? (
 						<View style={styles.loadingBlock}>
 							<ActivityIndicator accessibilityLabel="요약 불러오는 중" color={theme.tint} />
@@ -113,7 +108,8 @@ export default function PlanSummaryScreen() {
 								accessibilityRole="button"
 								accessibilityLabel="다시 시도"
 								style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-								onPress={handleRetry}>
+								onPress={handleRetry}
+							>
 								<ThemedText type="smallBold">다시 시도</ThemedText>
 							</Pressable>
 						</View>
@@ -149,7 +145,8 @@ function HeroMetrics({ stats }: HeroMetricsProps) {
 					<AppIcon name="map" size={28} tintColor={theme.tint} />
 					<ThemedText
 						type="title"
-						style={[styles.heroMetric, { fontFamily: Fonts.rounded, color: theme.text }]}>
+						style={[styles.heroMetric, { fontFamily: Fonts.rounded, color: theme.text }]}
+					>
 						{Math.round(stats.totalDistanceKm).toLocaleString()}
 					</ThemedText>
 					<ThemedText type="caption" themeColor="textSecondary">
@@ -161,7 +158,8 @@ function HeroMetrics({ stats }: HeroMetricsProps) {
 					<AppIcon name="arrow.up.forward" size={28} tintColor={theme.gain} />
 					<ThemedText
 						type="title"
-						style={[styles.heroMetric, { fontFamily: Fonts.rounded, color: theme.gain }]}>
+						style={[styles.heroMetric, { fontFamily: Fonts.rounded, color: theme.gain }]}
+					>
 						+{stats.totalElevationGainM.toLocaleString()}
 					</ThemedText>
 					<ThemedText type="caption" themeColor="textSecondary">
@@ -194,56 +192,56 @@ function KeyStatsSection({ stats }: KeyStatsSectionProps) {
 	const theme = useTheme();
 	const rows: KeyStatRow[] = [
 		{
-			label: '전체 거리',
+			label: "전체 거리",
 			value: `${Math.round(stats.totalDistanceKm).toLocaleString()} km`,
-			sub: '총 라이딩 거리',
-			iconName: 'map',
+			sub: "총 라이딩 거리",
+			iconName: "map",
 		},
 		{
-			label: '전체 획득고도',
+			label: "전체 획득고도",
 			value: `+${stats.totalElevationGainM.toLocaleString()} m`,
-			sub: '누적 상승고도',
+			sub: "누적 상승고도",
 			emphasizeColor: theme.gain,
-			iconName: 'arrow.up.forward',
+			iconName: "arrow.up.forward",
 		},
 		{
-			label: '최고 고도',
-			value: stats.maxElevationM != null ? `${stats.maxElevationM.toLocaleString()} m` : '—',
-			sub: stats.maxElevationM != null ? '트랙 기준 최고점' : '트랙 미로드',
-			iconName: 'mountain.2.fill',
+			label: "최고 고도",
+			value: stats.maxElevationM != null ? `${stats.maxElevationM.toLocaleString()} m` : "—",
+			sub: stats.maxElevationM != null ? "트랙 기준 최고점" : "트랙 미로드",
+			iconName: "mountain.2.fill",
 		},
 		{
-			label: '일평균 거리',
+			label: "일평균 거리",
 			value: `${stats.avgDailyKm.toLocaleString()} km`,
-			sub: '하루 평균',
-			iconName: 'chart.bar.xaxis',
+			sub: "하루 평균",
+			iconName: "chart.bar.xaxis",
 		},
 		{
-			label: '일평균 획득고도',
+			label: "일평균 획득고도",
 			value: `+${stats.avgDailyElevationGainM.toLocaleString()} m`,
-			sub: '하루 평균 상승',
+			sub: "하루 평균 상승",
 			emphasizeColor: theme.gain,
-			iconName: 'arrow.up.forward',
+			iconName: "arrow.up.forward",
 		},
 		{
-			label: '가장 힘든 날',
-			value: stats.hardestDay ? `Day ${stats.hardestDay.dayNumber}` : '—',
+			label: "가장 힘든 날",
+			value: stats.hardestDay ? `Day ${stats.hardestDay.dayNumber}` : "—",
 			sub: stats.hardestDay
 				? `+${Math.round(stats.hardestDay.elevationGainM).toLocaleString()} m`
-				: '스테이지 없음',
-			iconName: 'bolt',
+				: "스테이지 없음",
+			iconName: "bolt",
 		},
 		{
-			label: '가장 긴 날',
-			value: stats.longestDay ? `${stats.longestDay.distanceKm.toFixed(1)} km` : '—',
-			sub: stats.longestDay ? `Day ${stats.longestDay.dayNumber}` : '스테이지 없음',
-			iconName: 'straighten',
+			label: "가장 긴 날",
+			value: stats.longestDay ? `${stats.longestDay.distanceKm.toFixed(1)} km` : "—",
+			sub: stats.longestDay ? `Day ${stats.longestDay.dayNumber}` : "스테이지 없음",
+			iconName: "straighten",
 		},
 		{
-			label: '시작일',
+			label: "시작일",
 			value: stats.startDateLabel,
 			sub: `${stats.dayCount}일 일정`,
-			iconName: 'calendar',
+			iconName: "calendar",
 		},
 	];
 
@@ -266,7 +264,8 @@ function KeyStatsSection({ stats }: KeyStatsSectionProps) {
 									style={[
 										styles.statValueText,
 										r.emphasizeColor ? { color: r.emphasizeColor } : null,
-									]}>
+									]}
+								>
 									{r.value}
 								</ThemedText>
 								<ThemedText type="caption" themeColor="textSecondary" numberOfLines={2}>
@@ -284,12 +283,12 @@ function KeyStatsSection({ stats }: KeyStatsSectionProps) {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		flexDirection: 'row',
-		justifyContent: 'center',
+		flexDirection: "row",
+		justifyContent: "center",
 	},
 	safeArea: {
 		flex: 1,
-		width: '100%',
+		width: "100%",
 		maxWidth: MaxContentWidth,
 	},
 	scrollContent: {
@@ -303,8 +302,8 @@ const styles = StyleSheet.create({
 		marginBottom: Spacing.two,
 	},
 	heroRow: {
-		flexDirection: 'row',
-		alignItems: 'stretch',
+		flexDirection: "row",
+		alignItems: "stretch",
 		gap: Spacing.three,
 	},
 	heroCol: {
@@ -314,13 +313,13 @@ const styles = StyleSheet.create({
 	},
 	heroVertSep: {
 		width: StyleSheet.hairlineWidth,
-		alignSelf: 'stretch',
+		alignSelf: "stretch",
 	},
 	heroMetric: {
 		fontSize: 36,
 		lineHeight: 40,
-		fontWeight: '700',
-		fontVariant: ['tabular-nums'],
+		fontWeight: "700",
+		fontVariant: ["tabular-nums"],
 		flex: 1,
 		minWidth: 120,
 	},
@@ -330,16 +329,16 @@ const styles = StyleSheet.create({
 	loadingBlock: {
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
-		alignItems: 'flex-start',
+		alignItems: "flex-start",
 	},
 	placeholderBlock: {
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
 	},
 	retryButton: {
-		alignSelf: 'flex-start',
+		alignSelf: "flex-start",
 		borderWidth: 1,
-		borderColor: '#A0A4AE',
+		borderColor: "#A0A4AE",
 		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.two,
@@ -355,16 +354,16 @@ const styles = StyleSheet.create({
 	},
 	statsCard: {
 		paddingVertical: Spacing.half,
-		overflow: 'hidden',
+		overflow: "hidden",
 	},
 	statValueCol: {
-		alignItems: 'flex-end',
+		alignItems: "flex-end",
 		gap: 2,
 		maxWidth: 220,
 	},
 	statValueText: {
-		fontVariant: ['tabular-nums'],
-		textAlign: 'right',
+		fontVariant: ["tabular-nums"],
+		textAlign: "right",
 	},
 });
 
@@ -470,13 +469,13 @@ function pickLongestDay(
 }
 
 function formatStartDate(input: string | null | undefined): string {
-	if (!input) return '미정';
+	if (!input) return "미정";
 	const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(input);
 	if (!m) return input;
 	const yyyy = Number(m[1]);
 	const mm = Number(m[2]);
 	const dd = Number(m[3]);
 	const date = new Date(yyyy, mm - 1, dd);
-	const dayKor = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()] ?? '';
-	return `${yyyy}.${String(mm).padStart(2, '0')}.${String(dd).padStart(2, '0')} (${dayKor})`;
+	const dayKor = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()] ?? "";
+	return `${yyyy}.${String(mm).padStart(2, "0")}.${String(dd).padStart(2, "0")} (${dayKor})`;
 }

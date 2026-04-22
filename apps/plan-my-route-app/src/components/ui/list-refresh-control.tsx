@@ -1,6 +1,6 @@
-import { Platform, RefreshControl } from 'react-native';
+import { Platform, RefreshControl } from "react-native";
 
-import { useTheme } from '@/hooks/use-theme';
+import { useTheme } from "@/hooks/use-theme";
 
 export type ListRefreshControlProps = {
 	refreshing: boolean;
@@ -14,7 +14,7 @@ export function ListRefreshControl({ refreshing, onRefresh }: ListRefreshControl
 			refreshing={refreshing}
 			onRefresh={onRefresh}
 			tintColor={theme.tint}
-			colors={Platform.OS === 'android' ? [theme.tint] : undefined}
+			colors={Platform.OS === "android" ? [theme.tint] : undefined}
 		/>
 	);
 }

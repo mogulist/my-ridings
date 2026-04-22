@@ -1,40 +1,44 @@
-import { stageDayLabel } from '@my-ridings/plan-geometry';
-import { HeaderButton } from '@react-navigation/elements';
-import { useKeepAwake } from 'expo-keep-awake';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { stageDayLabel } from "@my-ridings/plan-geometry";
+import { HeaderButton } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
+import { useKeepAwake } from "expo-keep-awake";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PlanStageHud } from '@/components/plan-stage-hud';
-import { PlanStageMiniElevation } from '@/components/plan-stage-mini-elevation';
-import { PlanStageTimelineStatic } from '@/components/plan-stage-timeline-static';
-import { Snackbar } from '@/components/snackbar';
-import { AppIcon } from '@/components/ui/icon';
-import { useCurrentLocationKm } from '@/hooks/use-current-location-km';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import type { MobilePlanStageRow, PlanDetail, TrackPoint } from '@/features/api/plan-my-route';
-import { usePlanDetailQuery } from '@/features/plan-my-route/plan-detail-query';
-import { useTheme } from '@/hooks/use-theme';
+import { PlanStageHud } from "@/components/plan-stage-hud";
+import { PlanStageMiniElevation } from "@/components/plan-stage-mini-elevation";
+import { PlanStageTimelineStatic } from "@/components/plan-stage-timeline-static";
+import { Snackbar } from "@/components/snackbar";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { AppIcon } from "@/components/ui/icon";
+import { PressableHaptic } from "@/components/ui/pressable-haptic";
+import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
+import type { MobilePlanStageRow, PlanDetail, TrackPoint } from "@/features/api/plan-my-route";
+import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
+import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function StageDetailScreen() {
 	useKeepAwake();
 	const navigation = useNavigation();
 	const router = useRouter();
 	const theme = useTheme();
-	const { routeId, planId, dayNumber: dayNumberParam } = useLocalSearchParams<{
+	const {
+		routeId,
+		planId,
+		dayNumber: dayNumberParam,
+	} = useLocalSearchParams<{
 		routeId: string;
 		planId: string;
 		dayNumber: string;
 	}>();
 
-	const dayNumberParsed = Number.parseInt(dayNumberParam ?? '1', 10);
-	const dayNumber =
-		Number.isFinite(dayNumberParsed) && dayNumberParsed >= 1 ? dayNumberParsed : 1;
+	const dayNumberParsed = Number.parseInt(dayNumberParam ?? "1", 10);
+	const dayNumber = Number.isFinite(dayNumberParsed) && dayNumberParsed >= 1 ? dayNumberParsed : 1;
 
 	const { data: detail, error, isPending, refetch } = usePlanDetailQuery(planId);
 
@@ -46,14 +50,14 @@ export default function StageDetailScreen() {
 	const lastSeenCurrentKmRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		if (error?.message === 'UNAUTHENTICATED') {
-			router.replace('/login');
+		if (error?.message === "UNAUTHENTICATED") {
+			router.replace("/login");
 		}
 	}, [error, router]);
 
 	const errorMessage = !planId
-		? 'planId가 필요합니다.'
-		: error && error.message !== 'UNAUTHENTICATED' && !detail
+		? "planId가 필요합니다."
+		: error && error.message !== "UNAUTHENTICATED" && !detail
 			? error.message
 			: null;
 
@@ -64,8 +68,7 @@ export default function StageDetailScreen() {
 
 	const location = useCurrentLocationKm(detail?.trackPoints ?? null);
 
-	const datePart =
-		detail != null ? stageDayLabel(dayNumber, detail.plan.start_date) : '';
+	const datePart = detail != null ? stageDayLabel(dayNumber, detail.plan.start_date) : "";
 
 	const maxElevationM = useMemo(() => {
 		if (!detail?.trackPoints?.length || !stage) return null;
@@ -75,9 +78,7 @@ export default function StageDetailScreen() {
 	}, [detail?.trackPoints, stage]);
 
 	const headerTitle =
-		datePart.trim() !== ''
-			? `스테이지 ${dayNumber} · ${datePart}`
-			: `스테이지 ${dayNumber}`;
+		datePart.trim() !== "" ? `스테이지 ${dayNumber} · ${datePart}` : `스테이지 ${dayNumber}`;
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
@@ -87,19 +88,20 @@ export default function StageDetailScreen() {
 					accessibilityLabel="스테이지 편집"
 					onPress={() => {
 						router.push({
-							pathname: '/routes/[routeId]/plans/[planId]/stages/[dayNumber]/edit',
+							pathname: "/routes/[routeId]/plans/[planId]/stages/[dayNumber]/edit",
 							params: {
-								routeId: routeId ?? '',
-								planId: planId ?? '',
-								dayNumber: dayNumberParam ?? '',
+								routeId: routeId ?? "",
+								planId: planId ?? "",
+								dayNumber: dayNumberParam ?? "",
 							},
 						});
-					}}>
+					}}
+				>
 					<SymbolView
 						name={{
-							ios: 'square.and.pencil',
-							android: 'edit',
-							web: 'edit',
+							ios: "square.and.pencil",
+							android: "edit",
+							web: "edit",
 						}}
 						size={22}
 						tintColor={theme.tint}
@@ -107,15 +109,7 @@ export default function StageDetailScreen() {
 				</HeaderButton>
 			),
 		});
-	}, [
-		navigation,
-		router,
-		routeId,
-		planId,
-		dayNumberParam,
-		headerTitle,
-		theme.tint,
-	]);
+	}, [navigation, router, routeId, planId, dayNumberParam, headerTitle, theme.tint]);
 
 	useEffect(() => {
 		const km = location.currentKm;
@@ -134,15 +128,19 @@ export default function StageDetailScreen() {
 
 	return (
 		<ThemedView style={styles.container}>
-			<SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+			<SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
 				<ScrollView
 					ref={scrollRef}
 					contentContainerStyle={styles.scrollContent}
-					contentInsetAdjustmentBehavior="automatic">
+					contentInsetAdjustmentBehavior="automatic"
+				>
 					<View style={styles.scrollInner}>
 						{showLoading ? (
 							<View style={styles.loadingBlock}>
-								<ActivityIndicator accessibilityLabel="스테이지 정보 불러오는 중" color={theme.tint} />
+								<ActivityIndicator
+									accessibilityLabel="스테이지 정보 불러오는 중"
+									color={theme.tint}
+								/>
 								<ThemedText type="small" themeColor="textSecondary">
 									불러오는 중…
 								</ThemedText>
@@ -156,7 +154,8 @@ export default function StageDetailScreen() {
 									accessibilityRole="button"
 									accessibilityLabel="다시 시도"
 									style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-									onPress={() => void refetch()}>
+									onPress={() => void refetch()}
+								>
 									<ThemedText type="smallBold">다시 시도</ThemedText>
 								</Pressable>
 							</View>
@@ -167,20 +166,24 @@ export default function StageDetailScreen() {
 								</ThemedText>
 							</View>
 						) : (
-							<StageSummaryBody
-								detail={detail}
-								stage={stage}
-								maxElevationM={maxElevationM}
-								location={location}
-								scrollRef={scrollRef}
-							/>
+							<>
+								<StageSummaryBody
+									detail={detail}
+									stage={stage}
+									maxElevationM={maxElevationM}
+									location={location}
+									scrollRef={scrollRef}
+								/>
+								<WeatherBriefingRow
+									routeId={routeId ?? ""}
+									planId={planId ?? ""}
+									dayNumber={dayNumberParam ?? ""}
+								/>
+							</>
 						)}
 					</View>
 				</ScrollView>
-				<Snackbar
-					message={snackbarMessage}
-					onDismiss={() => {}}
-				/>
+				<Snackbar message={snackbarMessage} onDismiss={() => {}} />
 			</SafeAreaView>
 		</ThemedView>
 	);
@@ -303,9 +306,7 @@ type CurrentLocationKmLineProps = {
 function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 	const theme = useTheme();
 	const hasKm = location.currentKm != null;
-	const kmText = hasKm
-		? `${location.currentKm!.toFixed(1)} km (경로 기준)`
-		: '위치 없음';
+	const kmText = hasKm ? `${location.currentKm!.toFixed(1)} km (경로 기준)` : "위치 없음";
 
 	return (
 		<View style={styles.locationRow}>
@@ -316,10 +317,11 @@ function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 			/>
 			<ThemedText
 				type="small"
-				themeColor={hasKm ? 'text' : 'textSecondary'}
+				themeColor={hasKm ? "text" : "textSecondary"}
 				style={styles.locationText}
-				numberOfLines={1}>
-				{location.permission === 'denied' ? '위치 권한이 거부되어 있어요.' : `현재 ${kmText}`}
+				numberOfLines={1}
+			>
+				{location.permission === "denied" ? "위치 권한이 거부되어 있어요." : `현재 ${kmText}`}
 			</ThemedText>
 			{location.error ? (
 				<ThemedText type="caption" style={{ color: theme.danger }}>
@@ -338,9 +340,10 @@ function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 				]}
 				onPress={() => {
 					void location.refresh();
-				}}>
+				}}
+			>
 				<ThemedText type="smallBold" themeColor="tint">
-					{location.isRefreshing ? '가져오는 중…' : '갱신'}
+					{location.isRefreshing ? "가져오는 중…" : "갱신"}
 				</ThemedText>
 			</Pressable>
 		</View>
@@ -350,12 +353,12 @@ function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		flexDirection: 'row',
-		justifyContent: 'center',
+		flexDirection: "row",
+		justifyContent: "center",
 	},
 	safeArea: {
 		flex: 1,
-		width: '100%',
+		width: "100%",
 		maxWidth: MaxContentWidth,
 	},
 	scrollContent: {
@@ -372,17 +375,17 @@ const styles = StyleSheet.create({
 		marginTop: Spacing.half,
 	},
 	metricsRow: {
-		flexDirection: 'row',
-		alignItems: 'stretch',
+		flexDirection: "row",
+		alignItems: "stretch",
 		borderWidth: StyleSheet.hairlineWidth,
 		borderRadius: 12,
-		borderCurve: 'continuous',
-		overflow: 'hidden',
+		borderCurve: "continuous",
+		overflow: "hidden",
 		paddingVertical: Spacing.three,
 	},
 	metricItem: {
 		flex: 1,
-		alignItems: 'center',
+		alignItems: "center",
 		gap: Spacing.half,
 		minWidth: 0,
 	},
@@ -391,22 +394,22 @@ const styles = StyleSheet.create({
 		marginVertical: Spacing.one,
 	},
 	metricNum: {
-		fontVariant: ['tabular-nums'],
+		fontVariant: ["tabular-nums"],
 	},
 	loadingBlock: {
-		flexDirection: 'row',
+		flexDirection: "row",
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
-		alignItems: 'center',
+		alignItems: "center",
 	},
 	placeholderBlock: {
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
 	},
 	retryButton: {
-		alignSelf: 'flex-start',
+		alignSelf: "flex-start",
 		borderWidth: 1,
-		borderColor: '#A0A4AE',
+		borderColor: "#A0A4AE",
 		borderRadius: Spacing.two,
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.two,
@@ -415,8 +418,8 @@ const styles = StyleSheet.create({
 		opacity: 0.75,
 	},
 	locationRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
+		flexDirection: "row",
+		alignItems: "center",
 		gap: Spacing.two,
 		minHeight: 36,
 	},
@@ -428,10 +431,23 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.one,
 		borderRadius: Radius.pill,
-		borderCurve: 'continuous',
+		borderCurve: "continuous",
 	},
 	locationRefreshButtonDisabled: {
 		opacity: 0.5,
+	},
+	weatherBriefingRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.two,
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.three,
+		borderRadius: Radius.lg,
+		borderCurve: "continuous",
+		borderWidth: StyleSheet.hairlineWidth,
+	},
+	weatherBriefingLabel: {
+		flex: 1,
 	},
 });
 
@@ -463,4 +479,38 @@ function stageRouteLine(stage: MobilePlanStageRow): string | null {
 	const endLabel = stage.end_name?.trim();
 	if (startLabel && endLabel) return `${startLabel} → ${endLabel}`;
 	return null;
+}
+
+type WeatherBriefingRowProps = {
+	routeId: string;
+	planId: string;
+	dayNumber: string;
+};
+
+function WeatherBriefingRow({ routeId, planId, dayNumber }: WeatherBriefingRowProps) {
+	const router = useRouter();
+	const theme = useTheme();
+
+	return (
+		<PressableHaptic
+			accessibilityRole="button"
+			accessibilityLabel="날씨 브리핑 보기"
+			style={[
+				styles.weatherBriefingRow,
+				{ backgroundColor: theme.surfaceElevated, borderColor: theme.separator },
+			]}
+			onPress={() => {
+				router.push({
+					pathname: "/routes/[routeId]/plans/[planId]/stages/[dayNumber]/weather",
+					params: { routeId, planId, dayNumber },
+				});
+			}}
+		>
+			<AppIcon name="cloud.sun.fill" size={18} tintColor={theme.tint} />
+			<ThemedText type="small" style={styles.weatherBriefingLabel}>
+				날씨 브리핑
+			</ThemedText>
+			<AppIcon name="chevron.right" size={14} tintColor={theme.textSecondary} />
+		</PressableHaptic>
+	);
 }

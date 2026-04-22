@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { Radius, Shadow, Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemedText } from "@/components/themed-text";
+import { Radius, Shadow, Spacing } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export type SnackbarProps = {
 	message: string | null;
@@ -20,12 +20,9 @@ export function Snackbar({ message, durationMs = DEFAULT_DURATION_MS, onDismiss 
 	const opacity = useRef(new Animated.Value(0)).current;
 	const visible = message != null;
 
-	const isDark = colorScheme === 'dark';
-	const bg =
-		isDark
-			? 'rgba(44, 44, 46, 0.94)'
-			: 'rgba(28, 28, 30, 0.92)';
-	const textColor = '#FFFFFF';
+	const isDark = colorScheme === "dark";
+	const bg = isDark ? "rgba(44, 44, 46, 0.94)" : "rgba(28, 28, 30, 0.92)";
+	const textColor = "#FFFFFF";
 
 	useEffect(() => {
 		if (!visible) return;
@@ -55,7 +52,10 @@ export function Snackbar({ message, durationMs = DEFAULT_DURATION_MS, onDismiss 
 	if (!visible) return null;
 
 	return (
-		<View pointerEvents="none" style={[styles.wrap, { paddingBottom: insets.bottom + Spacing.three }]}>
+		<View
+			pointerEvents="none"
+			style={[styles.wrap, { paddingBottom: insets.bottom + Spacing.three }]}
+		>
 			<Animated.View
 				style={[
 					styles.toast,
@@ -64,7 +64,8 @@ export function Snackbar({ message, durationMs = DEFAULT_DURATION_MS, onDismiss 
 						backgroundColor: bg,
 						boxShadow: isDark ? Shadow.floatingDark : Shadow.floating,
 					},
-				]}>
+				]}
+			>
 				<ThemedText type="small" style={[styles.text, { color: textColor }]}>
 					{message}
 				</ThemedText>
@@ -75,11 +76,11 @@ export function Snackbar({ message, durationMs = DEFAULT_DURATION_MS, onDismiss 
 
 const styles = StyleSheet.create({
 	wrap: {
-		position: 'absolute',
+		position: "absolute",
 		left: 0,
 		right: 0,
 		bottom: 0,
-		alignItems: 'center',
+		alignItems: "center",
 		paddingHorizontal: Spacing.four,
 	},
 	toast: {
@@ -87,9 +88,9 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.two + 2,
 		borderRadius: Radius.lg,
-		borderCurve: 'continuous',
+		borderCurve: "continuous",
 	},
 	text: {
-		textAlign: 'center',
+		textAlign: "center",
 	},
 });

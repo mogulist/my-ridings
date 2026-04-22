@@ -3,36 +3,29 @@ import {
 	NaverMapPathOverlay,
 	NaverMapView,
 	type NaverMapViewRef,
-} from '@mj-studio/react-native-naver-map';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import * as Location from 'expo-location';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+} from "@mj-studio/react-native-naver-map";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import * as Location from "expo-location";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { AppIcon } from "@/components/ui/icon";
+import { Radius, Shadow, Spacing, STAGE_STROKE_COLORS } from "@/constants/theme";
 import {
-	ActivityIndicator,
-	Platform,
-	Pressable,
-	StyleSheet,
-	View,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { AppIcon } from '@/components/ui/icon';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Radius, Shadow, STAGE_STROKE_COLORS, Spacing } from '@/constants/theme';
-import {
-	fetchPlanDetail,
 	type CpMarkerOnRoute,
+	fetchPlanDetail,
 	type MobilePlanStageRow,
 	type PlanDetail,
 	type SummitMarkerOnRoute,
 	type TrackPoint,
-} from '@/features/api/plan-my-route';
-import { getApiOrigin, getStoredAccessToken } from '@/features/auth/session';
-import { useTheme } from '@/hooks/use-theme';
+} from "@/features/api/plan-my-route";
+import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
+import { useTheme } from "@/hooks/use-theme";
 
-const UNPLANNED_STROKE_COLOR = '#9CA3AF';
+const UNPLANNED_STROKE_COLOR = "#9CA3AF";
 
 function stageStrokeColor(dayNumber: number): string {
 	if (!Number.isFinite(dayNumber) || dayNumber < 1) return UNPLANNED_STROKE_COLOR;
@@ -74,7 +67,7 @@ export default function PlanMapScreen() {
 		let isMounted = true;
 		void (async () => {
 			if (!planId) {
-				setErrorMessage('planId가 필요합니다.');
+				setErrorMessage("planId가 필요합니다.");
 				setIsLoading(false);
 				return;
 			}
@@ -84,10 +77,10 @@ export default function PlanMapScreen() {
 				const accessToken = await getStoredAccessToken();
 				if (!accessToken) {
 					if (isMounted) setIsLoading(false);
-					router.replace('/login');
+					router.replace("/login");
 					return;
 				}
-				if (!apiOrigin) throw new Error('EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.');
+				if (!apiOrigin) throw new Error("EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.");
 
 				const data = await fetchPlanDetail(apiOrigin, accessToken, planId);
 				if (!isMounted) return;
@@ -95,7 +88,7 @@ export default function PlanMapScreen() {
 			} catch (error: unknown) {
 				if (!isMounted) return;
 				setDetail(null);
-				setErrorMessage(error instanceof Error ? error.message : '맵을 불러오지 못했습니다.');
+				setErrorMessage(error instanceof Error ? error.message : "맵을 불러오지 못했습니다.");
 			} finally {
 				if (isMounted) setIsLoading(false);
 			}
@@ -105,10 +98,7 @@ export default function PlanMapScreen() {
 		};
 	}, [apiOrigin, planId, router, retryNonce]);
 
-	const validTrack = useMemo(
-		() => (detail ? toMapCoordinates(detail.trackPoints) : []),
-		[detail],
-	);
+	const validTrack = useMemo(() => (detail ? toMapCoordinates(detail.trackPoints) : []), [detail]);
 	const stageSegments = useMemo(
 		() => (detail ? buildStageSegments(detail.stages, detail.trackPoints) : []),
 		[detail],
@@ -118,7 +108,7 @@ export default function PlanMapScreen() {
 		setIsLocating(true);
 		try {
 			const { status } = await Location.requestForegroundPermissionsAsync();
-			if (status !== 'granted') return;
+			if (status !== "granted") return;
 			const pos = await Location.getCurrentPositionAsync({
 				accuracy: Location.Accuracy.Balanced,
 			});
@@ -152,7 +142,8 @@ export default function PlanMapScreen() {
 						accessibilityRole="button"
 						accessibilityLabel="다시 시도"
 						style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-						onPress={() => setRetryNonce((n) => n + 1)}>
+						onPress={() => setRetryNonce((n) => n + 1)}
+					>
 						<ThemedText type="smallBold">다시 시도</ThemedText>
 					</Pressable>
 				</SafeAreaView>
@@ -171,7 +162,7 @@ export default function PlanMapScreen() {
 	}
 
 	const initialCamera = getInitialCamera(validTrack);
-	const useGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+	const useGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 
 	return (
 		<View style={styles.root}>
@@ -221,8 +212,8 @@ export default function PlanMapScreen() {
 						longitude={poi.lng}
 						width={22}
 						height={22}
-						image={{ symbol: 'blue' }}
-						caption={{ text: poi.name?.trim() || 'POI', textSize: 11 }}
+						image={{ symbol: "blue" }}
+						caption={{ text: poi.name?.trim() || "POI", textSize: 11 }}
 						zIndex={10 + i}
 					/>
 				))}
@@ -233,7 +224,8 @@ export default function PlanMapScreen() {
 
 			<View
 				pointerEvents="box-none"
-				style={[styles.legendAnchor, { top: insets.top + Spacing.two, left: Spacing.three }]}>
+				style={[styles.legendAnchor, { top: insets.top + Spacing.two, left: Spacing.three }]}
+			>
 				{useGlass ? (
 					<GlassView glassEffectStyle="regular" isInteractive style={styles.legendChrome}>
 						<StageLegend stages={detail.stages} />
@@ -246,7 +238,8 @@ export default function PlanMapScreen() {
 								backgroundColor: theme.surfaceElevated,
 								boxShadow: Shadow.floating,
 							},
-						]}>
+						]}
+					>
 						<StageLegend stages={detail.stages} />
 					</View>
 				)}
@@ -267,7 +260,8 @@ export default function PlanMapScreen() {
 					]}
 					onPress={() => {
 						void handleMyLocation();
-					}}>
+					}}
+				>
 					{isLocating ? (
 						<ActivityIndicator color="#fff" />
 					) : (
@@ -310,8 +304,8 @@ function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]
 					longitude={tp.x}
 					width={24}
 					height={24}
-					image={{ symbol: 'gray' }}
-					caption={{ text: cp.name?.trim() || 'CP', textSize: 10 }}
+					image={{ symbol: "gray" }}
+					caption={{ text: cp.name?.trim() || "CP", textSize: 10 }}
 				/>
 			);
 		})
@@ -330,8 +324,8 @@ function renderSummitMarkers(summitMarkers: SummitMarkerOnRoute[], trackPoints: 
 					longitude={tp.x}
 					width={24}
 					height={24}
-					image={{ symbol: 'red' }}
-					caption={{ text: s.name?.trim() || '정상', textSize: 10 }}
+					image={{ symbol: "red" }}
+					caption={{ text: s.name?.trim() || "정상", textSize: 10 }}
 				/>
 			);
 		})
@@ -346,22 +340,22 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	legendAnchor: {
-		position: 'absolute',
+		position: "absolute",
 		zIndex: 20,
 	},
 	legendChrome: {
 		borderRadius: Radius.lg,
-		borderCurve: 'continuous',
+		borderCurve: "continuous",
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.two,
-		overflow: 'hidden',
+		overflow: "hidden",
 	},
 	legendInner: {
 		gap: Spacing.one,
 	},
 	legendRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
+		flexDirection: "row",
+		alignItems: "center",
 		gap: Spacing.two,
 	},
 	legendDot: {
@@ -370,36 +364,36 @@ const styles = StyleSheet.create({
 		borderRadius: 5,
 	},
 	fabAnchor: {
-		position: 'absolute',
+		position: "absolute",
 		zIndex: 20,
 	},
 	fab: {
 		width: 56,
 		height: 56,
 		borderRadius: Radius.pill,
-		borderCurve: 'continuous',
-		alignItems: 'center',
-		justifyContent: 'center',
+		borderCurve: "continuous",
+		alignItems: "center",
+		justifyContent: "center",
 	},
 	loadingContainer: {
 		flex: 1,
-		justifyContent: 'center',
-		alignItems: 'center',
+		justifyContent: "center",
+		alignItems: "center",
 	},
 	messageContainer: {
 		flex: 1,
-		justifyContent: 'center',
-		alignItems: 'center',
+		justifyContent: "center",
+		alignItems: "center",
 		paddingHorizontal: 24,
 	},
 	messageInner: {
 		gap: 12,
-		alignItems: 'center',
+		alignItems: "center",
 	},
 	retryButton: {
-		alignSelf: 'center',
+		alignSelf: "center",
 		borderWidth: 1,
-		borderColor: '#A0A4AE',
+		borderColor: "#A0A4AE",
 		borderRadius: 8,
 		paddingHorizontal: 16,
 		paddingVertical: 8,
