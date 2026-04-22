@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 	}
 	const reason = polylineReasonTag(polyline);
 	const daysUntil = kstDaysUntil(targetDate);
-	const useMid = daysUntil > 3;
+	const useMid = daysUntil >= 3;
 	const resolved = resolveFivePoints(polyline, totalKm);
 	const seen = new Set<string>();
 	for (const p of resolved) {
