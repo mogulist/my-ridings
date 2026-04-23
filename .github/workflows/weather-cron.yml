@@ -5,6 +5,9 @@ name: weather-cron
 # 중기예보 발표시각(KST 06/18) + 10분 버퍼 기준이다. UTC로 환산:
 #   - 단기: 17:10, 20:10, 23:10, 02:10, 05:10, 08:10, 11:10, 14:10 UTC
 #   - 중기: 21:10, 09:10 UTC
+#
+# 단기/중기 ingest는 Vercel 함수 상한(약 5분)을 넘지 않도록 shard/total로 분할 호출한다.
+# 격자가 더 늘면 Ingest short-term step에 env: SHORT_SHARDS: "16" 처럼 늘린다.
 
 on:
   schedule:
@@ -30,7 +33,8 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 단기: 샤드 N회 순차 호출(합쳐서) — tracked_grids 증가 시 단일 Vercel 함수가 5분 제한(504)에 걸릴 수 있음
+    timeout-minutes: 30
     environment: Production
     steps:
       - name: Decide which endpoints to call
@@ -61,12 +65,16 @@ jobs:
           CRON_SECRET: ${{ secrets.WEATHER_CRON_SECRET }}
         run: |
           set -euo pipefail
-          code=$(curl -sS -o /tmp/short.json -w "%{http_code}" \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "$WEATHER_BASE_URL/api/cron/ingest-short-term")
-          echo "HTTP $code"
-          cat /tmp/short.json || true
-          [ "$code" = "200" ] || exit 1
+          TOTAL="${SHORT_SHARDS:-8}"
+          for s in $(seq 0 $((TOTAL - 1))); do
+            code=$(curl -sS -o /tmp/short.json -w "%{http_code}" \
+              --max-time 600 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$WEATHER_BASE_URL/api/cron/ingest-short-term?shard=$s&total=$TOTAL")
+            echo "short-term shard $s/$TOTAL HTTP $code"
+            cat /tmp/short.json || true
+            [ "$code" = "200" ] || exit 1
+          done
 
       - name: Ingest mid-term
         if: steps.decide.outputs.call_mid == 'true'
@@ -75,9 +83,13 @@ jobs:
           CRON_SECRET: ${{ secrets.WEATHER_CRON_SECRET }}
         run: |
           set -euo pipefail
-          code=$(curl -sS -o /tmp/mid.json -w "%{http_code}" \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "$WEATHER_BASE_URL/api/cron/ingest-mid-term")
-          echo "HTTP $code"
-          cat /tmp/mid.json || true
-          [ "$code" = "200" ] || exit 1
+          TOTAL="${MID_SHARDS:-4}"
+          for s in $(seq 0 $((TOTAL - 1))); do
+            code=$(curl -sS -o /tmp/mid.json -w "%{http_code}" \
+              --max-time 600 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$WEATHER_BASE_URL/api/cron/ingest-mid-term?shard=$s&total=$TOTAL")
+            echo "mid-term shard $s/$TOTAL HTTP $code"
+            cat /tmp/mid.json || true
+            [ "$code" = "200" ] || exit 1
+          done
