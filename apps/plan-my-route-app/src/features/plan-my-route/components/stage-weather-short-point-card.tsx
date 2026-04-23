@@ -1,6 +1,5 @@
 import type { StageShortPoint } from "@my-ridings/weather-types";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type LayoutChangeEvent, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
@@ -9,11 +8,13 @@ import { weatherIconName } from "@/features/plan-my-route/plan-stage-forecast-qu
 import { useTheme } from "@/hooks/use-theme";
 
 import { kstHourFromIso } from "./kst-hour";
+import {
+	formatGridMetaLine,
+	formatStageKmRange,
+	positionEndBadge,
+} from "./stage-weather-briefing-format";
 
-const COL_WIDTH = 58;
-
-const roleLabel = (i: number) =>
-	["출발", "지점 1", "지점 2", "지점 3", "도착"][i] ?? `지점 ${i + 1}`;
+const COL_WIDTH = 52;
 
 type StageWeatherShortPointCardProps = {
 	point: StageShortPoint;
@@ -21,60 +22,48 @@ type StageWeatherShortPointCardProps = {
 
 export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCardProps) {
 	const theme = useTheme();
-	const scrollRef = useRef<ScrollView>(null);
-	const [viewportW, setViewportW] = useState(0);
-	const anchor = point.scrollAnchorLocalHour;
-	const anchorIndex = useMemo(() => {
-		if (!point.hourly.length) return 0;
-		let bestI = 0;
-		let bestD = 999;
-		for (let i = 0; i < point.hourly.length; i += 1) {
-			const kh = kstHourFromIso(point.hourly[i].at);
-			const d = Math.abs(kh - anchor);
-			if (d < bestD) {
-				bestD = d;
-				bestI = i;
-			}
-		}
-		return bestI;
-	}, [point.hourly, anchor]);
-
-	useLayoutEffect(() => {
-		if (viewportW <= 0 || !point.hourly.length) return;
-		const x = Math.max(0, anchorIndex * COL_WIDTH - viewportW / 2 + COL_WIDTH / 2);
-		const id = requestAnimationFrame(() =>
-			scrollRef.current?.scrollTo({ x, y: 0, animated: false }),
-		);
-		return () => cancelAnimationFrame(id);
-	}, [anchorIndex, point.hourly.length, viewportW]);
-
-	const onLayout = (e: LayoutChangeEvent) => {
-		setViewportW(e.nativeEvent.layout.width);
-	};
+	const title = point.regionName?.trim() || "지역명 없음";
+	const endBadge = positionEndBadge(point.position);
+	const { lat, lng } = point.midpoint;
 
 	return (
 		<View
 			style={[
 				styles.card,
-				{ backgroundColor: theme.surfaceElevated, borderColor: theme.separator },
+				{
+					backgroundColor: theme.surfaceElevated,
+					borderColor: theme.separator,
+					borderLeftWidth: 3,
+					borderLeftColor: `${theme.tint}99`,
+				},
 			]}
 		>
-			<View style={styles.topBlock}>
-				<ThemedText type="smallBold" numberOfLines={1}>
-					{roleLabel(point.index)}
+			<View style={styles.row1}>
+				<ThemedText type="smallBold" numberOfLines={2} style={styles.titleFlex}>
+					{title}
+				</ThemedText>
+				{endBadge ? (
+					<ThemedText type="caption" themeColor="textSecondary" style={styles.endBadge}>
+						{endBadge}
+					</ThemedText>
+				) : null}
+			</View>
+			<View style={styles.row2}>
+				<ThemedText type="caption" themeColor="textSecondary" style={styles.kmLine}>
+					{formatStageKmRange(point.kmFrom, point.kmTo)}
 				</ThemedText>
 				<ThemedText
 					type="caption"
 					themeColor="textSecondary"
 					numberOfLines={2}
-					style={styles.gridLabel}
+					style={styles.metaRight}
 				>
-					{point.gridLabel}
-				</ThemedText>
-				<ThemedText type="caption" themeColor="textSecondary" style={styles.kmText}>
-					{point.kmAlong.toFixed(1)} km · 앵커 {anchor}시
+					{formatGridMetaLine(point.nx, point.ny, lat, lng)}
 				</ThemedText>
 			</View>
+			<ThemedText type="caption" themeColor="tint" style={styles.modeTag}>
+				단기
+			</ThemedText>
 			{!point.hourly.length ? (
 				<View style={styles.empty}>
 					<AppIcon name="cloud" size={18} tintColor={theme.textSecondary} />
@@ -83,9 +72,8 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 					</ThemedText>
 				</View>
 			) : (
-				<View onLayout={onLayout} style={styles.scrollWrap}>
+				<View style={styles.scrollWrap}>
 					<ScrollView
-						ref={scrollRef}
 						horizontal
 						showsHorizontalScrollIndicator
 						nestedScrollEnabled
@@ -160,9 +148,23 @@ const styles = StyleSheet.create({
 		padding: Spacing.three,
 		gap: Spacing.two,
 	},
-	topBlock: { gap: Spacing.one },
-	gridLabel: { lineHeight: 16 },
-	kmText: { fontVariant: ["tabular-nums"] },
+	row1: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+		gap: Spacing.two,
+	},
+	titleFlex: { flex: 1, minWidth: 0 },
+	endBadge: { flexShrink: 0, marginTop: 1 },
+	row2: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+		gap: Spacing.two,
+	},
+	kmLine: { fontVariant: ["tabular-nums"], flex: 1, minWidth: 0 },
+	metaRight: { flexShrink: 1, textAlign: "right", maxWidth: "58%" },
+	modeTag: { fontWeight: "600" },
 	empty: {
 		flexDirection: "row",
 		alignItems: "center",

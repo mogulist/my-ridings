@@ -6,40 +6,62 @@ import { AppIcon } from "@/components/ui/icon";
 import { Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
-const midLine = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
+import {
+	formatGridMetaLine,
+	formatStageKmRange,
+	positionEndBadge,
+} from "./stage-weather-briefing-format";
 
-export const POINT_ROLES = ["출발", "지점 1", "지점 2", "지점 3", "도착"] as const;
+const midLine = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
 
 type StageWeatherMidPointCardProps = {
 	point: StageMidPoint;
-	role: string;
 };
 
-export function StageWeatherMidPointCard({ point, role }: StageWeatherMidPointCardProps) {
+export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProps) {
 	const theme = useTheme();
 	const d = point.daily;
+	const title = point.regionName?.trim() || "지역명 없음";
+	const endBadge = positionEndBadge(point.position);
+	const { lat, lng } = point.midpoint;
+
 	return (
 		<View
 			style={[
 				styles.card,
-				{ backgroundColor: theme.surfaceElevated, borderColor: theme.separator },
+				{
+					backgroundColor: theme.surfaceElevated,
+					borderColor: theme.separator,
+					borderLeftWidth: 3,
+					borderLeftColor: theme.tint,
+				},
 			]}
 		>
-			<View style={styles.topRow}>
-				<ThemedText type="smallBold" numberOfLines={1} style={styles.title}>
-					{role}
+			<View style={styles.row1}>
+				<ThemedText type="smallBold" numberOfLines={2} style={styles.titleFlex}>
+					{title}
+				</ThemedText>
+				{endBadge ? (
+					<ThemedText type="caption" themeColor="textSecondary" style={styles.endBadge}>
+						{endBadge}
+					</ThemedText>
+				) : null}
+			</View>
+			<View style={styles.row2}>
+				<ThemedText type="caption" themeColor="textSecondary" style={styles.kmLine}>
+					{formatStageKmRange(point.kmFrom, point.kmTo)}
 				</ThemedText>
 				<ThemedText
 					type="caption"
 					themeColor="textSecondary"
 					numberOfLines={2}
-					style={styles.gridLabel}
+					style={styles.metaRight}
 				>
-					{point.gridLabel}
+					{formatGridMetaLine(point.nx, point.ny, lat, lng)}
 				</ThemedText>
 			</View>
-			<ThemedText type="caption" themeColor="textSecondary" style={styles.kmText}>
-				{point.kmAlong.toFixed(1)} km
+			<ThemedText type="caption" themeColor="tint" style={styles.modeTag}>
+				중기
 			</ThemedText>
 			{!d ? (
 				<View style={styles.empty}>
@@ -102,18 +124,23 @@ const styles = StyleSheet.create({
 		padding: Spacing.three,
 		gap: Spacing.two,
 	},
-	topRow: {
-		gap: Spacing.one,
+	row1: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+		gap: Spacing.two,
 	},
-	title: {
-		flex: 0,
+	titleFlex: { flex: 1, minWidth: 0 },
+	endBadge: { flexShrink: 0, marginTop: 1 },
+	row2: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+		gap: Spacing.two,
 	},
-	gridLabel: {
-		lineHeight: 16,
-	},
-	kmText: {
-		fontVariant: ["tabular-nums"],
-	},
+	kmLine: { fontVariant: ["tabular-nums"], flex: 1, minWidth: 0 },
+	metaRight: { flexShrink: 1, textAlign: "right", maxWidth: "58%" },
+	modeTag: { fontWeight: "600" },
 	empty: {
 		flexDirection: "row",
 		alignItems: "center",

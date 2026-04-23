@@ -1,17 +1,16 @@
-import type { AlongForecastResponse, StageBriefingResponse, StageShortPoint } from '@my-ridings/weather-types';
+import type { AlongForecastResponse, StageBriefingResponse, StageShortPoint } from "@my-ridings/weather-types";
 
-const ANCHORS = [6, 10, 14, 17, 20] as const;
-
-const segToPoint = (seg: AlongForecastResponse['segments'][0], i: number): StageShortPoint => {
+const segToPoint = (seg: AlongForecastResponse["segments"][0], i: number, n: number): StageShortPoint => {
 	const { forecast: fc, etaAt, grid, midpoint, fromKm, toKm } = seg;
 	return {
 		index: i,
-		kmAlong: (fromKm + toKm) / 2,
-		gridLabel: `격자 ${grid.nx}·${grid.ny}`,
+		position: n <= 1 ? "departure" : i === 0 ? "departure" : i === n - 1 ? "arrival" : "along",
+		kmFrom: fromKm,
+		kmTo: toKm,
+		regionName: null,
 		nx: grid.nx,
 		ny: grid.ny,
 		midpoint: { ...midpoint },
-		scrollAnchorLocalHour: ANCHORS[Math.min(i, 4)]!,
 		hourly: [
 			{
 				at: fc.baseAt ?? etaAt,
@@ -28,21 +27,21 @@ const segToPoint = (seg: AlongForecastResponse['segments'][0], i: number): Stage
 	};
 };
 
-/** 구 `AlongForecastResponse`(segments) → UI가 기대하는 `StageBriefingResponse`(5 points). 구간이 5개 미만이면 마지막 구간을 패딩. */
+/** 구 `AlongForecastResponse`(segments) → `StageBriefingResponse`. 구간이 5개 미만이면 마지막 구간을 패딩. */
 export const alongForecastToStageBriefing = (legacy: AlongForecastResponse): StageBriefingResponse => {
 	const segs = legacy.segments;
 	if (!segs.length) {
-		throw new Error('Legacy forecast has no segments');
+		throw new Error("Legacy forecast has no segments");
 	}
 	const first = segs[0];
 	const targetDate = (first?.etaAt ?? new Date().toISOString()).slice(0, 10);
 	const n = segs.length;
 	const points: StageShortPoint[] = [];
 	for (let i = 0; i < 5; i += 1) {
-		points.push(segToPoint(segs[Math.min(i, n - 1)]!, i));
+		points.push(segToPoint(segs[Math.min(i, n - 1)]!, i, 5));
 	}
 	return {
-		mode: 'short',
+		mode: "short",
 		targetDate,
 		totalKm: legacy.totalKm,
 		points,

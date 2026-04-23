@@ -33,3 +33,22 @@ export const kstRidingWindowUtc = (targetYmd: string): { from: Date; to: Date } 
 	from: new Date(`${targetYmd}T06:00:00+09:00`),
 	to: new Date(`${targetYmd}T20:59:59.999+09:00`),
 });
+
+/** targetYmd 당일 03:00~23:59 KST — 날씨 브리핑(단기) 시계열용. */
+export const kstFullBriefingWindowUtc = (targetYmd: string): { from: Date; to: Date } => ({
+	from: new Date(`${targetYmd}T03:00:00+09:00`),
+	to: new Date(`${targetYmd}T23:59:59.999+09:00`),
+});
+
+/** ISO 시각 → Asia/Seoul 기준 시(0~23). */
+export const kstHourOfIso = (iso: string): number => {
+	const d = new Date(iso);
+	const h = new Intl.DateTimeFormat("en-GB", {
+		timeZone: "Asia/Seoul",
+		hour: "2-digit",
+		hour12: false,
+		hourCycle: "h23",
+	}).formatToParts(d);
+	const p = h.find((x) => x.type === "hour")?.value;
+	return p != null ? Number.parseInt(p, 10) : 0;
+};

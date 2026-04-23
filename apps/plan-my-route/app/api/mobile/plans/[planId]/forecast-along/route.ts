@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import { stageBriefingResponseSchema } from "@my-ridings/weather-types";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
@@ -210,37 +209,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 	if (!parsed.success) {
 		return NextResponse.json({ error: "Invalid weather response" }, { status: 502 });
 	}
-
-	// #region agent log
-	const d = parsed.data;
-	const line = JSON.stringify({
-		sessionId: "b970e4",
-		timestamp: Date.now(),
-		runId: "repro",
-		location: "forecast-along/route.ts",
-		message: "stage_ok",
-		hypothesisId: "H2-H4",
-		data: {
-			dayNumber,
-			targetDate,
-			mode: d.mode,
-			points: d.points.length,
-			...(d.mode === "mid"
-				? { midDailyNonNull: d.points.filter((p) => p.daily != null).length }
-				: { hourlyPerPoint: d.points.map((p) => p.hourly.length) }),
-		},
-	});
-	try {
-		appendFileSync("/Users/lim/repos/my-ridings/.cursor/debug-b970e4.log", `${line}\n`);
-	} catch {
-		/* Vercel 등 비로컬에서 경로 없음 */
-	}
-	fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
-		method: "POST",
-		headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
-		body: line,
-	}).catch(() => {});
-	// #endregion
 
 	return NextResponse.json(parsed.data);
 }

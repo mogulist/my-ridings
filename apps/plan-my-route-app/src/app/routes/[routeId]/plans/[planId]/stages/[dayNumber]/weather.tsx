@@ -11,10 +11,7 @@ import { AppIcon } from "@/components/ui/icon";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
 import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
-import {
-	POINT_ROLES,
-	StageWeatherMidPointCard,
-} from "@/features/plan-my-route/components/stage-weather-mid-point-card";
+import { StageWeatherMidPointCard } from "@/features/plan-my-route/components/stage-weather-mid-point-card";
 import { StageWeatherShortPointCard } from "@/features/plan-my-route/components/stage-weather-short-point-card";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { usePlanStageForecastQuery } from "@/features/plan-my-route/plan-stage-forecast-query";
@@ -63,11 +60,10 @@ export default function StageWeatherScreen() {
 	const keyExtractor = useCallback((item: Row) => `p-${item.data.index}`, []);
 
 	const renderItem: ListRenderItem<Row> = useCallback(
-		({ item, index }) => {
+		({ item }) => {
 			if (item.kind !== "point" || !data) return null;
-			const role = POINT_ROLES[index] ?? `지점 ${index + 1}`;
 			if (data.mode === "mid") {
-				return <StageWeatherMidPointCard point={item.data as StageMidPoint} role={role} />;
+				return <StageWeatherMidPointCard point={item.data as StageMidPoint} />;
 			}
 			return <StageWeatherShortPointCard point={item.data as StageShortPoint} />;
 		},
@@ -127,12 +123,17 @@ export default function StageWeatherScreen() {
 								</ThemedText>
 								{data && (
 									<ThemedText type="caption" themeColor="textSecondary" style={styles.modeHint}>
-										{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별)"}
+										{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별, 3–23시 KST)"}
 									</ThemedText>
 								)}
+								{data && data.points.length > 0 ? (
+									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
+										경로상 격자 {data.points.length}개
+									</ThemedText>
+								) : null}
 								{data?.mode === "short" && (
 									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-										가로로 스크롤하여 시간대를 확인하세요. 요청 시 앵커에 가깝게 맞춥니다.
+										가로로 스크롤해 시간대를 확인하세요.
 									</ThemedText>
 								)}
 							</View>

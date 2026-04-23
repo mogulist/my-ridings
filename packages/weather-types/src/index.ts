@@ -35,20 +35,20 @@ export {
 } from "./forecast-point";
 
 export type {
-	ScrollAnchorLocalHour,
 	StageBriefingBody,
 	StageBriefingMidResponse,
 	StageBriefingResponse,
 	StageBriefingShortResponse,
 	StageMidPoint,
+	StagePointPosition,
 	StageShortPoint,
 } from "./forecast-stage-briefing";
 export {
-	scrollAnchorLocalHourSchema,
 	stageBriefingBodySchema,
 	stageBriefingMidResponseSchema,
 	stageBriefingResponseSchema,
 	stageBriefingShortResponseSchema,
 	stageMidPointSchema,
+	stagePointPositionSchema,
 	stageShortPointSchema,
 } from "./forecast-stage-briefing";
