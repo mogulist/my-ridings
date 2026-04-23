@@ -1,0 +1,1 @@
+ALTER TABLE "weather"."weather_grid_meta" ADD COLUMN "region_name" text;

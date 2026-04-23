@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { latLngToGrid } from "@my-ridings/weather-grid";
 import { stageBriefingBodySchema, stageBriefingResponseSchema } from "@my-ridings/weather-types";
 import { and, eq, sql } from "drizzle-orm";
@@ -103,13 +104,62 @@ export async function POST(req: NextRequest) {
 				daily,
 			});
 		}
-		const out = stageBriefingResponseSchema.parse({
-			mode: "mid" as const,
-			targetDate,
-			totalKm,
-			points,
+		const hasAnyMidDaily = points.some((p) => p.daily != null);
+		if (hasAnyMidDaily) {
+			const out = stageBriefingResponseSchema.parse({
+				mode: "mid" as const,
+				targetDate,
+				totalKm,
+				points,
+			});
+			// #region agent log
+			const lineMid = JSON.stringify({
+				sessionId: "b970e4",
+				timestamp: Date.now(),
+				runId: "repro",
+				location: "stage/route.ts:mid",
+				message: "stage_payload",
+				hypothesisId: "H2",
+				data: {
+					targetDate,
+					daysUntil,
+					dailyNonNull: points.filter((p) => p.daily != null).length,
+				},
+			});
+			try {
+				appendFileSync("/Users/lim/repos/my-ridings/.cursor/debug-b970e4.log", `${lineMid}\n`);
+			} catch {
+				/* ignore */
+			}
+			fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
+				body: lineMid,
+			}).catch(() => {});
+			// #endregion
+			return Response.json(out, { headers: { "Cache-Control": CACHE } });
+		}
+		// #region agent log
+		const lineFb = JSON.stringify({
+			sessionId: "b970e4",
+			timestamp: Date.now(),
+			runId: "post-fix",
+			location: "stage/route.ts:mid_empty_fallback_short",
+			message: "mid_all_daily_null_use_short",
+			hypothesisId: "H2",
+			data: { targetDate, daysUntil },
 		});
-		return Response.json(out, { headers: { "Cache-Control": CACHE } });
+		try {
+			appendFileSync("/Users/lim/repos/my-ridings/.cursor/debug-b970e4.log", `${lineFb}\n`);
+		} catch {
+			/* ignore */
+		}
+		fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
+			body: lineFb,
+		}).catch(() => {});
+		// #endregion
 	}
 
 	const { from, to } = kstRidingWindowUtc(targetDate);
@@ -170,5 +220,30 @@ export async function POST(req: NextRequest) {
 		totalKm,
 		points,
 	});
+	// #region agent log
+	const lineSh = JSON.stringify({
+		sessionId: "b970e4",
+		timestamp: Date.now(),
+		runId: "repro",
+		location: "stage/route.ts:short",
+		message: "stage_payload",
+		hypothesisId: "H4",
+		data: {
+			targetDate,
+			daysUntil,
+			hourlyPerPoint: points.map((p) => p.hourly.length),
+		},
+	});
+	try {
+		appendFileSync("/Users/lim/repos/my-ridings/.cursor/debug-b970e4.log", `${lineSh}\n`);
+	} catch {
+		/* ignore */
+	}
+	fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
+		method: "POST",
+		headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
+		body: lineSh,
+	}).catch(() => {});
+	// #endregion
 	return Response.json(out, { headers: { "Cache-Control": CACHE } });
 }

@@ -22,6 +22,7 @@ export const weatherGridMeta = weather.table(
 		lng: numeric("lng", { precision: 9, scale: 6 }).notNull(),
 		midRegionLand: text("mid_region_land"),
 		midRegionTemp: text("mid_region_temp"),
+		regionName: text("region_name"),
 	},
 	(t) => ({
 		pk: primaryKey({ columns: [t.nx, t.ny] }),

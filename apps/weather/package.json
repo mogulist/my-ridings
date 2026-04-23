@@ -12,7 +12,8 @@
 		"db:migrate": "bun --env-file=.env.local run drizzle-kit migrate",
 		"db:push": "bun --env-file=.env.local run drizzle-kit push",
 		"db:seed": "bun --env-file=.env.local ./scripts/seed-grid-meta.ts",
-		"db:seed-mid": "bun --env-file=.env.local ./scripts/seed-mid-regions.ts"
+		"db:seed-mid": "bun --env-file=.env.local ./scripts/seed-mid-regions.ts",
+		"db:seed-region-name": "bun --env-file=.env.local ./scripts/seed-region-name.ts"
 	},
 	"dependencies": {
 		"@my-ridings/kma-client": "workspace:*",
@@ -23,6 +24,7 @@
 		"postgres": "^3.4.7",
 		"react": "19.2.3",
 		"react-dom": "19.2.3",
+		"xlsx": "^0.18.5",
 		"zod": "^3.23.8"
 	},
 	"devDependencies": {

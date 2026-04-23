@@ -29,7 +29,23 @@ export type StageCardSummary = {
 export function buildStageCardSummary(
 	data: StageBriefingResponse | undefined,
 ): StageCardSummary | null {
-	if (!data?.points?.length) return null;
+	if (!data?.points?.length) {
+		// #region agent log
+		fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
+			body: JSON.stringify({
+				sessionId: "b970e4",
+				location: "plan-stage-forecast-query.ts:buildStageCardSummary",
+				message: "no_points",
+				data: { hypothesisId: "H1" },
+				timestamp: Date.now(),
+				runId: "repro",
+			}),
+		}).catch(() => {});
+		// #endregion
+		return null;
+	}
 	if (data.mode === "mid") {
 		let tmn: number | null = null;
 		let tmx: number | null = null;
@@ -49,6 +65,29 @@ export function buildStageCardSummary(
 		}
 		const iconName = anyBad ? "cloud.rain.fill" : "sun.max.fill";
 		const hasData = sawRow && (tmn != null || tmx != null || popMax != null || anyBad);
+		// #region agent log
+		fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
+			body: JSON.stringify({
+				sessionId: "b970e4",
+				location: "plan-stage-forecast-query.ts:buildStageCardSummary",
+				message: "mid_branch",
+				data: {
+					hypothesisId: "H2-H3",
+					sawRow,
+					dailyNonNullCount: data.points.filter((p) => p.daily != null).length,
+					tmn,
+					tmx,
+					popMax,
+					anyBad,
+					hasData,
+				},
+				timestamp: Date.now(),
+				runId: "repro",
+			}),
+		}).catch(() => {});
+		// #endregion
 		if (!hasData)
 			return {
 				showWind: false,
@@ -101,6 +140,27 @@ export function buildStageCardSummary(
 	const wMax = winds.length ? Math.max(...winds) : null;
 	const hasHourly = data.points.some((p) => p.hourly.length > 0);
 	const hasData = hasHourly && (temps.length > 0 || pops.length > 0);
+	// #region agent log
+	fetch("http://127.0.0.1:7721/ingest/5bfe97dd-8e0f-4182-9d17-ebb95859ecdf", {
+		method: "POST",
+		headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b970e4" },
+		body: JSON.stringify({
+			sessionId: "b970e4",
+			location: "plan-stage-forecast-query.ts:buildStageCardSummary",
+			message: "short_branch",
+			data: {
+				hypothesisId: "H4",
+				hourlyPerPoint: data.points.map((p) => p.hourly.length),
+				tempsLen: temps.length,
+				popsLen: pops.length,
+				hasHourly,
+				hasData,
+			},
+			timestamp: Date.now(),
+			runId: "repro",
+		}),
+	}).catch(() => {});
+	// #endregion
 	if (!hasData) {
 		return {
 			showWind: true,
