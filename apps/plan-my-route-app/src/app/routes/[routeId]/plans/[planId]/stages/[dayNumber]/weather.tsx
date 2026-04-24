@@ -1,7 +1,8 @@
 import { stageDayLabel } from "@my-ridings/plan-geometry";
 import type { StageMidPoint, StageShortPoint } from "@my-ridings/weather-types";
+import { useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import { ActivityIndicator, FlatList, type ListRenderItem, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -20,6 +21,7 @@ import { useTheme } from "@/hooks/use-theme";
 type Row = { kind: "point"; data: StageMidPoint | StageShortPoint };
 
 export default function StageWeatherScreen() {
+	const navigation = useNavigation();
 	const theme = useTheme();
 	const { planId, dayNumber: dayNumberParam } = useLocalSearchParams<{
 		planId: string;
@@ -42,6 +44,15 @@ export default function StageWeatherScreen() {
 	}, [isError]);
 
 	const datePart = stageDayLabel(validDayNumber, detail?.plan.start_date ?? null);
+	const navTitle = useMemo(
+		() => stageWeatherNavTitle(validDayNumber, datePart),
+		[validDayNumber, datePart],
+	);
+
+	useLayoutEffect(() => {
+		navigation.setOptions({ title: navTitle });
+	}, [navigation, navTitle]);
+
 	const stage = detail?.stages?.[validDayNumber - 1];
 	const stageTitle =
 		stage?.start_name && stage?.end_name
@@ -105,60 +116,38 @@ export default function StageWeatherScreen() {
 						</ThemedText>
 					</View>
 				) : (
-					<View style={styles.listWithSticky}>
-						<View
-							style={[
-								styles.stickyStageDate,
-								{
-									backgroundColor: theme.background,
-									borderBottomColor: theme.separator,
-								},
-							]}
-							accessibilityLabel={
-								datePart
-									? `스테이지 ${validDayNumber}, ${datePart}`
-									: `스테이지 ${validDayNumber}`
-							}
-						>
-							<ThemedText type="caption" themeColor="textSecondary" style={styles.stickyStageDateText}>
-								{datePart
-									? `스테이지 ${validDayNumber} · ${datePart}`
-									: `스테이지 ${validDayNumber}`}
-							</ThemedText>
-						</View>
-						<FlatList<Row>
-							data={rows}
-							keyExtractor={keyExtractor}
-							renderItem={renderItem}
-							style={styles.listFlex}
-							contentContainerStyle={styles.listContent}
-							contentInsetAdjustmentBehavior="automatic"
-							ListHeaderComponent={
-								<View style={styles.headerBlock}>
-									<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
-										{stageTitle}
+					<FlatList<Row>
+						data={rows}
+						keyExtractor={keyExtractor}
+						renderItem={renderItem}
+						style={styles.listRoot}
+						contentContainerStyle={styles.listContent}
+						contentInsetAdjustmentBehavior="automatic"
+						ListHeaderComponent={
+							<View style={styles.headerBlock}>
+								<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
+									{stageTitle}
+								</ThemedText>
+								{data && (
+									<ThemedText type="caption" themeColor="textSecondary" style={styles.modeHint}>
+										{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별, 3–23시 KST)"}
 									</ThemedText>
-									{data && (
-										<ThemedText type="caption" themeColor="textSecondary" style={styles.modeHint}>
-											{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별, 3–23시 KST)"}
-										</ThemedText>
-									)}
-									{data && data.points.length > 0 ? (
-										<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-											경로상 격자 {data.points.length}개
-										</ThemedText>
-									) : null}
-									{data?.mode === "short" && (
-										<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-											가로로 스크롤해 시간대를 확인하세요.
-										</ThemedText>
-									)}
-								</View>
-							}
-							ItemSeparatorComponent={() => <View style={styles.separator} />}
-							refreshControl={<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />}
-						/>
-					</View>
+								)}
+								{data && data.points.length > 0 ? (
+									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
+										경로상 격자 {data.points.length}개
+									</ThemedText>
+								) : null}
+								{data?.mode === "short" && (
+									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
+										가로로 스크롤해 시간대를 확인하세요.
+									</ThemedText>
+								)}
+							</View>
+						}
+						ItemSeparatorComponent={() => <View style={styles.separator} />}
+						refreshControl={<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />}
+					/>
 				)}
 			</SafeAreaView>
 		</ThemedView>
@@ -176,17 +165,10 @@ const styles = StyleSheet.create({
 		width: "100%",
 		maxWidth: MaxContentWidth,
 	},
-	listWithSticky: {
+	listRoot: {
 		flex: 1,
 		width: "100%",
 	},
-	stickyStageDate: {
-		paddingVertical: Spacing.two,
-		paddingHorizontal: Spacing.four,
-		borderBottomWidth: StyleSheet.hairlineWidth,
-	},
-	stickyStageDateText: { fontWeight: "600" },
-	listFlex: { flex: 1 },
 	listContent: {
 		paddingHorizontal: Spacing.four,
 		paddingTop: Spacing.two,
@@ -209,3 +191,9 @@ const styles = StyleSheet.create({
 		borderRadius: Radius.md,
 	},
 });
+
+function stageWeatherNavTitle(dayNumber: number, datePart: string) {
+	return datePart.trim() !== ""
+		? `Stage ${dayNumber} · ${datePart} · 날씨`
+		: `Stage ${dayNumber} · 날씨`;
+}

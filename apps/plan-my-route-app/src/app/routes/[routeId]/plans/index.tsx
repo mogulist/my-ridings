@@ -25,7 +25,7 @@ function HeaderBackToHome() {
 		else router.replace("/(tabs)");
 	};
 
-	return <HeaderBack label="Home" onPress={handlePress} />;
+	return <HeaderBack onPress={handlePress} accessibilityLabel="홈으로 돌아가기" />;
 }
 
 export default function RoutePlansScreen() {

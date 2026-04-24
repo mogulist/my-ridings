@@ -33,7 +33,7 @@ function HeaderBackToPlans() {
 		}
 	};
 
-	return <HeaderBack label="플랜" onPress={handlePress} />;
+	return <HeaderBack onPress={handlePress} accessibilityLabel="플랜 목록으로 돌아가기" />;
 }
 
 export default function PlanDetailLayout() {
@@ -62,13 +62,17 @@ export default function PlanDetailLayout() {
 		});
 	};
 
-	const solidHeader = {
+	const planDetailHeaderChrome = {
 		headerLargeTitle: false,
 		headerTransparent: false,
 		headerShadowVisible: false,
 		headerStyle: { backgroundColor: theme.background },
 		headerTintColor: theme.tint,
 		headerTitleStyle: { color: theme.text },
+	} as const;
+
+	const solidHeader = {
+		...planDetailHeaderChrome,
 		headerLeft: () => <HeaderBackToPlans />,
 	} as const;
 
@@ -101,8 +105,11 @@ export default function PlanDetailLayout() {
 						...solidHeader,
 					}}
 				/>
-				<Stack.Screen name="stages/[dayNumber]/index" options={{ title: "스테이지" }} />
-				<Stack.Screen name="stages/[dayNumber]/weather" options={{ title: "날씨 브리핑" }} />
+				<Stack.Screen
+					name="stages/[dayNumber]/index"
+					options={{ title: "스테이지", ...planDetailHeaderChrome }}
+				/>
+				<Stack.Screen name="stages/[dayNumber]/weather" options={{ title: "", ...planDetailHeaderChrome }} />
 				<Stack.Screen
 					name="stages/[dayNumber]/edit"
 					options={{
