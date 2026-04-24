@@ -72,7 +72,7 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 					</ThemedText>
 				</View>
 			) : (
-				<View style={styles.scrollWrap}>
+				<View>
 					<ScrollView
 						horizontal
 						showsHorizontalScrollIndicator
@@ -171,14 +171,17 @@ const styles = StyleSheet.create({
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
 	},
-	scrollWrap: { minHeight: 200 },
 	hScrollContent: {
-		paddingBottom: Spacing.two,
 		flexDirection: "row",
 		alignItems: "flex-start",
 		gap: 0,
 	},
-	col: { width: COL_WIDTH, alignItems: "center", gap: 4, paddingVertical: Spacing.one },
+	col: {
+		width: COL_WIDTH,
+		alignItems: "center",
+		gap: 4,
+		paddingTop: Spacing.one,
+	},
 	hourText: { fontVariant: ["tabular-nums"] },
 	tempText: { fontVariant: ["tabular-nums"] },
 	pop: { fontVariant: ["tabular-nums"] },
