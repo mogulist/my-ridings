@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
 import { Radius, Spacing } from "@/constants/theme";
+import { midTermSkyIconName } from "@/features/plan-my-route/mid-term-sky-icon";
 import { useTheme } from "@/hooks/use-theme";
 
 import {
@@ -13,6 +14,9 @@ import {
 } from "./stage-weather-briefing-format";
 
 const midLine = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
+
+const formatPopLabel = (pop: number | null | undefined) =>
+	pop != null && Number.isFinite(pop) ? `${Math.round(pop)}%` : "—";
 
 type StageWeatherMidPointCardProps = {
 	point: StageMidPoint;
@@ -68,44 +72,111 @@ export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProp
 					</ThemedText>
 				</View>
 			) : (
-				<View style={styles.grid}>
-					<View style={styles.halfCol}>
-						<ThemedText type="caption" themeColor="textSecondary" style={styles.ampmLabel}>
+				<View style={styles.forecastBlock}>
+					<View
+						style={[
+							styles.headerRow,
+							{ borderBottomColor: theme.separator },
+						]}
+					>
+						<ThemedText
+							type="caption"
+							themeColor="textSecondary"
+							style={[styles.headerCell, styles.headerCellAmPm]}
+						>
 							오전
 						</ThemedText>
-						{d.amPop != null && (
-							<ThemedText type="small" style={styles.pop}>
-								{d.amPop}%
-							</ThemedText>
-						)}
-						<ThemedText type="small" numberOfLines={1} style={styles.skyText}>
-							{midLine(d.amSky) || "—"}
-						</ThemedText>
-					</View>
-					<View style={styles.halfCol}>
-						<ThemedText type="caption" themeColor="textSecondary" style={styles.ampmLabel}>
+						<ThemedText
+							type="caption"
+							themeColor="textSecondary"
+							style={[styles.headerCell, styles.headerCellAmPm]}
+						>
 							오후
 						</ThemedText>
-						{d.pmPop != null && (
-							<ThemedText type="small" style={styles.pop}>
-								{d.pmPop}%
-							</ThemedText>
-						)}
-						<ThemedText type="small" numberOfLines={1} style={styles.skyText}>
-							{midLine(d.pmSky) || "—"}
+						<ThemedText
+							type="caption"
+							themeColor="textSecondary"
+							style={[styles.headerCell, styles.headerCellTemp]}
+						>
+							최저 / 최고
 						</ThemedText>
 					</View>
-					<View style={styles.tempCol}>
-						{d.tmn != null && (
-							<ThemedText type="smallBold" style={styles.tmnBlue}>
-								{d.tmn}°
+					<View style={styles.dataRow}>
+						<View
+							style={[styles.halfSlot, styles.amRow]}
+							accessibilityLabel={`오전 ${formatPopLabel(d.amPop)}, ${midLine(d.amSky) ?? "정보 없음"}`}
+						>
+							<ThemedText
+								type="small"
+								style={[
+									styles.popText,
+									d.amPop != null && d.amPop > 0
+										? styles.popActive
+										: { color: theme.textSecondary },
+								]}
+							>
+								{formatPopLabel(d.amPop)}
 							</ThemedText>
-						)}
-						{d.tmx != null && (
-							<ThemedText type="smallBold" style={[styles.tmxRed, { color: theme.danger }]}>
-								{d.tmx}°
+							<AppIcon
+								name={midTermSkyIconName(d.amSky)}
+								size={26}
+								tintColor={theme.text}
+								style={styles.skyIcon}
+							/>
+						</View>
+						<View
+							style={[styles.halfSlot, styles.pmRow]}
+							accessibilityLabel={`오후 ${midLine(d.pmSky) ?? "정보 없음"}, ${formatPopLabel(d.pmPop)}`}
+						>
+							<AppIcon
+								name={midTermSkyIconName(d.pmSky)}
+								size={26}
+								tintColor={theme.text}
+								style={styles.skyIcon}
+							/>
+							<ThemedText
+								type="small"
+								style={[
+									styles.popText,
+									d.pmPop != null && d.pmPop > 0
+										? styles.popActive
+										: { color: theme.textSecondary },
+								]}
+							>
+								{formatPopLabel(d.pmPop)}
 							</ThemedText>
-						)}
+						</View>
+						<View style={styles.tempSlot} accessibilityLabel="최저·최고 기온">
+							{d.tmn != null || d.tmx != null ? (
+								<ThemedText type="smallBold" style={styles.tempOneLine}>
+									{d.tmn != null ? (
+										<ThemedText type="smallBold" style={styles.tmnBlue}>
+											{d.tmn}°
+										</ThemedText>
+									) : (
+										<ThemedText type="smallBold" themeColor="textSecondary">
+											—
+										</ThemedText>
+									)}
+									<ThemedText type="smallBold" themeColor="textSecondary">
+										{" "}/{" "}
+									</ThemedText>
+									{d.tmx != null ? (
+										<ThemedText type="smallBold" style={[styles.tmxRed, { color: theme.danger }]}>
+											{d.tmx}°
+										</ThemedText>
+									) : (
+										<ThemedText type="smallBold" themeColor="textSecondary">
+											—
+										</ThemedText>
+									)}
+								</ThemedText>
+							) : (
+								<ThemedText type="smallBold" themeColor="textSecondary">
+									— / —
+								</ThemedText>
+							)}
+						</View>
 					</View>
 				</View>
 			)}
@@ -143,30 +214,61 @@ const styles = StyleSheet.create({
 		gap: Spacing.two,
 		paddingVertical: Spacing.two,
 	},
-	grid: {
+	forecastBlock: {
+		gap: Spacing.one,
+		paddingTop: 2,
+	},
+	headerRow: {
 		flexDirection: "row",
-		alignItems: "flex-end",
-		gap: Spacing.three,
+		alignItems: "center",
+		paddingBottom: Spacing.one,
+		borderBottomWidth: StyleSheet.hairlineWidth,
 	},
-	halfCol: {
-		flex: 1,
-		minWidth: 0,
-		gap: 2,
-	},
-	ampmLabel: {
+	headerCell: {
 		fontWeight: "600",
 	},
-	pop: {
-		color: "#4A90D9",
+	headerCellAmPm: {
+		flex: 1,
+		textAlign: "center",
 	},
-	skyText: {
-		lineHeight: 18,
+	headerCellTemp: {
+		minWidth: 96,
+		textAlign: "right",
 	},
-	tempCol: {
+	dataRow: {
 		flexDirection: "row",
-		alignItems: "baseline",
-		gap: Spacing.one,
+		alignItems: "center",
+		paddingTop: Spacing.two,
 	},
+	halfSlot: {
+		flex: 1,
+		minWidth: 0,
+	},
+	amRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+	},
+	pmRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+	},
+	popText: {
+		fontVariant: ["tabular-nums"],
+		minWidth: 40,
+		textAlign: "right",
+	},
+	popActive: { color: "#4A90D9" },
+	skyIcon: { flexShrink: 0 },
+	tempSlot: {
+		minWidth: 96,
+		alignItems: "flex-end",
+		justifyContent: "center",
+	},
+	tempOneLine: { fontVariant: ["tabular-nums"], textAlign: "right" },
 	tmnBlue: { color: "#2F6FED" },
 	tmxRed: {},
 });
