@@ -1,4 +1,3 @@
-import type { StageShortPoint } from "@my-ridings/weather-types";
 import { StyleSheet, View } from "react-native";
 import Animated, {
 	scrollTo,
@@ -10,6 +9,10 @@ import Animated, {
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
 import { Radius, Spacing } from "@/constants/theme";
+import {
+	pickDisplayTempC,
+	type StageShortPointGroup,
+} from "@/features/plan-my-route/merge-short-points";
 import { weatherIconName } from "@/features/plan-my-route/plan-stage-forecast-query";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -24,18 +27,19 @@ import { NO_ACTIVE_ID, useSyncedHorizontalScroll } from "./synced-horizontal-scr
 const COL_WIDTH = 52;
 
 type StageWeatherShortPointCardProps = {
-	point: StageShortPoint;
+	group: StageShortPointGroup;
 };
 
-export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCardProps) {
+export function StageWeatherShortPointCard({ group }: StageWeatherShortPointCardProps) {
 	const theme = useTheme();
-	const title = point.regionName?.trim() || "지역명 없음";
-	const endBadge = positionEndBadge(point.position);
-	const { lat, lng } = point.midpoint;
+	const title = formatRegionTitle(group.regionNames);
+	const endBadge = positionEndBadge(group.position);
+	const { lat, lng } = group.midpoint;
+	const subCaption = formatGroupSubCaption(group);
 
 	const synced = useSyncedHorizontalScroll();
 	const animatedRef = useAnimatedRef<Animated.ScrollView>();
-	const cardId = point.index;
+	const cardId = group.members[0]?.index ?? 0;
 
 	const scrollHandler = useAnimatedScrollHandler({
 		onBeginDrag: () => {
@@ -93,7 +97,7 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 			</View>
 			<View style={styles.row2}>
 				<ThemedText type="caption" themeColor="textSecondary" style={styles.kmLine}>
-					{formatStageKmRange(point.kmFrom, point.kmTo)}
+					{formatStageKmRange(group.kmFrom, group.kmTo)}
 				</ThemedText>
 				<ThemedText
 					type="caption"
@@ -101,10 +105,11 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 					numberOfLines={2}
 					style={styles.metaRight}
 				>
-					{formatGridMetaLine(point.nx, point.ny, lat, lng)}
+					{formatGridMetaLine(group.nx, group.ny, lat, lng)}
+					{group.gridCount > 1 ? ` 외 ${group.gridCount - 1}` : ""}
 				</ThemedText>
 			</View>
-			{!point.hourly.length ? (
+			{!group.representativeHourly.length ? (
 				<View style={styles.empty}>
 					<AppIcon name="cloud" size={18} tintColor={theme.textSecondary} />
 					<ThemedText type="caption" themeColor="textSecondary">
@@ -122,8 +127,10 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 						onScroll={synced ? scrollHandler : undefined}
 						contentContainerStyle={styles.hScrollContent}
 					>
-						{point.hourly.map((h) => {
+						{group.representativeHourly.map((h, i) => {
 							const hour = kstHourFromIso(h.at);
+							const range = group.hourlyTemps[i];
+							const displayTempC = range ? pickDisplayTempC(range, hour) : null;
 							return (
 								<View key={h.at} style={styles.col}>
 									<ThemedText type="caption" themeColor="textSecondary" style={styles.hourText}>
@@ -131,7 +138,7 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 									</ThemedText>
 									<AppIcon name={weatherIconName(h.sky, h.pty)} size={22} tintColor={theme.tint} />
 									<ThemedText type="smallBold" style={styles.tempText}>
-										{h.tempC != null ? `${h.tempC.toFixed(0)}°` : "—"}
+										{displayTempC == null ? "—" : `${Math.round(displayTempC)}°`}
 									</ThemedText>
 									<ThemedText
 										type="caption"
@@ -177,11 +184,28 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 							);
 						})}
 					</Animated.ScrollView>
+					{subCaption ? (
+						<ThemedText type="caption" themeColor="textSecondary" style={styles.subCaption}>
+							{subCaption}
+						</ThemedText>
+					) : null}
 				</View>
 			)}
 		</View>
 	);
 }
+
+const formatRegionTitle = (names: string[]): string => {
+	if (names.length === 0) return "지역명 없음";
+	if (names.length === 1) return names[0]!;
+	if (names.length === 2) return `${names[0]} · ${names[1]}`;
+	return `${names[0]} · ${names[1]} 외 ${names.length - 2}`;
+};
+
+const formatGroupSubCaption = (group: StageShortPointGroup): string | null => {
+	if (group.members.length <= 1) return null;
+	return `유사 예보 ${group.members.length}구간 통합`;
+};
 
 const styles = StyleSheet.create({
 	card: {
@@ -228,4 +252,5 @@ const styles = StyleSheet.create({
 	tempText: { fontVariant: ["tabular-nums"] },
 	pop: { fontVariant: ["tabular-nums"] },
 	muted: { fontSize: 10, fontVariant: ["tabular-nums"] },
+	subCaption: { marginTop: Spacing.one },
 });

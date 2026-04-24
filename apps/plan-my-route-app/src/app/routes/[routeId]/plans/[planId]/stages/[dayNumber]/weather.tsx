@@ -1,5 +1,5 @@
 import { stageDayLabel } from "@my-ridings/plan-geometry";
-import type { StageMidPoint, StageShortPoint } from "@my-ridings/weather-types";
+import type { StageMidPoint } from "@my-ridings/weather-types";
 import { useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
@@ -12,14 +12,27 @@ import { AppIcon } from "@/components/ui/icon";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
 import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
+import { formatStageKmRange } from "@/features/plan-my-route/components/stage-weather-briefing-format";
 import { StageWeatherMidPointCard } from "@/features/plan-my-route/components/stage-weather-mid-point-card";
 import { StageWeatherShortPointCard } from "@/features/plan-my-route/components/stage-weather-short-point-card";
+import { StageWeatherShortRepeatStrip } from "@/features/plan-my-route/components/stage-weather-short-repeat-strip";
 import { SyncedHorizontalScrollProvider } from "@/features/plan-my-route/components/synced-horizontal-scroll";
+import {
+	mergeShortPoints,
+	type StageShortPointGroup,
+} from "@/features/plan-my-route/merge-short-points";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { usePlanStageForecastQuery } from "@/features/plan-my-route/plan-stage-forecast-query";
 import { useTheme } from "@/hooks/use-theme";
 
-type Row = { kind: "point"; data: StageMidPoint | StageShortPoint };
+type MidRow = { kind: "mid"; data: StageMidPoint };
+type ShortGroupRow = { kind: "short-group"; data: StageShortPointGroup };
+type ShortRepeatRow = {
+	kind: "short-repeat";
+	data: StageShortPointGroup;
+	referenceKmRange: string | null;
+};
+type Row = MidRow | ShortGroupRow | ShortRepeatRow;
 
 export default function StageWeatherScreen() {
 	const navigation = useNavigation();
@@ -64,23 +77,44 @@ export default function StageWeatherScreen() {
 		void refetch();
 	}, [refetch]);
 
-	const rows: Row[] =
-		!data || !data.points.length
-			? []
-			: data.points.map((p) => ({ kind: "point" as const, data: p }));
-
-	const keyExtractor = useCallback((item: Row) => `p-${item.data.index}`, []);
-
-	const renderItem: ListRenderItem<Row> = useCallback(
-		({ item }) => {
-			if (item.kind !== "point" || !data) return null;
-			if (data.mode === "mid") {
-				return <StageWeatherMidPointCard point={item.data as StageMidPoint} />;
+	const rows: Row[] = useMemo(() => {
+		if (!data || !data.points.length) return [];
+		if (data.mode === "mid") {
+			return data.points.map((p) => ({ kind: "mid" as const, data: p }));
+		}
+		const groups = mergeShortPoints(data.points);
+		const out: Row[] = [];
+		for (const g of groups) {
+			if (g.repeatOfKey == null) {
+				out.push({ kind: "short-group", data: g });
+				continue;
 			}
-			return <StageWeatherShortPointCard point={item.data as StageShortPoint} />;
-		},
-		[data],
-	);
+			const ref = groups.find((x) => x.key === g.repeatOfKey);
+			out.push({
+				kind: "short-repeat",
+				data: g,
+				referenceKmRange: ref ? formatStageKmRange(ref.kmFrom, ref.kmTo) : null,
+			});
+		}
+		return out;
+	}, [data]);
+
+	const keyExtractor = useCallback((item: Row) => {
+		if (item.kind === "mid") return `mid-${item.data.index}`;
+		return `${item.kind}-${item.data.key}`;
+	}, []);
+
+	const renderItem: ListRenderItem<Row> = useCallback(({ item }) => {
+		if (item.kind === "mid") {
+			return <StageWeatherMidPointCard point={item.data} />;
+		}
+		if (item.kind === "short-group") {
+			return <StageWeatherShortPointCard group={item.data} />;
+		}
+		return (
+			<StageWeatherShortRepeatStrip group={item.data} referenceKmRange={item.referenceKmRange} />
+		);
+	}, []);
 
 	return (
 		<ThemedView style={styles.container}>
@@ -118,54 +152,56 @@ export default function StageWeatherScreen() {
 					</View>
 				) : (
 					<SyncedHorizontalScrollProvider>
-					<FlatList<Row>
-						data={rows}
-						keyExtractor={keyExtractor}
-						renderItem={renderItem}
-						style={styles.listRoot}
-						contentContainerStyle={styles.listContent}
-						contentInsetAdjustmentBehavior="automatic"
-						ListHeaderComponent={
-							<View style={styles.headerBlock}>
-								<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
-									{stageTitle}
-								</ThemedText>
-								{data ? (
-									<View style={styles.modeRow}>
-										<ThemedText type="smallBold">
-											{data.mode === "mid" ? "중기 예보" : "단기 예보"}
-										</ThemedText>
-										{data.forecastBaseAt ? (
-											<ThemedText
-												type="caption"
-												themeColor="textSecondary"
-												style={styles.issuedAt}
-												numberOfLines={2}
-											>
-												발표 {formatForecastIssuedKst(data.forecastBaseAt)}
-											</ThemedText>
-										) : (
-											<ThemedText
-												type="caption"
-												themeColor="textSecondary"
-												style={styles.issuedAt}
-												numberOfLines={1}
-											>
-												발표 시각 없음
-											</ThemedText>
-										)}
-									</View>
-								) : null}
-								{data && data.points.length > 0 ? (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-										경로상 격자 {data.points.length}개
+						<FlatList<Row>
+							data={rows}
+							keyExtractor={keyExtractor}
+							renderItem={renderItem}
+							style={styles.listRoot}
+							contentContainerStyle={styles.listContent}
+							contentInsetAdjustmentBehavior="automatic"
+							ListHeaderComponent={
+								<View style={styles.headerBlock}>
+									<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
+										{stageTitle}
 									</ThemedText>
-								) : null}
-							</View>
-						}
-						ItemSeparatorComponent={() => <View style={styles.separator} />}
-						refreshControl={<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />}
-					/>
+									{data ? (
+										<View style={styles.modeRow}>
+											<ThemedText type="smallBold">
+												{data.mode === "mid" ? "중기 예보" : "단기 예보"}
+											</ThemedText>
+											{data.forecastBaseAt ? (
+												<ThemedText
+													type="caption"
+													themeColor="textSecondary"
+													style={styles.issuedAt}
+													numberOfLines={2}
+												>
+													발표 {formatForecastIssuedKst(data.forecastBaseAt)}
+												</ThemedText>
+											) : (
+												<ThemedText
+													type="caption"
+													themeColor="textSecondary"
+													style={styles.issuedAt}
+													numberOfLines={1}
+												>
+													발표 시각 없음
+												</ThemedText>
+											)}
+										</View>
+									) : null}
+									{data && data.points.length > 0 ? (
+										<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
+											경로상 격자 {data.points.length}개
+										</ThemedText>
+									) : null}
+								</View>
+							}
+							ItemSeparatorComponent={() => <View style={styles.separator} />}
+							refreshControl={
+								<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />
+							}
+						/>
 					</SyncedHorizontalScrollProvider>
 				)}
 			</SafeAreaView>
