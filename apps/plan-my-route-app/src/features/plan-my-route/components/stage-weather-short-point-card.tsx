@@ -19,6 +19,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { kstHourFromIso } from "./kst-hour";
 import {
 	formatGridMetaLine,
+	formatRegionTitle,
 	formatStageKmRange,
 	positionEndBadge,
 } from "./stage-weather-briefing-format";
@@ -194,13 +195,6 @@ export function StageWeatherShortPointCard({ group }: StageWeatherShortPointCard
 		</View>
 	);
 }
-
-const formatRegionTitle = (names: string[]): string => {
-	if (names.length === 0) return "지역명 없음";
-	if (names.length === 1) return names[0]!;
-	if (names.length === 2) return `${names[0]} · ${names[1]}`;
-	return `${names[0]} · ${names[1]} 외 ${names.length - 2}`;
-};
 
 const formatGroupSubCaption = (group: StageShortPointGroup): string | null => {
 	if (group.members.length <= 1) return null;

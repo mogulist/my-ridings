@@ -16,3 +16,10 @@ export const formatLatLng = (lat: number, lng: number): string =>
 
 export const formatGridMetaLine = (nx: number, ny: number, lat: number, lng: number): string =>
 	`(${nx}, ${ny}) · ${formatLatLng(lat, lng)}`;
+
+export const formatRegionTitle = (names: string[]): string => {
+	if (names.length === 0) return "지역명 없음";
+	if (names.length === 1) return names[0]!;
+	if (names.length === 2) return `${names[0]} · ${names[1]}`;
+	return `${names[0]} · ${names[1]} 외 ${names.length - 2}`;
+};

@@ -1,0 +1,144 @@
+{
+  "mode": "mid",
+  "targetDate": "2026-04-30",
+  "totalKm": 142.5,
+  "forecastBaseAt": "2026-04-25T06:00:00.000Z",
+  "points": [
+    {
+      "index": 0,
+      "position": "departure",
+      "kmFrom": 0,
+      "kmTo": 12.4,
+      "regionName": "전라남도 구례군",
+      "nx": 70,
+      "ny": 76,
+      "midpoint": { "lat": 35.12, "lng": 127.45 },
+      "daily": {
+        "date": "2026-04-30",
+        "tmn": 9,
+        "tmx": 22,
+        "amSky": "맑음",
+        "pmSky": "구름많음",
+        "amPop": 0,
+        "pmPop": 20
+      }
+    },
+    {
+      "index": 1,
+      "position": "along",
+      "kmFrom": 12.4,
+      "kmTo": 38.2,
+      "regionName": "전라남도 순천시",
+      "nx": 71,
+      "ny": 75,
+      "midpoint": { "lat": 34.95, "lng": 127.5 },
+      "daily": {
+        "date": "2026-04-30",
+        "tmn": 9,
+        "tmx": 22,
+        "amSky": "맑음",
+        "pmSky": "구름많음",
+        "amPop": 0,
+        "pmPop": 20
+      }
+    },
+    {
+      "index": 2,
+      "position": "along",
+      "kmFrom": 38.2,
+      "kmTo": 55.0,
+      "regionName": "전라남도 여수시",
+      "nx": 72,
+      "ny": 74,
+      "midpoint": { "lat": 34.76, "lng": 127.66 },
+      "daily": {
+        "date": "2026-04-30",
+        "tmn": 12,
+        "tmx": 24,
+        "amSky": "흐림",
+        "pmSky": "흐림",
+        "amPop": 30,
+        "pmPop": 40
+      }
+    },
+    {
+      "index": 3,
+      "position": "along",
+      "kmFrom": 55.0,
+      "kmTo": 72.0,
+      "regionName": "전라남도 광양시",
+      "nx": 73,
+      "ny": 73,
+      "midpoint": { "lat": 34.94, "lng": 127.7 },
+      "daily": {
+        "date": "2026-04-30",
+        "tmn": 9,
+        "tmx": 22,
+        "amSky": "맑음",
+        "pmSky": "구름많음",
+        "amPop": 0,
+        "pmPop": 20
+      }
+    },
+    {
+      "index": 4,
+      "position": "along",
+      "kmFrom": 72.0,
+      "kmTo": 98.5,
+      "regionName": "전라남도 보성군",
+      "nx": 74,
+      "ny": 72,
+      "midpoint": { "lat": 34.77, "lng": 127.08 },
+      "daily": {
+        "date": "2026-04-30",
+        "tmn": 9,
+        "tmx": 22,
+        "amSky": "맑음",
+        "pmSky": "구름많음",
+        "amPop": 0,
+        "pmPop": 20
+      }
+    },
+    {
+      "index": 5,
+      "position": "along",
+      "kmFrom": 98.5,
+      "kmTo": 118.0,
+      "regionName": "전라남도 장흥군",
+      "nx": 69,
+      "ny": 71,
+      "midpoint": { "lat": 34.68, "lng": 126.9 },
+      "daily": null
+    },
+    {
+      "index": 6,
+      "position": "along",
+      "kmFrom": 118.0,
+      "kmTo": 132.0,
+      "regionName": "전라남도 강진군",
+      "nx": 68,
+      "ny": 70,
+      "midpoint": { "lat": 34.64, "lng": 126.77 },
+      "daily": null
+    },
+    {
+      "index": 7,
+      "position": "arrival",
+      "kmFrom": 132.0,
+      "kmTo": 142.5,
+      "regionName": "전라남도 해남군",
+      "nx": 67,
+      "ny": 69,
+      "midpoint": { "lat": 34.57, "lng": 126.6 },
+      "daily": {
+        "date": "2026-04-30",
+        "tmn": 11,
+        "tmx": 21,
+        "amSky": "구름많음",
+        "pmSky": "맑음",
+        "amPop": 10,
+        "pmPop": 0
+      }
+    }
+  ]
+}

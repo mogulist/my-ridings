@@ -1,14 +1,15 @@
-import type { StageMidPoint } from "@my-ridings/weather-types";
 import { StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
 import { Radius, Spacing } from "@/constants/theme";
 import { midTermSkyIconName } from "@/features/plan-my-route/mid-term-sky-icon";
+import type { StageMidPointGroup } from "@/features/plan-my-route/merge-mid-points";
 import { useTheme } from "@/hooks/use-theme";
 
 import {
 	formatGridMetaLine,
+	formatRegionTitle,
 	formatStageKmRange,
 	positionEndBadge,
 } from "./stage-weather-briefing-format";
@@ -19,15 +20,16 @@ const formatPopLabel = (pop: number | null | undefined) =>
 	pop != null && Number.isFinite(pop) ? `${Math.round(pop)}%` : "—";
 
 type StageWeatherMidPointCardProps = {
-	point: StageMidPoint;
+	group: StageMidPointGroup;
 };
 
-export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProps) {
+export function StageWeatherMidPointCard({ group }: StageWeatherMidPointCardProps) {
 	const theme = useTheme();
-	const d = point.daily;
-	const title = point.regionName?.trim() || "지역명 없음";
-	const endBadge = positionEndBadge(point.position);
-	const { lat, lng } = point.midpoint;
+	const d = group.daily;
+	const title = formatRegionTitle(group.regionNames);
+	const endBadge = positionEndBadge(group.position);
+	const { lat, lng } = group.midpoint;
+	const subCaption = group.members.length <= 1 ? null : `동일 중기 예보 ${group.members.length}구간 통합`;
 
 	return (
 		<View
@@ -53,7 +55,7 @@ export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProp
 			</View>
 			<View style={styles.row2}>
 				<ThemedText type="caption" themeColor="textSecondary" style={styles.kmLine}>
-					{formatStageKmRange(point.kmFrom, point.kmTo)}
+					{formatStageKmRange(group.kmFrom, group.kmTo)}
 				</ThemedText>
 				<ThemedText
 					type="caption"
@@ -61,7 +63,8 @@ export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProp
 					numberOfLines={2}
 					style={styles.metaRight}
 				>
-					{formatGridMetaLine(point.nx, point.ny, lat, lng)}
+					{formatGridMetaLine(group.nx, group.ny, lat, lng)}
+					{group.gridCount > 1 ? ` 외 ${group.gridCount - 1}` : ""}
 				</ThemedText>
 			</View>
 			{!d ? (
@@ -180,6 +183,11 @@ export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProp
 					</View>
 				</View>
 			)}
+			{subCaption ? (
+				<ThemedText type="caption" themeColor="textSecondary" style={styles.subCaption}>
+					{subCaption}
+				</ThemedText>
+			) : null}
 		</View>
 	);
 }
@@ -271,4 +279,5 @@ const styles = StyleSheet.create({
 	tempOneLine: { fontVariant: ["tabular-nums"], textAlign: "right" },
 	tmnBlue: { color: "#2F6FED" },
 	tmxRed: {},
+	subCaption: { marginTop: Spacing.one },
 });

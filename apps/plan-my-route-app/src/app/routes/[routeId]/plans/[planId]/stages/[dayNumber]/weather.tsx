@@ -1,5 +1,4 @@
 import { stageDayLabel } from "@my-ridings/plan-geometry";
-import type { StageMidPoint } from "@my-ridings/weather-types";
 import { useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
@@ -14,9 +13,14 @@ import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import { formatStageKmRange } from "@/features/plan-my-route/components/stage-weather-briefing-format";
 import { StageWeatherMidPointCard } from "@/features/plan-my-route/components/stage-weather-mid-point-card";
+import { StageWeatherMidRepeatStrip } from "@/features/plan-my-route/components/stage-weather-mid-repeat-strip";
 import { StageWeatherShortPointCard } from "@/features/plan-my-route/components/stage-weather-short-point-card";
 import { StageWeatherShortRepeatStrip } from "@/features/plan-my-route/components/stage-weather-short-repeat-strip";
 import { SyncedHorizontalScrollProvider } from "@/features/plan-my-route/components/synced-horizontal-scroll";
+import {
+	mergeMidPoints,
+	type StageMidPointGroup,
+} from "@/features/plan-my-route/merge-mid-points";
 import {
 	mergeShortPoints,
 	type StageShortPointGroup,
@@ -25,14 +29,19 @@ import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { usePlanStageForecastQuery } from "@/features/plan-my-route/plan-stage-forecast-query";
 import { useTheme } from "@/hooks/use-theme";
 
-type MidRow = { kind: "mid"; data: StageMidPoint };
+type MidGroupRow = { kind: "mid-group"; data: StageMidPointGroup };
+type MidRepeatRow = {
+	kind: "mid-repeat";
+	data: StageMidPointGroup;
+	referenceKmRange: string | null;
+};
 type ShortGroupRow = { kind: "short-group"; data: StageShortPointGroup };
 type ShortRepeatRow = {
 	kind: "short-repeat";
 	data: StageShortPointGroup;
 	referenceKmRange: string | null;
 };
-type Row = MidRow | ShortGroupRow | ShortRepeatRow;
+type Row = MidGroupRow | MidRepeatRow | ShortGroupRow | ShortRepeatRow;
 
 export default function StageWeatherScreen() {
 	const navigation = useNavigation();
@@ -80,7 +89,21 @@ export default function StageWeatherScreen() {
 	const rows: Row[] = useMemo(() => {
 		if (!data || !data.points.length) return [];
 		if (data.mode === "mid") {
-			return data.points.map((p) => ({ kind: "mid" as const, data: p }));
+			const groups = mergeMidPoints(data.points);
+			const out: Row[] = [];
+			for (const g of groups) {
+				if (g.repeatOfKey == null) {
+					out.push({ kind: "mid-group", data: g });
+					continue;
+				}
+				const ref = groups.find((x) => x.key === g.repeatOfKey);
+				out.push({
+					kind: "mid-repeat",
+					data: g,
+					referenceKmRange: ref ? formatStageKmRange(ref.kmFrom, ref.kmTo) : null,
+				});
+			}
+			return out;
 		}
 		const groups = mergeShortPoints(data.points);
 		const out: Row[] = [];
@@ -100,13 +123,19 @@ export default function StageWeatherScreen() {
 	}, [data]);
 
 	const keyExtractor = useCallback((item: Row) => {
-		if (item.kind === "mid") return `mid-${item.data.index}`;
+		if (item.kind === "mid-group") return `mid-group-${item.data.key}`;
+		if (item.kind === "mid-repeat") return `mid-repeat-${item.data.key}`;
 		return `${item.kind}-${item.data.key}`;
 	}, []);
 
 	const renderItem: ListRenderItem<Row> = useCallback(({ item }) => {
-		if (item.kind === "mid") {
-			return <StageWeatherMidPointCard point={item.data} />;
+		if (item.kind === "mid-group") {
+			return <StageWeatherMidPointCard group={item.data} />;
+		}
+		if (item.kind === "mid-repeat") {
+			return (
+				<StageWeatherMidRepeatStrip group={item.data} referenceKmRange={item.referenceKmRange} />
+			);
 		}
 		if (item.kind === "short-group") {
 			return <StageWeatherShortPointCard group={item.data} />;
