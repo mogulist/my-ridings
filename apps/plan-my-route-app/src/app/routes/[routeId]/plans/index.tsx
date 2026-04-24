@@ -9,12 +9,12 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { HeaderBack } from "@/components/ui/header-back";
 import { AppIcon } from "@/components/ui/icon";
+import { ListItemCard } from "@/components/ui/list-item-card";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
 import { PressableHaptic } from "@/components/ui/pressable-haptic";
-import { MaxContentWidth, Radius, Spacing, STAGE_STROKE_COLORS } from "@/constants/theme";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { formatPlanMetaDate } from "@/features/plan-my-route/format-plan-meta-date";
 import { useRouteDetailQuery } from "@/features/plan-my-route/route-detail-query";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
 
 function HeaderBackToHome() {
@@ -32,7 +32,6 @@ export default function RoutePlansScreen() {
 	const navigation = useNavigation();
 	const router = useRouter();
 	const theme = useTheme();
-	const colorScheme = useColorScheme();
 	const insets = useSafeAreaInsets();
 	const { routeId: routeIdParam } = useLocalSearchParams<{ routeId: string | string[] }>();
 	const normalizedRouteId = useMemo(() => {
@@ -112,12 +111,10 @@ export default function RoutePlansScreen() {
 				) : (
 					<View style={styles.list}>
 						{plans.map((plan, index) => {
-							const accent = STAGE_STROKE_COLORS[index % STAGE_STROKE_COLORS.length];
 							const meta = formatPlanMetaDate(plan.start_date, plan.created_at);
 							return (
 								<Animated.View key={plan.id} entering={FadeInDown.delay(index * 40).duration(280)}>
-									<View style={styles.planCardOuter}>
-										<View style={[styles.accentBar, { backgroundColor: accent }]} />
+									<ListItemCard>
 										<PressableHaptic
 											style={styles.cardPressable}
 											onPress={() =>
@@ -127,18 +124,7 @@ export default function RoutePlansScreen() {
 												})
 											}
 										>
-											<View
-												style={[
-													styles.planCardInner,
-													{
-														backgroundColor: theme.surfaceElevated,
-														boxShadow:
-															colorScheme === "dark"
-																? "0px 1px 8px rgba(0, 0, 0, 0.35)"
-																: "0px 1px 3px rgba(0, 0, 0, 0.08)",
-													},
-												]}
-											>
+											<View style={styles.planCardInner}>
 												<View style={styles.cardText}>
 													<ThemedText selectable type="smallBold">
 														{plan.name}
@@ -157,7 +143,7 @@ export default function RoutePlansScreen() {
 												<AppIcon name="chevron.right" size={18} tintColor={theme.textSecondary} />
 											</View>
 										</PressableHaptic>
-									</View>
+									</ListItemCard>
 								</Animated.View>
 							);
 						})}
@@ -213,17 +199,6 @@ const styles = StyleSheet.create({
 	list: {
 		gap: Spacing.three,
 	},
-	planCardOuter: {
-		flexDirection: "row",
-		borderRadius: Radius.lg,
-		borderCurve: "continuous",
-		overflow: "visible",
-	},
-	accentBar: {
-		width: 4,
-		borderTopLeftRadius: Radius.lg,
-		borderBottomLeftRadius: Radius.lg,
-	},
 	cardPressable: {
 		flex: 1,
 		minWidth: 0,
@@ -235,9 +210,6 @@ const styles = StyleSheet.create({
 		paddingLeft: Spacing.three,
 		paddingRight: Spacing.two,
 		paddingVertical: Spacing.three,
-		borderTopRightRadius: Radius.lg,
-		borderBottomRightRadius: Radius.lg,
-		borderCurve: "continuous",
 		gap: Spacing.two,
 	},
 	cardText: {

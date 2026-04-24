@@ -2,7 +2,8 @@ import { StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
-import { Radius, Spacing } from "@/constants/theme";
+import { ListItemCard } from "@/components/ui/list-item-card";
+import { Spacing } from "@/constants/theme";
 import { midTermSkyIconName } from "@/features/plan-my-route/mid-term-sky-icon";
 import type { StageMidPointGroup } from "@/features/plan-my-route/merge-mid-points";
 import { useTheme } from "@/hooks/use-theme";
@@ -32,17 +33,8 @@ export function StageWeatherMidPointCard({ group }: StageWeatherMidPointCardProp
 	const subCaption = group.members.length <= 1 ? null : `동일 중기 예보 ${group.members.length}구간 통합`;
 
 	return (
-		<View
-			style={[
-				styles.card,
-				{
-					backgroundColor: theme.surfaceElevated,
-					borderColor: theme.separator,
-					borderLeftWidth: 3,
-					borderLeftColor: theme.tint,
-				},
-			]}
-		>
+		<ListItemCard>
+			<View style={styles.cardInner}>
 			<View style={styles.row1}>
 				<ThemedText type="smallBold" numberOfLines={2} style={styles.titleFlex}>
 					{title}
@@ -188,15 +180,13 @@ export function StageWeatherMidPointCard({ group }: StageWeatherMidPointCardProp
 					{subCaption}
 				</ThemedText>
 			) : null}
-		</View>
+			</View>
+		</ListItemCard>
 	);
 }
 
 const styles = StyleSheet.create({
-	card: {
-		borderRadius: Radius.lg,
-		borderCurve: "continuous",
-		borderWidth: StyleSheet.hairlineWidth,
+	cardInner: {
 		padding: Spacing.three,
 		gap: Spacing.two,
 	},

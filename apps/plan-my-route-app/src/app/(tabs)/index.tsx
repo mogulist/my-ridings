@@ -5,6 +5,7 @@ import { Pressable, SectionList, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { ListItemCard } from "@/components/ui/list-item-card";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import {
 	fetchRouteDetail,
@@ -132,27 +133,31 @@ export default function HomeScreen() {
 				renderItem={({ item, section }) => {
 					if (section.sectionKind === "favorites" && item.rowKind === "favorite") {
 						return (
-							<Pressable
-								style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-								onPress={() =>
-									router.push({
-										pathname: "/routes/[routeId]/plans/[planId]/schedule",
-										params: { routeId: item.routeId, planId: item.planId },
-									})
-								}
-							>
-								<ThemedText type="smallBold" style={styles.routeTitle}>
-									{item.planName}
-								</ThemedText>
-								<ThemedText
-									type="caption"
-									themeColor="textSecondary"
-									style={[styles.routeMeta, { opacity: 0.78 }]}
-									selectable
+							<ListItemCard>
+								<Pressable
+									style={({ pressed }) => [styles.cardPressable, pressed && styles.pressed]}
+									onPress={() =>
+										router.push({
+											pathname: "/routes/[routeId]/plans/[planId]/schedule",
+											params: { routeId: item.routeId, planId: item.planId },
+										})
+									}
 								>
-									{item.routeName}
-								</ThemedText>
-							</Pressable>
+									<View style={styles.cardPad}>
+										<ThemedText type="smallBold" style={styles.routeTitle}>
+											{item.planName}
+										</ThemedText>
+										<ThemedText
+											type="caption"
+											themeColor="textSecondary"
+											style={[styles.routeMeta, { opacity: 0.78 }]}
+											selectable
+										>
+											{item.routeName}
+										</ThemedText>
+									</View>
+								</Pressable>
+							</ListItemCard>
 						);
 					}
 
@@ -173,31 +178,32 @@ export default function HomeScreen() {
 						}
 						if (item.rowKind === "route") {
 							return (
-								<Pressable
-									style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-									onPress={() => router.push(`/routes/${item.id}/plans`)}
-								>
-									<ThemedText type="smallBold" style={styles.routeTitle}>
-										{item.name}
-									</ThemedText>
-									<ThemedText
-										type="caption"
-										themeColor="textSecondary"
-										style={[styles.routeMeta, { opacity: 0.78 }]}
-										selectable
+								<ListItemCard>
+									<Pressable
+										style={({ pressed }) => [styles.cardPressable, pressed && styles.pressed]}
+										onPress={() => router.push(`/routes/${item.id}/plans`)}
 									>
-										{item.rwgps_url ?? ""}
-									</ThemedText>
-								</Pressable>
+										<View style={styles.cardPad}>
+											<ThemedText type="smallBold" style={styles.routeTitle}>
+												{item.name}
+											</ThemedText>
+											<ThemedText
+												type="caption"
+												themeColor="textSecondary"
+												style={[styles.routeMeta, { opacity: 0.78 }]}
+												selectable
+											>
+												{item.rwgps_url ?? ""}
+											</ThemedText>
+										</View>
+									</Pressable>
+								</ListItemCard>
 							);
 						}
 					}
 
 					return null;
 				}}
-				ItemSeparatorComponent={() => (
-					<View style={[styles.separator, { backgroundColor: theme.separator }]} />
-				)}
 				ListFooterComponent={
 					errorMessage ? (
 						<ThemedText type="small" style={[styles.errorText, { color: theme.danger }]} selectable>
@@ -225,7 +231,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.four,
 		paddingTop: Spacing.three,
 		paddingBottom: BottomTabInset + Spacing.four,
-		gap: 0,
+		gap: Spacing.two,
 	},
 	sectionHeader: {
 		paddingTop: Spacing.two,
@@ -236,8 +242,15 @@ const styles = StyleSheet.create({
 	},
 	row: {
 		gap: Spacing.half,
+		paddingVertical: Spacing.two,
+	},
+	cardPressable: {
+		flex: 1,
+	},
+	cardPad: {
+		gap: Spacing.half,
+		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
-		paddingHorizontal: 0,
 	},
 	routeTitle: {
 		fontSize: 15,
@@ -245,9 +258,6 @@ const styles = StyleSheet.create({
 	},
 	routeMeta: {
 		fontWeight: "400",
-	},
-	separator: {
-		height: StyleSheet.hairlineWidth,
 	},
 	pressed: {
 		opacity: 0.75,

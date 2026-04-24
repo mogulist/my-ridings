@@ -8,7 +8,8 @@ import Animated, {
 
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
-import { Radius, Spacing } from "@/constants/theme";
+import { ListItemCard } from "@/components/ui/list-item-card";
+import { Spacing } from "@/constants/theme";
 import {
 	pickDisplayTempC,
 	type StageShortPointGroup,
@@ -75,17 +76,8 @@ export function StageWeatherShortPointCard({ group }: StageWeatherShortPointCard
 	});
 
 	return (
-		<View
-			style={[
-				styles.card,
-				{
-					backgroundColor: theme.surfaceElevated,
-					borderColor: theme.separator,
-					borderLeftWidth: 3,
-					borderLeftColor: `${theme.tint}99`,
-				},
-			]}
-		>
+		<ListItemCard>
+			<View style={styles.cardInner}>
 			<View style={styles.row1}>
 				<ThemedText type="smallBold" numberOfLines={2} style={styles.titleFlex}>
 					{title}
@@ -192,7 +184,8 @@ export function StageWeatherShortPointCard({ group }: StageWeatherShortPointCard
 					) : null}
 				</View>
 			)}
-		</View>
+			</View>
+		</ListItemCard>
 	);
 }
 
@@ -202,10 +195,7 @@ const formatGroupSubCaption = (group: StageShortPointGroup): string | null => {
 };
 
 const styles = StyleSheet.create({
-	card: {
-		borderRadius: Radius.lg,
-		borderCurve: "continuous",
-		borderWidth: StyleSheet.hairlineWidth,
+	cardInner: {
 		padding: Spacing.three,
 		gap: Spacing.two,
 	},

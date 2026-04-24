@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/icon";
+import { ListItemCard } from "@/components/ui/list-item-card";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
 import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
@@ -27,7 +28,6 @@ import {
 	type StageCardSummary,
 	usePlanStageForecastsQuery,
 } from "@/features/plan-my-route/plan-stage-forecast-query";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
 
 /** 플로팅 pill·탭바와 겹치지 않도록 하단 여백 */
@@ -48,7 +48,6 @@ const formatTempLabel = (s: StageCardSummary): string | null => {
 export default function PlanScheduleScreen() {
 	const router = useRouter();
 	const theme = useTheme();
-	const colorScheme = useColorScheme();
 	const { routeId, planId } = useLocalSearchParams<{ routeId: string; planId: string }>();
 
 	const { data: detail, error, isPending, isRefetching, refetch } = usePlanDetailQuery(planId);
@@ -206,18 +205,7 @@ export default function PlanScheduleScreen() {
 										key={stage.id}
 										entering={FadeInDown.delay(index * 50).duration(320)}
 									>
-										<View
-											style={[
-												styles.cardShell,
-												{
-													backgroundColor: theme.surfaceElevated,
-													boxShadow:
-														colorScheme === "dark"
-															? "0px 2px 8px rgba(0, 0, 0, 0.4)"
-															: "0px 1px 2px rgba(0, 0, 0, 0.04), 0px 2px 8px rgba(0, 0, 0, 0.05)",
-												},
-											]}
-										>
+										<ListItemCard layout="row">
 											<PressableHaptic
 												accessibilityRole="button"
 												accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
@@ -374,7 +362,7 @@ export default function PlanScheduleScreen() {
 											>
 												<AppIcon name="ellipsis" size={16} tintColor={theme.textSecondary} />
 											</Pressable>
-										</View>
+										</ListItemCard>
 									</Animated.View>
 								);
 							})}
@@ -426,13 +414,6 @@ const styles = StyleSheet.create({
 	},
 	cardList: {
 		gap: Spacing.two,
-	},
-	cardShell: {
-		flexDirection: "row",
-		alignItems: "flex-start",
-		borderRadius: Radius.lg,
-		borderCurve: "continuous",
-		overflow: "hidden",
 	},
 	cardPressable: {
 		flex: 1,
