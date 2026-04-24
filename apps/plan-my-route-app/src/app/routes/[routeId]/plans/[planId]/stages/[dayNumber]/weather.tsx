@@ -105,42 +105,60 @@ export default function StageWeatherScreen() {
 						</ThemedText>
 					</View>
 				) : (
-					<FlatList<Row>
-						data={rows}
-						keyExtractor={keyExtractor}
-						renderItem={renderItem}
-						contentContainerStyle={styles.listContent}
-						contentInsetAdjustmentBehavior="automatic"
-						ListHeaderComponent={
-							<View style={styles.headerBlock}>
-								{datePart ? (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.dateText}>
-										{datePart}
+					<View style={styles.listWithSticky}>
+						<View
+							style={[
+								styles.stickyStageDate,
+								{
+									backgroundColor: theme.background,
+									borderBottomColor: theme.separator,
+								},
+							]}
+							accessibilityLabel={
+								datePart
+									? `스테이지 ${validDayNumber}, ${datePart}`
+									: `스테이지 ${validDayNumber}`
+							}
+						>
+							<ThemedText type="caption" themeColor="textSecondary" style={styles.stickyStageDateText}>
+								{datePart
+									? `스테이지 ${validDayNumber} · ${datePart}`
+									: `스테이지 ${validDayNumber}`}
+							</ThemedText>
+						</View>
+						<FlatList<Row>
+							data={rows}
+							keyExtractor={keyExtractor}
+							renderItem={renderItem}
+							style={styles.listFlex}
+							contentContainerStyle={styles.listContent}
+							contentInsetAdjustmentBehavior="automatic"
+							ListHeaderComponent={
+								<View style={styles.headerBlock}>
+									<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
+										{stageTitle}
 									</ThemedText>
-								) : null}
-								<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
-									{stageTitle}
-								</ThemedText>
-								{data && (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.modeHint}>
-										{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별, 3–23시 KST)"}
-									</ThemedText>
-								)}
-								{data && data.points.length > 0 ? (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-										경로상 격자 {data.points.length}개
-									</ThemedText>
-								) : null}
-								{data?.mode === "short" && (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-										가로로 스크롤해 시간대를 확인하세요.
-									</ThemedText>
-								)}
-							</View>
-						}
-						ItemSeparatorComponent={() => <View style={styles.separator} />}
-						refreshControl={<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />}
-					/>
+									{data && (
+										<ThemedText type="caption" themeColor="textSecondary" style={styles.modeHint}>
+											{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별, 3–23시 KST)"}
+										</ThemedText>
+									)}
+									{data && data.points.length > 0 ? (
+										<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
+											경로상 격자 {data.points.length}개
+										</ThemedText>
+									) : null}
+									{data?.mode === "short" && (
+										<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
+											가로로 스크롤해 시간대를 확인하세요.
+										</ThemedText>
+									)}
+								</View>
+							}
+							ItemSeparatorComponent={() => <View style={styles.separator} />}
+							refreshControl={<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />}
+						/>
+					</View>
 				)}
 			</SafeAreaView>
 		</ThemedView>
@@ -158,13 +176,23 @@ const styles = StyleSheet.create({
 		width: "100%",
 		maxWidth: MaxContentWidth,
 	},
+	listWithSticky: {
+		flex: 1,
+		width: "100%",
+	},
+	stickyStageDate: {
+		paddingVertical: Spacing.two,
+		paddingHorizontal: Spacing.four,
+		borderBottomWidth: StyleSheet.hairlineWidth,
+	},
+	stickyStageDateText: { fontWeight: "600" },
+	listFlex: { flex: 1 },
 	listContent: {
 		paddingHorizontal: Spacing.four,
-		paddingTop: Spacing.three,
+		paddingTop: Spacing.two,
 		paddingBottom: Spacing.six,
 	},
 	headerBlock: { marginBottom: Spacing.three, gap: Spacing.one },
-	dateText: { marginBottom: 2 },
 	stageTitle: { marginBottom: 2 },
 	modeHint: { fontWeight: "500" },
 	hintDetail: { lineHeight: 16 },
