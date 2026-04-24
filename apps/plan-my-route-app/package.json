@@ -6,6 +6,7 @@
   "scripts": {
     "eas-build-pre-install": "cd ../.. && bun install --frozen-lockfile",
     "start": "expo start",
+    "start:clean": "expo start -c",
     "start:debug": "expo start --dev-client",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",

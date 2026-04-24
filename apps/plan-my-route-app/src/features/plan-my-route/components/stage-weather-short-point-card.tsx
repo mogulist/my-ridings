@@ -1,5 +1,11 @@
 import type { StageShortPoint } from "@my-ridings/weather-types";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+	scrollTo,
+	useAnimatedRef,
+	useAnimatedScrollHandler,
+	useDerivedValue,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
@@ -13,6 +19,7 @@ import {
 	formatStageKmRange,
 	positionEndBadge,
 } from "./stage-weather-briefing-format";
+import { NO_ACTIVE_ID, useSyncedHorizontalScroll } from "./synced-horizontal-scroll";
 
 const COL_WIDTH = 52;
 
@@ -25,6 +32,42 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 	const title = point.regionName?.trim() || "지역명 없음";
 	const endBadge = positionEndBadge(point.position);
 	const { lat, lng } = point.midpoint;
+
+	const synced = useSyncedHorizontalScroll();
+	const animatedRef = useAnimatedRef<Animated.ScrollView>();
+	const cardId = point.index;
+
+	const scrollHandler = useAnimatedScrollHandler({
+		onBeginDrag: () => {
+			if (!synced) return;
+			synced.activeId.value = cardId;
+		},
+		onScroll: (e) => {
+			if (!synced) return;
+			if (synced.activeId.value === cardId) {
+				synced.scrollX.value = e.contentOffset.x;
+			}
+		},
+		onMomentumEnd: () => {
+			if (!synced) return;
+			if (synced.activeId.value === cardId) {
+				synced.activeId.value = NO_ACTIVE_ID;
+			}
+		},
+		onEndDrag: (e) => {
+			if (!synced) return;
+			if (synced.activeId.value === cardId) {
+				synced.scrollX.value = e.contentOffset.x;
+			}
+		},
+	});
+
+	useDerivedValue(() => {
+		if (!synced) return;
+		if (synced.activeId.value !== cardId) {
+			scrollTo(animatedRef, synced.scrollX.value, 0, false);
+		}
+	});
 
 	return (
 		<View
@@ -70,10 +113,13 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 				</View>
 			) : (
 				<View>
-					<ScrollView
+					<Animated.ScrollView
+						ref={animatedRef}
 						horizontal
 						showsHorizontalScrollIndicator
 						nestedScrollEnabled
+						scrollEventThrottle={16}
+						onScroll={synced ? scrollHandler : undefined}
 						contentContainerStyle={styles.hScrollContent}
 					>
 						{point.hourly.map((h) => {
@@ -130,7 +176,7 @@ export function StageWeatherShortPointCard({ point }: StageWeatherShortPointCard
 								</View>
 							);
 						})}
-					</ScrollView>
+					</Animated.ScrollView>
 				</View>
 			)}
 		</View>

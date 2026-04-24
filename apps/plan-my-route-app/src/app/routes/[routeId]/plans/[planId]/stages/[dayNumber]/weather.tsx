@@ -14,6 +14,7 @@ import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import { StageWeatherMidPointCard } from "@/features/plan-my-route/components/stage-weather-mid-point-card";
 import { StageWeatherShortPointCard } from "@/features/plan-my-route/components/stage-weather-short-point-card";
+import { SyncedHorizontalScrollProvider } from "@/features/plan-my-route/components/synced-horizontal-scroll";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { usePlanStageForecastQuery } from "@/features/plan-my-route/plan-stage-forecast-query";
 import { useTheme } from "@/hooks/use-theme";
@@ -116,6 +117,7 @@ export default function StageWeatherScreen() {
 						</ThemedText>
 					</View>
 				) : (
+					<SyncedHorizontalScrollProvider>
 					<FlatList<Row>
 						data={rows}
 						keyExtractor={keyExtractor}
@@ -164,6 +166,7 @@ export default function StageWeatherScreen() {
 						ItemSeparatorComponent={() => <View style={styles.separator} />}
 						refreshControl={<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />}
 					/>
+					</SyncedHorizontalScrollProvider>
 				)}
 			</SafeAreaView>
 		</ThemedView>
