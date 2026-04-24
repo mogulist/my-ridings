@@ -51,6 +51,8 @@ export const stageBriefingMidResponseSchema = z.object({
 	mode: z.literal("mid"),
 	targetDate: isoDate,
 	totalKm: z.number(),
+	/** 격자별 예보에 사용된 기상청 발표 시각(UTC ISO) 중 가장 이른 값 — 없으면 null */
+	forecastBaseAt: z.string().datetime().nullable().optional(),
 	/** 경로를 따라 격자 구간마다 1행 */
 	points: z.array(stageMidPointSchema),
 });
@@ -60,6 +62,8 @@ export const stageBriefingShortResponseSchema = z.object({
 	mode: z.literal("short"),
 	targetDate: isoDate,
 	totalKm: z.number(),
+	/** 격자별 단기예보 `baseAt`(UTC ISO) 중 가장 이른 값 — 없으면 null */
+	forecastBaseAt: z.string().datetime().nullable().optional(),
 	points: z.array(stageShortPointSchema),
 });
 export type StageBriefingShortResponse = z.infer<typeof stageBriefingShortResponseSchema>;

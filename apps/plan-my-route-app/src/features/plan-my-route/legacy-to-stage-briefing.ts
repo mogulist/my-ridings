@@ -40,10 +40,18 @@ export const alongForecastToStageBriefing = (legacy: AlongForecastResponse): Sta
 	for (let i = 0; i < 5; i += 1) {
 		points.push(segToPoint(segs[Math.min(i, n - 1)]!, i, 5));
 	}
+	const baseIsoList = segs
+		.map((s) => s.forecast.baseAt)
+		.filter((x): x is string => typeof x === "string" && x.length > 0);
+	const forecastBaseAt =
+		baseIsoList.length === 0
+			? null
+			: new Date(Math.min(...baseIsoList.map((iso) => new Date(iso).getTime()))).toISOString();
 	return {
 		mode: "short",
 		targetDate,
 		totalKm: legacy.totalKm,
+		forecastBaseAt,
 		points,
 	};
 };

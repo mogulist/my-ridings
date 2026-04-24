@@ -1,5 +1,6 @@
 import {
 	type StagePointPosition,
+	type StageShortPoint,
 	stageBriefingBodySchema,
 	stageBriefingResponseSchema,
 } from "@my-ridings/weather-types";
@@ -18,6 +19,15 @@ const CACHE = "public, s-maxage=600, stale-while-revalidate=3600";
 const GRID_META_CHUNK = 50;
 
 const gridKey = (nx: number, ny: number) => `${nx},${ny}`;
+
+/** 여러 격자를 묶을 때, 사용자에게 보여줄 「가장 이른」 발표 시각(UTC ISO). */
+const earliestForecastBaseIso = (bases: (Date | null | undefined)[]): string | null => {
+	const ms = bases
+		.filter((b): b is Date => b != null)
+		.map((b) => b.getTime());
+	if (ms.length === 0) return null;
+	return new Date(Math.min(...ms)).toISOString();
+};
 
 const loadRegionNamesByGrids = async (
 	pairs: { nx: number; ny: number }[],
@@ -103,11 +113,12 @@ export async function POST(req: NextRequest) {
 	const nSeg = runs.length;
 
 	if (useMid) {
-		const dailyRows = await Promise.all(
+		const dailyResults = await Promise.all(
 			runs.map((r) => getMidTermDailyRowForYmd(r.nx, r.ny, targetDate)),
 		);
 		const points = runs.map((r, i) => {
 			const m = metas.get(gridKey(r.nx, r.ny));
+			const dr = dailyResults[i]!;
 			return {
 				index: i,
 				position: positionFor(i, nSeg),
@@ -117,15 +128,17 @@ export async function POST(req: NextRequest) {
 				nx: r.nx,
 				ny: r.ny,
 				midpoint: { lat: r.mid[0], lng: r.mid[1] },
-				daily: dailyRows[i] ?? null,
+				daily: dr.daily,
 			};
 		});
 		const hasAnyMidDaily = points.some((p) => p.daily != null);
 		if (hasAnyMidDaily) {
+			const forecastBaseAt = earliestForecastBaseIso(dailyResults.map((d) => d.baseAt));
 			const out = stageBriefingResponseSchema.parse({
 				mode: "mid" as const,
 				targetDate,
 				totalKm,
+				forecastBaseAt,
 				points,
 			});
 			return Response.json(out, { headers: { "Cache-Control": CACHE } });
@@ -133,7 +146,7 @@ export async function POST(req: NextRequest) {
 	}
 
 	const { from, to } = kstFullBriefingWindowUtc(targetDate);
-	const shortPoints = await Promise.all(
+	const shortBuilt = await Promise.all(
 		runs.map((r, i) => {
 			const m = metas.get(gridKey(r.nx, r.ny));
 			return buildShortPoint(
@@ -152,10 +165,13 @@ export async function POST(req: NextRequest) {
 			);
 		}),
 	);
+	const shortPoints = shortBuilt.map((b) => b.point);
+	const forecastBaseAt = earliestForecastBaseIso(shortBuilt.map((b) => b.baseAt));
 	const out = stageBriefingResponseSchema.parse({
 		mode: "short" as const,
 		targetDate,
 		totalKm,
+		forecastBaseAt,
 		points: shortPoints,
 	});
 	return Response.json(out, { headers: { "Cache-Control": CACHE } });
@@ -174,7 +190,7 @@ async function buildShortPoint(
 	},
 	from: Date,
 	to: Date,
-) {
+): Promise<{ point: StageShortPoint; baseAt: Date | null }> {
 	const { nx, ny, mid, ...rest } = seg;
 	const maxBase = await latestBaseAtInWindow(db, nx, ny, from, to);
 	const rows = maxBase ? await rowsForLatestBase(db, nx, ny, from, to, maxBase) : [];
@@ -194,10 +210,13 @@ async function buildShortPoint(
 		return k >= 3 && k <= 23;
 	});
 	return {
-		...rest,
-		midpoint: { lat: mid[0], lng: mid[1] },
-		nx,
-		ny,
-		hourly,
+		point: {
+			...rest,
+			midpoint: { lat: mid[0], lng: mid[1] },
+			nx,
+			ny,
+			hourly,
+		},
+		baseAt: maxBase,
 	};
 }

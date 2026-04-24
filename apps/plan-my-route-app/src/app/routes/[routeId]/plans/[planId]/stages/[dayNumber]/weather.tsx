@@ -128,21 +128,37 @@ export default function StageWeatherScreen() {
 								<ThemedText type="smallBold" style={styles.stageTitle} numberOfLines={2}>
 									{stageTitle}
 								</ThemedText>
-								{data && (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.modeHint}>
-										{data.mode === "mid" ? "중기 예보 (오전/오후·최저·최고)" : "단기 예보 (시간별, 3–23시 KST)"}
-									</ThemedText>
-								)}
+								{data ? (
+									<View style={styles.modeRow}>
+										<ThemedText type="smallBold">
+											{data.mode === "mid" ? "중기 예보" : "단기 예보"}
+										</ThemedText>
+										{data.forecastBaseAt ? (
+											<ThemedText
+												type="caption"
+												themeColor="textSecondary"
+												style={styles.issuedAt}
+												numberOfLines={2}
+											>
+												발표 {formatForecastIssuedKst(data.forecastBaseAt)}
+											</ThemedText>
+										) : (
+											<ThemedText
+												type="caption"
+												themeColor="textSecondary"
+												style={styles.issuedAt}
+												numberOfLines={1}
+											>
+												발표 시각 없음
+											</ThemedText>
+										)}
+									</View>
+								) : null}
 								{data && data.points.length > 0 ? (
 									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
 										경로상 격자 {data.points.length}개
 									</ThemedText>
 								) : null}
-								{data?.mode === "short" && (
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.hintDetail}>
-										가로로 스크롤해 시간대를 확인하세요.
-									</ThemedText>
-								)}
 							</View>
 						}
 						ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -176,7 +192,13 @@ const styles = StyleSheet.create({
 	},
 	headerBlock: { marginBottom: Spacing.three, gap: Spacing.one },
 	stageTitle: { marginBottom: 2 },
-	modeHint: { fontWeight: "500" },
+	modeRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: Spacing.two,
+	},
+	issuedAt: { flexShrink: 1, textAlign: "right" },
 	hintDetail: { lineHeight: 16 },
 	separator: { height: Spacing.two },
 	stateBlock: {
@@ -197,3 +219,10 @@ function stageWeatherNavTitle(dayNumber: number, datePart: string) {
 		? `Stage ${dayNumber} · ${datePart} · 날씨`
 		: `Stage ${dayNumber} · 날씨`;
 }
+
+const formatForecastIssuedKst = (iso: string) =>
+	new Intl.DateTimeFormat("ko-KR", {
+		timeZone: "Asia/Seoul",
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(new Date(iso));

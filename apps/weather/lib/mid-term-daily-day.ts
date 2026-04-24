@@ -3,12 +3,18 @@ import { and, eq, gte, lte, max } from "drizzle-orm";
 import { db } from "@/db";
 import { weatherGridMeta, weatherMidTerm } from "@/db/schema";
 
-/** (nx,ny) 격자의 중기 **해당 일** 1행 (없으면 null). */
+export type MidTermDailyForYmd = {
+	daily: DailyRow | null;
+	/** 해당 일 예보에 쓰인 `weather_mid_term.base_at` (없으면 null) */
+	baseAt: Date | null;
+};
+
+/** (nx,ny) 격자의 중기 **해당 일** 1행 (없으면 null) + 발표 시각. */
 export const getMidTermDailyRowForYmd = async (
 	nx: number,
 	ny: number,
 	ymd: string,
-): Promise<DailyRow | null> => {
+): Promise<MidTermDailyForYmd> => {
 	const [meta] = await db
 		.select({
 			land: weatherGridMeta.midRegionLand,
@@ -20,7 +26,7 @@ export const getMidTermDailyRowForYmd = async (
 	const land = meta?.land ?? null;
 	const temp = meta?.temp ?? null;
 	if (!land || !temp) {
-		return null;
+		return { daily: null, baseAt: null };
 	}
 	const [agg] = await db
 		.select({ maxBase: max(weatherMidTerm.baseAt) })
@@ -34,7 +40,7 @@ export const getMidTermDailyRowForYmd = async (
 			),
 		);
 	if (!agg?.maxBase) {
-		return null;
+		return { daily: null, baseAt: null };
 	}
 	const [row] = await db
 		.select()
@@ -50,15 +56,18 @@ export const getMidTermDailyRowForYmd = async (
 		)
 		.limit(1);
 	if (!row) {
-		return null;
+		return { daily: null, baseAt: agg.maxBase };
 	}
 	return {
-		date: String(row.forecastDate).slice(0, 10),
-		tmn: row.tmn,
-		tmx: row.tmx,
-		amSky: row.amSky,
-		pmSky: row.pmSky,
-		amPop: row.amPop,
-		pmPop: row.pmPop,
+		daily: {
+			date: String(row.forecastDate).slice(0, 10),
+			tmn: row.tmn,
+			tmx: row.tmx,
+			amSky: row.amSky,
+			pmSky: row.pmSky,
+			amPop: row.amPop,
+			pmPop: row.pmPop,
+		},
+		baseAt: agg.maxBase,
 	};
 };

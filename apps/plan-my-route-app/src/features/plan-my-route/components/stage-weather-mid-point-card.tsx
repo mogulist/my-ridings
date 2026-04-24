@@ -60,9 +60,6 @@ export function StageWeatherMidPointCard({ point }: StageWeatherMidPointCardProp
 					{formatGridMetaLine(point.nx, point.ny, lat, lng)}
 				</ThemedText>
 			</View>
-			<ThemedText type="caption" themeColor="tint" style={styles.modeTag}>
-				중기
-			</ThemedText>
 			{!d ? (
 				<View style={styles.empty}>
 					<AppIcon name="cloud" size={18} tintColor={theme.textSecondary} />
@@ -140,7 +137,6 @@ const styles = StyleSheet.create({
 	},
 	kmLine: { fontVariant: ["tabular-nums"], flex: 1, minWidth: 0 },
 	metaRight: { flexShrink: 1, textAlign: "right", maxWidth: "58%" },
-	modeTag: { fontWeight: "600" },
 	empty: {
 		flexDirection: "row",
 		alignItems: "center",
