@@ -210,6 +210,66 @@ export const fetchPlanDetail = async (
 	return (await response.json()) as PlanDetail;
 };
 
+export type PutStageBody = {
+	memo?: string | null;
+	start_name?: string | null;
+	end_name?: string | null;
+};
+
+export const putStage = async (
+	apiOrigin: string,
+	accessToken: string,
+	stageId: string,
+	body: PutStageBody,
+): Promise<void> => {
+	const response = await fetch(`${apiOrigin}/api/stages/${stageId}`, {
+		method: "PUT",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		let message = `PUT /api/stages/${stageId} failed (${response.status})`;
+		try {
+			const errJson = (await response.json()) as { error?: string };
+			if (typeof errJson.error === "string" && errJson.error.trim()) message = errJson.error.trim();
+		} catch {
+			/* ignore */
+		}
+		throw new Error(message);
+	}
+};
+
+export const patchPlanPoi = async (
+	apiOrigin: string,
+	accessToken: string,
+	planId: string,
+	poiId: string,
+	body: { memo?: string | null },
+): Promise<PlanPoiRow> => {
+	const response = await fetch(`${apiOrigin}/api/plans/${planId}/pois/${poiId}`, {
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		let message = `PATCH /api/plans/${planId}/pois/${poiId} failed (${response.status})`;
+		try {
+			const errJson = (await response.json()) as { error?: string };
+			if (typeof errJson.error === "string" && errJson.error.trim()) message = errJson.error.trim();
+		} catch {
+			/* ignore */
+		}
+		throw new Error(message);
+	}
+	return (await response.json()) as PlanPoiRow;
+};
+
 export const fetchRideWithGpsTrackPoints = async (
 	apiOrigin: string,
 	routeUrl: string | null | undefined,

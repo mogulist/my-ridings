@@ -1,6 +1,6 @@
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Stack } from "expo-router/stack";
-import { Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -107,16 +107,20 @@ export default function PlanDetailLayout() {
 				/>
 				<Stack.Screen
 					name="stages/[dayNumber]/index"
-					options={{ title: "스테이지", ...planDetailHeaderChrome }}
+					options={{ title: "Stage", ...planDetailHeaderChrome }}
 				/>
 				<Stack.Screen name="stages/[dayNumber]/weather" options={{ title: "", ...planDetailHeaderChrome }} />
 				<Stack.Screen
 					name="stages/[dayNumber]/edit"
 					options={{
 						presentation: "modal",
-						title: "스테이지 편집",
-						headerTransparent: Platform.OS === "ios",
-						...(Platform.OS === "ios" ? { headerBlurEffect: "systemThinMaterial" as const } : {}),
+						title: "Edit stage",
+						headerLargeTitle: false,
+						headerTransparent: false,
+						headerShadowVisible: false,
+						headerStyle: { backgroundColor: theme.background },
+						headerTintColor: theme.tint,
+						headerTitleStyle: { color: theme.text },
 					}}
 				/>
 			</Stack>

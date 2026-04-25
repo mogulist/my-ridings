@@ -80,7 +80,7 @@ export default function StageWeatherScreen() {
 	const stageTitle =
 		stage?.start_name && stage?.end_name
 			? `${stage.start_name} → ${stage.end_name}`
-			: `스테이지 ${validDayNumber}`;
+			: `Stage ${validDayNumber}`;
 
 	const onRefresh = useCallback(() => {
 		void refetch();
@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
 
 function stageWeatherNavTitle(dayNumber: number, datePart: string) {
 	return datePart.trim() !== ""
-		? `Stage ${dayNumber} · ${datePart} · 날씨`
-		: `Stage ${dayNumber} · 날씨`;
+		? `Stage ${dayNumber} · ${datePart} · Weather`
+		: `Stage ${dayNumber} · Weather`;
 }
 
 const formatForecastIssuedKst = (iso: string) =>

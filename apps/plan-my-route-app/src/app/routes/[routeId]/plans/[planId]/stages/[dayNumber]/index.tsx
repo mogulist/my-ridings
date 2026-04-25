@@ -78,7 +78,7 @@ export default function StageDetailScreen() {
 	}, [detail?.trackPoints, stage]);
 
 	const headerTitle =
-		datePart.trim() !== "" ? `스테이지 ${dayNumber} · ${datePart}` : `스테이지 ${dayNumber}`;
+		datePart.trim() !== "" ? `Stage ${dayNumber} · ${datePart}` : `Stage ${dayNumber}`;
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
