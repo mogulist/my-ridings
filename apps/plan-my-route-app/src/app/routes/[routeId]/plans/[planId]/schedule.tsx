@@ -205,28 +205,46 @@ export default function PlanScheduleScreen() {
 										key={stage.id}
 										entering={FadeInDown.delay(index * 50).duration(320)}
 									>
-										<ListItemCard layout="row">
-											<PressableHaptic
-												accessibilityRole="button"
-												accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
-												style={styles.cardPressable}
-												onPress={() => routerPushStage(dayNumber)}
-											>
-												<View style={styles.cardContent}>
-													<View style={styles.cardTopRow}>
-														<ThemedText type="smallBold" style={styles.stageLabel}>
-															{stageLabel}
-														</ThemedText>
-														{datePart ? (
-															<ThemedText
-																type="caption"
-																themeColor="textSecondary"
-																style={styles.dateLabel}
-															>
-																{datePart}
+										<ListItemCard>
+											<View style={styles.cardContent}>
+												<View style={styles.cardHeaderRow}>
+													<PressableHaptic
+														accessibilityRole="button"
+														accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
+														style={styles.cardHeaderPressable}
+														onPress={() => routerPushStage(dayNumber)}
+													>
+														<View style={styles.cardTopRow}>
+															<ThemedText type="smallBold" style={styles.stageLabel}>
+																{stageLabel}
 															</ThemedText>
-														) : null}
-													</View>
+															{datePart ? (
+																<ThemedText
+																	type="caption"
+																	themeColor="textSecondary"
+																	style={styles.dateLabel}
+																>
+																	{datePart}
+																</ThemedText>
+															) : null}
+														</View>
+													</PressableHaptic>
+													<Pressable
+														accessibilityRole="button"
+														accessibilityLabel={`${a11yHeadline}, 더보기 메뉴`}
+														hitSlop={8}
+														style={styles.moreButton}
+														onPress={() => openStageOverflowMenu(dayNumber, stageLabel)}
+													>
+														<AppIcon name="ellipsis" size={16} tintColor={theme.textSecondary} />
+													</Pressable>
+												</View>
+												<PressableHaptic
+													accessibilityRole="button"
+													accessibilityLabel={`${a11yLabel}, 스테이지 상세`}
+													style={styles.cardBodyPressable}
+													onPress={() => routerPushStage(dayNumber)}
+												>
 													{routeDesc ? (
 														<ThemedText
 															type="caption"
@@ -351,17 +369,8 @@ export default function PlanScheduleScreen() {
 															</>
 														)}
 													</PressableHaptic>
-												</View>
-											</PressableHaptic>
-											<Pressable
-												accessibilityRole="button"
-												accessibilityLabel={`${a11yHeadline}, 더보기 메뉴`}
-												hitSlop={8}
-												style={styles.moreButton}
-												onPress={() => openStageOverflowMenu(dayNumber, stageLabel)}
-											>
-												<AppIcon name="ellipsis" size={16} tintColor={theme.textSecondary} />
-											</Pressable>
+												</PressableHaptic>
+											</View>
 										</ListItemCard>
 									</Animated.View>
 								);
@@ -415,14 +424,24 @@ const styles = StyleSheet.create({
 	cardList: {
 		gap: Spacing.two,
 	},
-	cardPressable: {
-		flex: 1,
-		minWidth: 0,
-	},
 	cardContent: {
-		paddingLeft: Spacing.three,
-		paddingRight: Spacing.one,
-		paddingVertical: 12,
+		paddingHorizontal: Spacing.three,
+		paddingTop: 12,
+		paddingBottom: 12,
+		gap: 6,
+	},
+	/** more는 absolute로 두어 행 높이를 텍스트 한 줄로만 잡고, 카드 상·하 패딩이 시각적으로 맞도록 함 */
+	cardHeaderRow: {
+		position: "relative",
+		width: "100%",
+	},
+	cardHeaderPressable: {
+		width: "100%",
+		minWidth: 0,
+		paddingRight: 40,
+	},
+	cardBodyPressable: {
+		width: "100%",
 		gap: 6,
 	},
 	cardTopRow: {
@@ -440,7 +459,6 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: Spacing.two,
-		marginTop: 2,
 	},
 	metricCell: {
 		flexDirection: "row",
@@ -478,12 +496,14 @@ const styles = StyleSheet.create({
 		gap: 2,
 	},
 	moreButton: {
+		position: "absolute",
+		right: 0,
+		top: 0,
 		width: 36,
 		height: 36,
 		alignItems: "center",
 		justifyContent: "center",
-		marginTop: Spacing.one,
-		flexShrink: 0,
+		zIndex: 1,
 	},
 });
 
