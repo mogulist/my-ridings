@@ -30,7 +30,6 @@ export function StageWeatherMidPointCard({ group }: StageWeatherMidPointCardProp
 	const title = formatRegionTitle(group.regionNames);
 	const endBadge = positionEndBadge(group.position);
 	const { lat, lng } = group.midpoint;
-	const subCaption = group.members.length <= 1 ? null : `동일 중기 예보 ${group.members.length}구간 통합`;
 
 	return (
 		<ListItemCard>
@@ -59,14 +58,7 @@ export function StageWeatherMidPointCard({ group }: StageWeatherMidPointCardProp
 					{group.gridCount > 1 ? ` 외 ${group.gridCount - 1}` : ""}
 				</ThemedText>
 			</View>
-			{!d ? (
-				<View style={styles.empty}>
-					<AppIcon name="cloud" size={18} tintColor={theme.textSecondary} />
-					<ThemedText type="caption" themeColor="textSecondary">
-						중기 예보 없음
-					</ThemedText>
-				</View>
-			) : (
+			{d ? (
 				<View style={styles.forecastBlock}>
 					<View
 						style={[
@@ -174,11 +166,6 @@ export function StageWeatherMidPointCard({ group }: StageWeatherMidPointCardProp
 						</View>
 					</View>
 				</View>
-			)}
-			{subCaption ? (
-				<ThemedText type="caption" themeColor="textSecondary" style={styles.subCaption}>
-					{subCaption}
-				</ThemedText>
 			) : null}
 			</View>
 		</ListItemCard>
@@ -206,12 +193,6 @@ const styles = StyleSheet.create({
 	},
 	kmLine: { fontVariant: ["tabular-nums"], flex: 1, minWidth: 0 },
 	metaRight: { flexShrink: 1, textAlign: "right", maxWidth: "58%" },
-	empty: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: Spacing.two,
-		paddingVertical: Spacing.two,
-	},
 	forecastBlock: {
 		gap: Spacing.one,
 		paddingTop: 2,
@@ -269,5 +250,4 @@ const styles = StyleSheet.create({
 	tempOneLine: { fontVariant: ["tabular-nums"], textAlign: "right" },
 	tmnBlue: { color: "#2F6FED" },
 	tmxRed: {},
-	subCaption: { marginTop: Spacing.one },
 });

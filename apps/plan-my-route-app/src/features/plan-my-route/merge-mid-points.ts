@@ -1,9 +1,8 @@
 import type { DailyRow, StageMidPoint, StagePointPosition } from "@my-ridings/weather-types";
 
-import { MERGE_THRESHOLDS } from "./merge-short-points";
-
 /**
- * view-only. 연속 격자 중 `daily` 서명이 같은 포인트를 한 카드로 묶은 형태.
+ * view-only. 경로상 `daily` 서명이 같은 포인트를 하나의 카드로 묶은 형태.
+ * 중기예보는 광역 구역 단위이므로 인접 여부와 무관하게 동일 구역을 하나로 통합한다.
  */
 export type StageMidPointGroup = {
 	key: string;
@@ -35,9 +34,6 @@ const dailySignature = (d: DailyRow | null): string => {
 		d.pmPop ?? "∅",
 	].join("|");
 };
-
-const canMergeMid = (a: StageMidPoint, b: StageMidPoint): boolean =>
-	dailySignature(a.daily) === dailySignature(b.daily);
 
 const pickPosition = (members: StageMidPoint[]): StagePointPosition => {
 	if (members.some((m) => m.position === "departure")) return "departure";
@@ -89,64 +85,26 @@ const toGroup = (members: StageMidPoint[], repeatOfKey: string | null): StageMid
 };
 
 /**
- * 경로 순서대로 연속 포인트를 동일 `daily` 서명 기준으로 런-병합한다.
- * 비연속으로 같은 서명이 다시 나오면 `repeatOfKey`를 채운다.
+ * 경로 전체 포인트를 `daily` 서명 기준으로 그룹화한다.
+ * - `daily === null` 인 포인트는 제외한다 (중기 예보 없음 카드 미표시).
+ * - 인접 여부와 무관하게 동일 서명을 하나의 그룹으로 통합한다.
  */
 export const mergeMidPoints = (points: StageMidPoint[]): StageMidPointGroup[] => {
 	if (points.length === 0) return [];
-	const result: StageMidPointGroup[] = [];
-	let curMembers: StageMidPoint[] = [];
-	const finalizeCurrent = () => {
-		if (curMembers.length === 0) return;
-		const rep = curMembers[0];
-		if (!rep) return;
-		const prior = result.find((g) => {
-			const head = g.members[0];
-			return head ? canMergeMid(head, rep) : false;
-		});
-		result.push(toGroup(curMembers, prior?.key ?? null));
-		curMembers = [];
-	};
+	const bySignature = new Map<string, StageMidPoint[]>();
+	const order: string[] = [];
 	for (const p of points) {
-		if (curMembers.length === 0) {
-			curMembers.push(p);
-			continue;
+		if (p.daily === null) continue;
+		const sig = dailySignature(p.daily);
+		if (!bySignature.has(sig)) {
+			bySignature.set(sig, []);
+			order.push(sig);
 		}
-		const rep = curMembers[0];
-		if (rep && canMergeMid(rep, p)) {
-			curMembers.push(p);
-			continue;
-		}
-		finalizeCurrent();
-		curMembers.push(p);
+		bySignature.get(sig)!.push(p);
 	}
-	finalizeCurrent();
-	return absorbMidDepartureTail(result);
+	return order.map((sig) => toGroup(bySignature.get(sig)!, null));
 };
 
 /** 디버깅용: 병합 없이 격자(포인트)마다 1그룹. */
 export const midPointsAsSingletonGroups = (points: StageMidPoint[]): StageMidPointGroup[] =>
 	points.map((p) => toGroup([p], null));
-
-const absorbMidDepartureTail = (groups: StageMidPointGroup[]): StageMidPointGroup[] => {
-	if (groups.length < 2) return groups;
-	const first = groups[0];
-	const second = groups[1];
-	if (!first || !second) return groups;
-	if (first.members.length !== 1) return groups;
-	const head = first.members[0];
-	if (!head) return groups;
-	const tailKm = head.kmTo - head.kmFrom;
-	if (tailKm >= MERGE_THRESHOLDS.departureTailKm) return groups;
-	const firstRegion = head.regionName?.trim() ?? "";
-	const secondHead = second.members[0];
-	if (!secondHead) return groups;
-	const secondRegion = secondHead.regionName?.trim() ?? "";
-	const regionMatches = firstRegion === "" || secondRegion === "" || firstRegion === secondRegion;
-	if (!regionMatches) return groups;
-	if (!canMergeMid(head, secondHead)) return groups;
-	const mergedMembers = [head, ...second.members];
-	const absorbed = toGroup(mergedMembers, second.repeatOfKey);
-	const withDeparture: StageMidPointGroup = { ...absorbed, position: "departure" };
-	return [withDeparture, ...groups.slice(2)];
-};

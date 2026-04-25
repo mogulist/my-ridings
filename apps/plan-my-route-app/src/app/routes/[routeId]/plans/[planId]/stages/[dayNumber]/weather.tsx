@@ -19,7 +19,6 @@ import { StageWeatherShortRepeatStrip } from "@/features/plan-my-route/component
 import { SyncedHorizontalScrollProvider } from "@/features/plan-my-route/components/synced-horizontal-scroll";
 import {
 	mergeMidPoints,
-	midPointsAsSingletonGroups,
 	type StageMidPointGroup,
 } from "@/features/plan-my-route/merge-mid-points";
 import {
@@ -96,34 +95,14 @@ export default function StageWeatherScreen() {
 
 	const rows: Row[] = useMemo(() => {
 		if (!data || !data.points.length) return [];
+		if (data.mode === "mid") {
+			return mergeMidPoints(data.points).map((g) => ({ kind: "mid-group" as const, data: g }));
+		}
 		if (showAllGridCards) {
-			if (data.mode === "mid") {
-				return midPointsAsSingletonGroups(data.points).map((g) => ({
-					kind: "mid-group" as const,
-					data: g,
-				}));
-			}
 			return shortPointsAsSingletonGroups(data.points).map((g) => ({
 				kind: "short-group" as const,
 				data: g,
 			}));
-		}
-		if (data.mode === "mid") {
-			const groups = mergeMidPoints(data.points);
-			const out: Row[] = [];
-			for (const g of groups) {
-				if (g.repeatOfKey == null) {
-					out.push({ kind: "mid-group", data: g });
-					continue;
-				}
-				const ref = groups.find((x) => x.key === g.repeatOfKey);
-				out.push({
-					kind: "mid-repeat",
-					data: g,
-					referenceKmRange: ref ? formatStageKmRange(ref.kmFrom, ref.kmTo) : null,
-				});
-			}
-			return out;
 		}
 		const groups = mergeShortPoints(data.points);
 		const out: Row[] = [];
@@ -144,12 +123,7 @@ export default function StageWeatherScreen() {
 
 	const showGridExpandToggle = useMemo(() => {
 		if (!data?.points.length) return false;
-		if (data.mode === "mid") {
-			const groups = mergeMidPoints(data.points);
-			return (
-				groups.length < data.points.length || groups.some((g) => g.repeatOfKey != null)
-			);
-		}
+		if (data.mode === "mid") return false;
 		const groups = mergeShortPoints(data.points);
 		return groups.length < data.points.length || groups.some((g) => g.repeatOfKey != null);
 	}, [data]);
