@@ -16,7 +16,16 @@
     "build:debug:ios": "eas build --profile debug --platform ios",
     "build:debug:ios:local": "eas build --profile debug --platform ios --local",
     "build:debug:android": "eas build --profile debug --platform android",
-    "build:debug:android:local": "eas build --profile debug --platform android --local"
+    "build:debug:android:local": "eas build --profile debug --platform android --local",
+    "build:preview:ios": "eas build --profile preview --platform ios",
+    "build:preview:ios:local": "eas build --profile preview --platform ios --local",
+    "build:preview:android": "eas build --profile preview --platform android",
+    "build:preview:android:local": "eas build --profile preview --platform android --local",
+    "build:production:ios": "eas build --profile production --platform ios",
+    "build:production:ios:local": "eas build --profile production --platform ios --local",
+    "build:production:android": "eas build --profile production --platform android",
+    "build:production:android:local": "eas build --profile production --platform android --local",
+    "submit:production:ios": "eas submit --platform ios --profile production --latest"
   },
   "dependencies": {
     "@mj-studio/react-native-naver-map": "^2.7.1",
