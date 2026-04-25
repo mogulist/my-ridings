@@ -11,6 +11,9 @@ export type RouteItem = {
 	name: string;
 	rwgps_url?: string | null;
 	created_at?: string;
+	/** YYYY-MM-DD, 서버 `route.start_date` */
+	start_date?: string | null;
+	cover_image_thumb_url?: string | null;
 };
 
 export type PlanItem = {

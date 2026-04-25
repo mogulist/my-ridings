@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -16,6 +17,16 @@ import {
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
 import { seedRouteDetailCache } from "@/features/plan-my-route/route-detail-query";
 import { useTheme } from "@/hooks/use-theme";
+
+function formatRouteListDate(isoOrDate: string | undefined | null, fallbackIso: string | undefined) {
+	const raw = (isoOrDate && isoOrDate.trim() ? isoOrDate : fallbackIso) ?? "";
+	if (!raw) return null;
+	// "YYYY-MM-DD" 또는 ISO 데이트
+	const datePart = raw.slice(0, 10);
+	const [y, m, d] = datePart.split("-").map(Number);
+	if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return raw;
+	return `${y}. ${m}. ${d}.`;
+}
 
 type FavoritePlanCard = {
 	routeId: string;
@@ -177,24 +188,56 @@ export default function HomeScreen() {
 							);
 						}
 						if (item.rowKind === "route") {
+							const dateLine = formatRouteListDate(
+								item.start_date ?? null,
+								item.created_at,
+							);
 							return (
 								<ListItemCard>
 									<Pressable
 										style={({ pressed }) => [styles.cardPressable, pressed && styles.pressed]}
 										onPress={() => router.push(`/routes/${item.id}/plans`)}
 									>
-										<View style={styles.cardPad}>
-											<ThemedText type="smallBold" style={styles.routeTitle}>
-												{item.name}
-											</ThemedText>
-											<ThemedText
-												type="caption"
-												themeColor="textSecondary"
-												style={[styles.routeMeta, { opacity: 0.78 }]}
-												selectable
-											>
-												{item.rwgps_url ?? ""}
-											</ThemedText>
+										<View style={styles.routeRow}>
+											<View style={styles.thumbClip}>
+												{item.cover_image_thumb_url ? (
+													<Image
+														source={{ uri: item.cover_image_thumb_url }}
+														style={styles.thumbImageFill}
+														contentFit="cover"
+														transition={120}
+													/>
+												) : (
+													<View
+														style={[
+															styles.thumbImageFill,
+															{ backgroundColor: theme.backgroundElement },
+														]}
+													/>
+												)}
+											</View>
+											<View style={styles.cardContent}>
+												<ThemedText type="smallBold" style={styles.routeTitle}>
+													{item.name}
+												</ThemedText>
+												<ThemedText
+													type="caption"
+													themeColor="textSecondary"
+													style={[styles.routeMeta, { opacity: 0.78 }]}
+													selectable
+												>
+													{item.rwgps_url ?? ""}
+												</ThemedText>
+												{dateLine ? (
+													<ThemedText
+														type="caption"
+														themeColor="textSecondary"
+														style={styles.routeDate}
+													>
+														{dateLine}
+													</ThemedText>
+												) : null}
+											</View>
 										</View>
 									</Pressable>
 								</ListItemCard>
@@ -252,12 +295,37 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.three,
 		paddingVertical: Spacing.three,
 	},
+	routeRow: {
+		flexDirection: "row",
+		alignItems: "stretch",
+	},
+	thumbClip: {
+		width: 120,
+		aspectRatio: 1,
+		overflow: "hidden",
+		alignSelf: "center",
+	},
+	thumbImageFill: {
+		...StyleSheet.absoluteFillObject,
+	},
+	cardContent: {
+		flex: 1,
+		gap: Spacing.half,
+		justifyContent: "center",
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.three,
+	},
 	routeTitle: {
 		fontSize: 15,
 		lineHeight: 21,
 	},
 	routeMeta: {
 		fontWeight: "400",
+	},
+	routeDate: {
+		marginTop: Spacing.one,
+		fontSize: 12,
+		opacity: 0.7,
 	},
 	pressed: {
 		opacity: 0.75,
