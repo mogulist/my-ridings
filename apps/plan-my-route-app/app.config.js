@@ -1,5 +1,25 @@
 const appJson = require('./app.json');
 
+const isDevClientBuild =
+  process.env.APP_VARIANT === 'development' ||
+  process.env.EAS_BUILD_PROFILE === 'debug';
+
+const baseExpo = appJson.expo;
+const baseIos = baseExpo.ios ?? {};
+const baseAndroid = baseExpo.android ?? {};
+
+const iosBundleIdentifier = isDevClientBuild
+  ? `${baseIos.bundleIdentifier}.debug`
+  : baseIos.bundleIdentifier;
+
+const androidPackage = isDevClientBuild
+  ? `${baseAndroid.package}.debug`
+  : baseAndroid.package;
+
+const appDisplayName = isDevClientBuild ? `${baseExpo.name} (Dev)` : baseExpo.name;
+
+const appScheme = isDevClientBuild ? `${baseExpo.scheme}-dev` : baseExpo.scheme;
+
 const naverMapClientId = (process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID || '').trim();
 
 if (!naverMapClientId) {
@@ -16,7 +36,17 @@ if (process.env.EAS_BUILD && !naverMapClientId) {
 
 module.exports = () => ({
   expo: {
-    ...appJson.expo,
+    ...baseExpo,
+    name: appDisplayName,
+    scheme: appScheme,
+    ios: {
+      ...baseIos,
+      bundleIdentifier: iosBundleIdentifier,
+    },
+    android: {
+      ...baseAndroid,
+      package: androidPackage,
+    },
     plugins: [
       ...(appJson.expo.plugins ?? []),
       [
