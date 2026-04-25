@@ -124,6 +124,10 @@ export const mergeMidPoints = (points: StageMidPoint[]): StageMidPointGroup[] =>
 	return absorbMidDepartureTail(result);
 };
 
+/** 디버깅용: 병합 없이 격자(포인트)마다 1그룹. */
+export const midPointsAsSingletonGroups = (points: StageMidPoint[]): StageMidPointGroup[] =>
+	points.map((p) => toGroup([p], null));
+
 const absorbMidDepartureTail = (groups: StageMidPointGroup[]): StageMidPointGroup[] => {
 	if (groups.length < 2) return groups;
 	const first = groups[0];

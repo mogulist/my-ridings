@@ -212,6 +212,10 @@ export const mergeShortPoints = (points: StageShortPoint[]): StageShortPointGrou
 	return absorbShortDepartureTail(result);
 };
 
+/** 디버깅용: 병합 없이 격자(포인트)마다 1그룹. */
+export const shortPointsAsSingletonGroups = (points: StageShortPoint[]): StageShortPointGroup[] =>
+	points.map((p) => toGroup([p], null));
+
 /**
  * 첫 그룹이 "매우 짧은 단일 포인트"이고 두 번째 그룹의 지역명과 일치하면
  * 두 번째 그룹 앞에 흡수하고 `position=departure`로 승격한다.

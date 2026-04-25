@@ -1,7 +1,7 @@
 import { stageDayLabel } from "@my-ridings/plan-geometry";
 import { useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, type ListRenderItem, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,10 +19,12 @@ import { StageWeatherShortRepeatStrip } from "@/features/plan-my-route/component
 import { SyncedHorizontalScrollProvider } from "@/features/plan-my-route/components/synced-horizontal-scroll";
 import {
 	mergeMidPoints,
+	midPointsAsSingletonGroups,
 	type StageMidPointGroup,
 } from "@/features/plan-my-route/merge-mid-points";
 import {
 	mergeShortPoints,
+	shortPointsAsSingletonGroups,
 	type StageShortPointGroup,
 } from "@/features/plan-my-route/merge-short-points";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
@@ -86,8 +88,26 @@ export default function StageWeatherScreen() {
 		void refetch();
 	}, [refetch]);
 
+	const [showAllGridCards, setShowAllGridCards] = useState(false);
+
+	useEffect(() => {
+		setShowAllGridCards(false);
+	}, [planId, validDayNumber, data?.mode]);
+
 	const rows: Row[] = useMemo(() => {
 		if (!data || !data.points.length) return [];
+		if (showAllGridCards) {
+			if (data.mode === "mid") {
+				return midPointsAsSingletonGroups(data.points).map((g) => ({
+					kind: "mid-group" as const,
+					data: g,
+				}));
+			}
+			return shortPointsAsSingletonGroups(data.points).map((g) => ({
+				kind: "short-group" as const,
+				data: g,
+			}));
+		}
 		if (data.mode === "mid") {
 			const groups = mergeMidPoints(data.points);
 			const out: Row[] = [];
@@ -120,6 +140,18 @@ export default function StageWeatherScreen() {
 			});
 		}
 		return out;
+	}, [data, showAllGridCards]);
+
+	const showGridExpandToggle = useMemo(() => {
+		if (!data?.points.length) return false;
+		if (data.mode === "mid") {
+			const groups = mergeMidPoints(data.points);
+			return (
+				groups.length < data.points.length || groups.some((g) => g.repeatOfKey != null)
+			);
+		}
+		const groups = mergeShortPoints(data.points);
+		return groups.length < data.points.length || groups.some((g) => g.repeatOfKey != null);
 	}, [data]);
 
 	const keyExtractor = useCallback((item: Row) => {
@@ -183,6 +215,7 @@ export default function StageWeatherScreen() {
 					<SyncedHorizontalScrollProvider>
 						<FlatList<Row>
 							data={rows}
+							extraData={showAllGridCards}
 							keyExtractor={keyExtractor}
 							renderItem={renderItem}
 							style={styles.listRoot}
@@ -229,6 +262,30 @@ export default function StageWeatherScreen() {
 							ItemSeparatorComponent={() => <View style={styles.separator} />}
 							refreshControl={
 								<ListRefreshControl onRefresh={onRefresh} refreshing={isRefetching} />
+							}
+							ListFooterComponent={
+								showGridExpandToggle ? (
+									<View style={styles.footerToggleWrap}>
+										<PressableHaptic
+											accessibilityRole="button"
+											accessibilityState={{ selected: showAllGridCards }}
+											accessibilityLabel={
+												showAllGridCards
+													? "중복 제거된 격자 목록으로 보기"
+													: "경로상 모든 격자 카드 펼치기"
+											}
+											style={[
+												styles.footerToggleButton,
+												{ backgroundColor: `${theme.tint}22`, borderColor: theme.separator },
+											]}
+											onPress={() => setShowAllGridCards((v) => !v)}
+										>
+											<ThemedText type="smallBold" themeColor="tint">
+												{showAllGridCards ? "중복 제거 보기" : "모든 격자 카드 보기"}
+											</ThemedText>
+										</PressableHaptic>
+									</View>
+								) : null
 							}
 						/>
 					</SyncedHorizontalScrollProvider>
@@ -279,6 +336,19 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing.four,
 		paddingVertical: Spacing.two,
 		borderRadius: Radius.md,
+	},
+	footerToggleWrap: {
+		marginTop: Spacing.four,
+		paddingTop: Spacing.two,
+	},
+	footerToggleButton: {
+		alignSelf: "stretch",
+		alignItems: "center",
+		paddingVertical: Spacing.three,
+		paddingHorizontal: Spacing.four,
+		borderRadius: Radius.md,
+		borderCurve: "continuous",
+		borderWidth: StyleSheet.hairlineWidth,
 	},
 });
 
