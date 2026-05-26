@@ -15,7 +15,11 @@ import { ScheduleMarkerMemoDialog } from "./ScheduleMarkerMemoDialog";
 import { ClimbGradientSheet } from "./ClimbGradientSheet";
 import { StageScheduleWaypointList } from "./StageScheduleWaypointList";
 import { SummitGradientButton } from "./SummitGradientButton";
+import { climbGradientRangeForDetectedClimb } from "../lib/climb-gradient-for-climb";
+import type { ClimbGradientRange } from "../lib/climb-gradient-for-waypoint";
 import { climbGradientRangeForSummitWaypoint } from "../lib/climb-gradient-for-waypoint";
+import { StageClimbList } from "./StageClimbList";
+import type { DetectedClimb } from "@my-ridings/plan-geometry";
 
 type StageDetailPanelProps = {
 	stage: Stage | null;
@@ -62,13 +66,7 @@ export function StageDetailPanel({
 }: StageDetailPanelProps) {
 	const [scheduleMemoEditRow, setScheduleMemoEditRow] =
 		useState<StageScheduleWaypoint | null>(null);
-	const [summitGradientWaypoint, setSummitGradientWaypoint] =
-		useState<StageScheduleWaypoint | null>(null);
-
-	const summitGradientRange = useMemo(() => {
-		if (!summitGradientWaypoint) return null;
-		return climbGradientRangeForSummitWaypoint(trackPoints, summitGradientWaypoint);
-	}, [summitGradientWaypoint, trackPoints]);
+	const [gradientSheet, setGradientSheet] = useState<ClimbGradientRange | null>(null);
 
 	const snapped = useMemo(
 		() => snapPlanPoisToTrack(planPois, trackPoints),
@@ -198,6 +196,17 @@ export function StageDetailPanel({
 					</p>
 				</section>
 
+				<section className="mb-6">
+					<StageClimbList
+						stage={stage}
+						trackPoints={trackPoints}
+						summitMarkers={summitMarkers}
+						onClimbSelect={(climb: DetectedClimb) =>
+							setGradientSheet(climbGradientRangeForDetectedClimb(climb, summitMarkers))
+						}
+					/>
+				</section>
+
 				<section>
 					<h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
 						경유 포인트 {waypointRows.length}곳
@@ -217,7 +226,11 @@ export function StageDetailPanel({
 									row.markerKind === "summit" ? (
 										<SummitGradientButton
 											size="comfortable"
-											onClick={() => setSummitGradientWaypoint(row)}
+											onClick={() =>
+												setGradientSheet(
+													climbGradientRangeForSummitWaypoint(trackPoints, row),
+												)
+											}
 										/>
 									) : null;
 
@@ -299,20 +312,18 @@ export function StageDetailPanel({
 				</section>
 			</div>
 
-			{summitGradientRange ? (
-				<ClimbGradientSheet
-					open={summitGradientWaypoint != null}
-					onOpenChange={(open) => {
-						if (!open) setSummitGradientWaypoint(null);
-					}}
-					trackPoints={trackPoints}
-					startDistanceKm={summitGradientRange.startDistanceKm}
-					endDistanceKm={summitGradientRange.endDistanceKm}
-					title={summitGradientRange.title}
-					subtitle={summitGradientRange.subtitle}
-					endMarkerDistanceKm={summitGradientRange.endMarkerDistanceKm}
-				/>
-			) : null}
+			<ClimbGradientSheet
+				open={gradientSheet != null}
+				onOpenChange={(open) => {
+					if (!open) setGradientSheet(null);
+				}}
+				trackPoints={trackPoints}
+				startDistanceKm={gradientSheet?.startDistanceKm ?? 0}
+				endDistanceKm={gradientSheet?.endDistanceKm ?? 0}
+				title={gradientSheet?.title ?? ""}
+				subtitle={gradientSheet?.subtitle}
+				endMarkerDistanceKm={gradientSheet?.endMarkerDistanceKm}
+			/>
 
 			<ScheduleMarkerMemoDialog
 				open={scheduleMemoEditRow != null}

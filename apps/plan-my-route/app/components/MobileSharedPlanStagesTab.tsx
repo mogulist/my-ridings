@@ -10,8 +10,12 @@ import {
 import { Badge, cn } from "@my-ridings/ui";
 import { ArrowUp, ChevronDown, ChevronUp, MapPin, Mountain } from "lucide-react";
 import { ClimbGradientSheet } from "./ClimbGradientSheet";
+import { StageClimbList } from "./StageClimbList";
+import { climbGradientRangeForDetectedClimb } from "../lib/climb-gradient-for-climb";
+import type { ClimbGradientRange } from "../lib/climb-gradient-for-climb";
 import { climbGradientRangeForSummitWaypoint } from "../lib/climb-gradient-for-waypoint";
 import { SummitGradientButton } from "./SummitGradientButton";
+import { detectClimbs, type DetectedClimb } from "@my-ridings/plan-geometry";
 import {
 	cloneElement,
 	createContext,
@@ -287,6 +291,9 @@ type InlineStageCardProps = {
 	selectedWaypointListRowKey: string | null;
 	onWaypointRowClick: (row: StageScheduleWaypoint) => void;
 	onSummitGradientClick?: (row: StageScheduleWaypoint) => void;
+	trackPoints: TrackPoint[];
+	summitMarkers: SummitOnRoute[];
+	onClimbSelect?: (climb: DetectedClimb) => void;
 };
 
 export function InlineStageCard({
@@ -300,6 +307,9 @@ export function InlineStageCard({
 	selectedWaypointListRowKey,
 	onWaypointRowClick,
 	onSummitGradientClick,
+	trackPoints,
+	summitMarkers,
+	onClimbSelect,
 }: InlineStageCardProps) {
 	const color = getStageColor(stage.dayNumber).stroke;
 	const dateLine =
@@ -392,6 +402,14 @@ export function InlineStageCard({
 								{stage.memo}
 							</p>
 						) : null}
+						{onClimbSelect ? (
+							<StageClimbList
+								stage={stage}
+								trackPoints={trackPoints}
+								summitMarkers={summitMarkers}
+								onClimbSelect={onClimbSelect}
+							/>
+						) : null}
 						{stageWaypoints.length > 0 ? (
 							<StageScheduleWaypointList
 								rows={stageWaypoints}
@@ -444,8 +462,7 @@ export function StagesTab({
 }: StagesTabProps) {
 	const [elevProfileDay, setElevProfileDay] = useState<number | null>(null);
 	const [selectedWaypointRowKey, setSelectedWaypointRowKey] = useState<string | null>(null);
-	const [summitGradientWaypoint, setSummitGradientWaypoint] =
-		useState<StageScheduleWaypoint | null>(null);
+	const [gradientSheet, setGradientSheet] = useState<ClimbGradientRange | null>(null);
 	const [expandedDays, setExpandedDays] = useState<Set<number>>(() => new Set());
 	const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 	const ratioByDayRef = useRef<Map<number, number>>(new Map());
@@ -505,10 +522,18 @@ export function StagesTab({
 		return defaultWaypointRowForHighlight(rows)?.rowKey ?? null;
 	}, [elevProfileDay, waypointsByDay, selectedWaypointRowKey]);
 
-	const summitGradientRange = useMemo(() => {
-		if (!summitGradientWaypoint) return null;
-		return climbGradientRangeForSummitWaypoint(trackPoints, summitGradientWaypoint);
-	}, [summitGradientWaypoint, trackPoints]);
+	const climbStartMarkers = useMemo(() => {
+		if (elevProfileDay == null) return [];
+		const stage = stages.find((s) => s.dayNumber === elevProfileDay);
+		if (!stage) return [];
+		return detectClimbs(trackPoints, {
+			startKm: stage.startDistanceKm,
+			endKm: stage.endDistanceKm,
+		}).map((c) => ({
+			distanceKm: c.startDistanceKm,
+			maxGradePercent: c.maxGradePercent,
+		}));
+	}, [elevProfileDay, stages, trackPoints]);
 
 	const scheduleMarkerFocus = useMemo((): ElevationScheduleMarkerFocus | null => {
 		if (elevProfileDay == null) return null;
@@ -670,6 +695,7 @@ export function StagesTab({
 					scheduleMarkerFocus={scheduleMarkerFocus}
 					cpMarkers={cpMarkers}
 					summitMarkers={summitMarkers}
+					climbStartMarkers={climbStartMarkers}
 				/>
 			</div>
 
@@ -694,29 +720,32 @@ export function StagesTab({
 								elevProfileDay === stage.dayNumber ? effectiveWaypointRowKey : null
 							}
 							onWaypointRowClick={(row) => handleWaypointRowSelect(stage.dayNumber, row.rowKey)}
+							trackPoints={trackPoints}
+							summitMarkers={summitMarkers}
 							onSummitGradientClick={(row) => {
 								handleWaypointRowSelect(stage.dayNumber, row.rowKey);
-								setSummitGradientWaypoint(row);
+								setGradientSheet(climbGradientRangeForSummitWaypoint(trackPoints, row));
+							}}
+							onClimbSelect={(climb) => {
+								setGradientSheet(climbGradientRangeForDetectedClimb(climb, summitMarkers));
 							}}
 						/>
 					</div>
 				))}
 			</div>
 
-			{summitGradientRange ? (
-				<ClimbGradientSheet
-					open={summitGradientWaypoint != null}
-					onOpenChange={(open) => {
-						if (!open) setSummitGradientWaypoint(null);
-					}}
-					trackPoints={trackPoints}
-					startDistanceKm={summitGradientRange.startDistanceKm}
-					endDistanceKm={summitGradientRange.endDistanceKm}
-					title={summitGradientRange.title}
-					subtitle={summitGradientRange.subtitle}
-					endMarkerDistanceKm={summitGradientRange.endMarkerDistanceKm}
-				/>
-			) : null}
+			<ClimbGradientSheet
+				open={gradientSheet != null}
+				onOpenChange={(open) => {
+					if (!open) setGradientSheet(null);
+				}}
+				trackPoints={trackPoints}
+				startDistanceKm={gradientSheet?.startDistanceKm ?? 0}
+				endDistanceKm={gradientSheet?.endDistanceKm ?? 0}
+				title={gradientSheet?.title ?? ""}
+				subtitle={gradientSheet?.subtitle}
+				endMarkerDistanceKm={gradientSheet?.endMarkerDistanceKm}
+			/>
 		</div>
 	);
 }

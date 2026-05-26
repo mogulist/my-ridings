@@ -127,6 +127,8 @@ interface ElevationProfileProps {
 	stageEndBoundaryChartEditMode?: boolean;
 	/** Esc 등으로 종료 지점 변경 모드 해제 */
 	onExitStageEndBoundaryChartEditMode?: () => void;
+	/** 일차 선택 시 등반 구간 시작 위치 (얇은 눈금) */
+	climbStartMarkers?: Array<{ distanceKm: number; maxGradePercent: number }>;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
@@ -1076,6 +1078,7 @@ export function ElevationProfile({
 	onStageEndBoundaryEditMapCenter,
 	stageEndBoundaryChartEditMode = false,
 	onExitStageEndBoundaryChartEditMode,
+	climbStartMarkers = [],
 }: ElevationProfileProps) {
 	const chartInteractionDisabled = disablePinAndHoverScrub || stageEndBoundaryChartEditMode;
 	const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -1943,6 +1946,30 @@ export function ElevationProfile({
 								/>
 							</>
 						)}
+
+						{climbStartMarkers
+							.filter(
+								(m) => m.distanceKm >= visibleStart && m.distanceKm <= visibleEnd,
+							)
+							.map((m) => {
+								const stroke =
+									m.maxGradePercent >= 20
+										? "#7C2D12"
+										: m.maxGradePercent >= 12
+											? "#EF4444"
+											: m.maxGradePercent >= 8
+												? "#F97316"
+												: "#EAB308";
+								return (
+									<ReferenceLine
+										key={`climb-start-${m.distanceKm}`}
+										x={m.distanceKm}
+										stroke={stroke}
+										strokeWidth={2}
+										strokeOpacity={0.55}
+									/>
+								);
+							})}
 
 						{/* CP 마커 */}
 						{visibleCPs.map((cp) => (

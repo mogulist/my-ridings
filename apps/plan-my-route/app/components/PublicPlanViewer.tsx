@@ -8,7 +8,7 @@ import { ElevationProfile } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
 import type { PlanPoiRow } from "../types/planPoi";
 import type { SummitCatalogRow } from "../types/summitCatalog";
-import { calibrateThreshold, stageDayLabel } from "@my-ridings/plan-geometry";
+import { calibrateThreshold, detectClimbs, stageDayLabel } from "@my-ridings/plan-geometry";
 import { summitQueryStringForTrackPoints } from "@/lib/rwgps-plan-markers";
 import { computeCPsOnRoute, computeSummitsOnRoute } from "./RouteViewer";
 import type { Stage } from "../types/plan";
@@ -202,6 +202,20 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
     stages.some((stage) => stage.dayNumber === selectedDayNumber)
       ? selectedDayNumber
       : null;
+
+  const climbStartMarkers = useMemo(() => {
+    if (effectiveSelectedDay == null) return [];
+    const stage = stages.find((s) => s.dayNumber === effectiveSelectedDay);
+    if (!stage) return [];
+    const pts = route?.track_points ?? [];
+    return detectClimbs(pts, {
+      startKm: stage.startDistanceKm,
+      endKm: stage.endDistanceKm,
+    }).map((c) => ({
+      distanceKm: c.startDistanceKm,
+      maxGradePercent: c.maxGradePercent,
+    }));
+  }, [effectiveSelectedDay, stages, route?.track_points]);
 
   /** RouteViewer·PlanListPane과 동일하게 RWGPS 응답 우선, 없으면 DB 스냅샷 */
   const publicRouteSummary =
@@ -563,6 +577,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             onUnpin={handleUnpin}
             cpMarkers={cpMarkers}
             summitMarkers={summitMarkers}
+            climbStartMarkers={climbStartMarkers}
             labelLayout="stagger"
           />
         </section>
