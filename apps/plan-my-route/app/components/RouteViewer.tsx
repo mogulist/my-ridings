@@ -1561,6 +1561,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
             elevationCalibratedThreshold={calibratedThreshold}
             cpMarkers={cpMarkers}
             summitMarkers={summitMarkers}
+            labelLayout="stagger"
             onStageEndBoundaryEditMapCenter={handleStageEndBoundaryEditMapCenter}
             stageEndBoundaryChartEditMode={stageEndBoundaryChartEditMode}
             onExitStageEndBoundaryChartEditMode={handleExitStageEndBoundaryChartEditMode}

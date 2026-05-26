@@ -563,6 +563,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             onUnpin={handleUnpin}
             cpMarkers={cpMarkers}
             summitMarkers={summitMarkers}
+            labelLayout="stagger"
           />
         </section>
       </div>

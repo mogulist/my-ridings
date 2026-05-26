@@ -119,7 +119,7 @@ interface ElevationProfileProps {
 	singleScheduleMarkerLabel?: boolean;
 	/** `singleScheduleMarkerLabel`일 때 강조할 마커 */
 	scheduleMarkerFocus?: ElevationScheduleMarkerFocus | null;
-	/** 라벨 레이아웃: `stagger`는 인접 라벨이 가까울 때 2번째 줄로 번갈아 배치(모바일 공유 지도 탭용) */
+	/** 라벨 레이아웃: `stagger`는 인접 라벨이 가까울 때 위쪽 row로 번갈아 배치 */
 	labelLayout?: "single" | "stagger";
 	/** 종료 지점 단축 메뉴「수정」— 맵을 해당 누적 거리(km)로 센터·줌 + 고도 종료 변경 모드 */
 	onStageEndBoundaryEditMapCenter?: (distanceKm: number) => void;
@@ -576,12 +576,18 @@ const LABEL_STAGGER_MIN_GAP_PX = 28;
 const LABEL_STAGGER_CHAR_WIDTH_PX = 11;
 /** 인접 라벨 박스 사이 여백(px). */
 const LABEL_STAGGER_GAP_PADDING_PX = 6;
-/** stagger 레이아웃 최대 row (0-indexed). 현재 3줄까지 허용. */
-const LABEL_STAGGER_MAX_ROW = 2;
 /** row 한 칸당 수직 간격(px). font-size 11 + 여백. */
 const LABEL_STAGGER_ROW_HEIGHT_PX = 14;
+/** 이 폭 미만이면 stagger 최대 3줄(row 0~2), 이상이면 최대 2줄(row 0~1). */
+const LABEL_STAGGER_NARROW_CHART_WIDTH_PX = 400;
 
 type LabelRow = 0 | 1 | 2;
+
+/** 차트 폭에 따른 stagger 최대 row (0-indexed). */
+function resolveLabelStaggerMaxRow(chartBoxWidth: number): LabelRow {
+	if (chartBoxWidth > 0 && chartBoxWidth < LABEL_STAGGER_NARROW_CHART_WIDTH_PX) return 2;
+	return 1;
+}
 type LabelRowEntry = { key: string; distanceKm: number; halfWidthPx: number };
 type LabelRowResult = { rowByKey: Map<string, LabelRow>; maxRowUsed: LabelRow };
 
@@ -591,6 +597,7 @@ function estimateLabelHalfWidthPx(name: string): number {
 
 function computeLabelRows(params: {
 	enabled: boolean;
+	maxRow: LabelRow;
 	visibleStart: number;
 	visibleEnd: number;
 	chartBoxWidth: number;
@@ -606,6 +613,7 @@ function computeLabelRows(params: {
 	const rowByKey = new Map<string, LabelRow>();
 	const {
 		enabled,
+		maxRow,
 		visibleStart,
 		visibleEnd,
 		chartBoxWidth,
@@ -668,7 +676,7 @@ function computeLabelRows(params: {
 	entries.sort((a, b) => a.distanceKm - b.distanceKm);
 
 	type RowLast = { km: number; halfWidthPx: number };
-	const lastByRow: Array<RowLast | null> = new Array(LABEL_STAGGER_MAX_ROW + 1).fill(null);
+	const lastByRow: Array<RowLast | null> = new Array(maxRow + 1).fill(null);
 
 	/** 이전 라벨과의 간격이 두 라벨 박스를 피하기에 충분한지(라벨 이름 길이 반영). */
 	const fitsInRow = (row: number, entry: LabelRowEntry): boolean => {
@@ -695,8 +703,8 @@ function computeLabelRows(params: {
 			placed = true;
 		} else if (hasPlacedAny) {
 			// 2) 라운드로빈: 직전에 배치한 row 다음부터 순회하며 들어갈 수 있는 row 탐색
-			for (let step = 1; step <= LABEL_STAGGER_MAX_ROW; step++) {
-				const r = ((lastChosenRow + step) % (LABEL_STAGGER_MAX_ROW + 1)) as LabelRow;
+			for (let step = 1; step <= maxRow; step++) {
+				const r = ((lastChosenRow + step) % (maxRow + 1)) as LabelRow;
 				if (fitsInRow(r, entry)) {
 					chosenRow = r;
 					placed = true;
@@ -709,7 +717,7 @@ function computeLabelRows(params: {
 		if (!placed) {
 			let oldestRow: LabelRow = 0;
 			let oldestKm = lastByRow[0]?.km ?? Infinity;
-			for (let r = 1; r <= LABEL_STAGGER_MAX_ROW; r++) {
+			for (let r = 1; r <= maxRow; r++) {
 				const last = lastByRow[r];
 				if (last != null && last.km < oldestKm) {
 					oldestKm = last.km;
@@ -1432,9 +1440,13 @@ export function ElevationProfile({
 		scheduleMarkerFocus.distanceKm >= visibleStart &&
 		scheduleMarkerFocus.distanceKm <= visibleEnd;
 
-	/** 라벨 stagger: 라벨이 조밀할수록 위쪽 row로 밀어 최대 3줄까지 사용. 빈 공간이면 row 0만 사용. */
+	const labelStaggerMaxRow =
+		labelLayout === "stagger" ? resolveLabelStaggerMaxRow(chartBoxWidth) : 0;
+
+	/** 라벨 stagger: 조밀할수록 위쪽 row로 배치. 좁은 차트는 최대 3줄, 넓은 차트는 최대 2줄. */
 	const { rowByKey: labelRowByKey, maxRowUsed: maxLabelRowUsed } = computeLabelRows({
 		enabled: labelLayout === "stagger",
+		maxRow: labelStaggerMaxRow,
 		visibleStart,
 		visibleEnd,
 		chartBoxWidth,
