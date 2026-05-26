@@ -12,5 +12,23 @@ export {
 	computeTrackElevationGainLoss,
 } from "./elevation-gain";
 export { stageDayLabel } from "./stage-day-label";
+export type {
+	ClimbDetectionOptions,
+	DetectedClimb,
+	GradeBand,
+	GradeSegment,
+} from "./grade-profile";
+export {
+	climbRangeForSummit,
+	computeGradeSegments,
+	detectClimbs,
+	gradeBandForPercent,
+	isWahooClimb,
+	summarizeClimbRange,
+	WAHOO_GRADE_COLORS,
+	WAHOO_GRADE_LABELS_KO,
+	WAHOO_GRADE_SEGMENT_LENGTH_M,
+	wahooMinAvgGradeForLength,
+} from "./grade-profile";
 export type { SnapLatLngToTrackResult } from "./snap-lat-lng-to-track";
 export { snapLatLngToTrack } from "./snap-lat-lng-to-track";
