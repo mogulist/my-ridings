@@ -9,6 +9,9 @@ import {
 } from "@my-ridings/plan-geometry";
 import { Badge, cn } from "@my-ridings/ui";
 import { ArrowUp, ChevronDown, ChevronUp, MapPin, Mountain } from "lucide-react";
+import { ClimbGradientSheet } from "./ClimbGradientSheet";
+import { climbGradientRangeForSummitWaypoint } from "../lib/climb-gradient-for-waypoint";
+import { SummitGradientButton } from "./SummitGradientButton";
 import {
 	cloneElement,
 	createContext,
@@ -283,6 +286,7 @@ type InlineStageCardProps = {
 	/** 현재 고도 패널 일차와 일치할 때만 리스트 선택 하이라이트 */
 	selectedWaypointListRowKey: string | null;
 	onWaypointRowClick: (row: StageScheduleWaypoint) => void;
+	onSummitGradientClick?: (row: StageScheduleWaypoint) => void;
 };
 
 export function InlineStageCard({
@@ -295,6 +299,7 @@ export function InlineStageCard({
 	stageWaypoints,
 	selectedWaypointListRowKey,
 	onWaypointRowClick,
+	onSummitGradientClick,
 }: InlineStageCardProps) {
 	const color = getStageColor(stage.dayNumber).stroke;
 	const dateLine =
@@ -392,6 +397,16 @@ export function InlineStageCard({
 								rows={stageWaypoints}
 								selectedRowKey={selectedWaypointListRowKey ?? undefined}
 								onWaypointRowClick={onWaypointRowClick}
+								renderRowEnd={
+									onSummitGradientClick
+										? (row) =>
+												row.markerKind === "summit" ? (
+													<SummitGradientButton
+														onClick={() => onSummitGradientClick(row)}
+													/>
+												) : null
+										: undefined
+								}
 							/>
 						) : null}
 					</div>
@@ -429,6 +444,8 @@ export function StagesTab({
 }: StagesTabProps) {
 	const [elevProfileDay, setElevProfileDay] = useState<number | null>(null);
 	const [selectedWaypointRowKey, setSelectedWaypointRowKey] = useState<string | null>(null);
+	const [summitGradientWaypoint, setSummitGradientWaypoint] =
+		useState<StageScheduleWaypoint | null>(null);
 	const [expandedDays, setExpandedDays] = useState<Set<number>>(() => new Set());
 	const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 	const ratioByDayRef = useRef<Map<number, number>>(new Map());
@@ -487,6 +504,11 @@ export function StagesTab({
 		}
 		return defaultWaypointRowForHighlight(rows)?.rowKey ?? null;
 	}, [elevProfileDay, waypointsByDay, selectedWaypointRowKey]);
+
+	const summitGradientRange = useMemo(() => {
+		if (!summitGradientWaypoint) return null;
+		return climbGradientRangeForSummitWaypoint(trackPoints, summitGradientWaypoint);
+	}, [summitGradientWaypoint, trackPoints]);
 
 	const scheduleMarkerFocus = useMemo((): ElevationScheduleMarkerFocus | null => {
 		if (elevProfileDay == null) return null;
@@ -672,10 +694,29 @@ export function StagesTab({
 								elevProfileDay === stage.dayNumber ? effectiveWaypointRowKey : null
 							}
 							onWaypointRowClick={(row) => handleWaypointRowSelect(stage.dayNumber, row.rowKey)}
+							onSummitGradientClick={(row) => {
+								handleWaypointRowSelect(stage.dayNumber, row.rowKey);
+								setSummitGradientWaypoint(row);
+							}}
 						/>
 					</div>
 				))}
 			</div>
+
+			{summitGradientRange ? (
+				<ClimbGradientSheet
+					open={summitGradientWaypoint != null}
+					onOpenChange={(open) => {
+						if (!open) setSummitGradientWaypoint(null);
+					}}
+					trackPoints={trackPoints}
+					startDistanceKm={summitGradientRange.startDistanceKm}
+					endDistanceKm={summitGradientRange.endDistanceKm}
+					title={summitGradientRange.title}
+					subtitle={summitGradientRange.subtitle}
+					endMarkerDistanceKm={summitGradientRange.endMarkerDistanceKm}
+				/>
+			) : null}
 		</div>
 	);
 }

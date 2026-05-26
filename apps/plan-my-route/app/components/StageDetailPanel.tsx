@@ -1,7 +1,7 @@
 "use client";
 
 import { PencilIcon, TrashIcon, XIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import type { PlanPoiRow } from "../types/planPoi";
@@ -12,7 +12,10 @@ import { DotsMenu } from "./DotsMenu";
 import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
 import { maxElevationInStageRange, stageScheduleWaypoints } from "./MobileSharedPlanStagesTab";
 import { ScheduleMarkerMemoDialog } from "./ScheduleMarkerMemoDialog";
+import { ClimbGradientSheet } from "./ClimbGradientSheet";
 import { StageScheduleWaypointList } from "./StageScheduleWaypointList";
+import { SummitGradientButton } from "./SummitGradientButton";
+import { climbGradientRangeForSummitWaypoint } from "../lib/climb-gradient-for-waypoint";
 
 type StageDetailPanelProps = {
 	stage: Stage | null;
@@ -59,6 +62,13 @@ export function StageDetailPanel({
 }: StageDetailPanelProps) {
 	const [scheduleMemoEditRow, setScheduleMemoEditRow] =
 		useState<StageScheduleWaypoint | null>(null);
+	const [summitGradientWaypoint, setSummitGradientWaypoint] =
+		useState<StageScheduleWaypoint | null>(null);
+
+	const summitGradientRange = useMemo(() => {
+		if (!summitGradientWaypoint) return null;
+		return climbGradientRangeForSummitWaypoint(trackPoints, summitGradientWaypoint);
+	}, [summitGradientWaypoint, trackPoints]);
 
 	const snapped = useMemo(
 		() => snapPlanPoisToTrack(planPois, trackPoints),
@@ -202,65 +212,107 @@ export function StageDetailPanel({
 							showHeading={false}
 							rows={waypointRows}
 							onPlanPoiRowClick={onPoiRowClick}
-							renderRowEnd={
-								readOnly
-									? undefined
-									: (row) => {
-											if (row.markerKind === "plan_poi" && row.planPoiId) {
-												const snap = snapped.find((s) => s.id === row.planPoiId);
-												if (!snap) return null;
-												return (
-													<DotsMenu
-														entries={[
-															{
-																type: "item",
-																key: "edit",
-																label: "편집",
-																icon: <PencilIcon className="h-4 w-4" />,
-																onSelect: () => onEditPoi(snap),
-															},
-															{ type: "separator", key: "sep" },
-															{
-																type: "item",
-																key: "delete",
-																label: "삭제",
-																icon: <TrashIcon className="h-4 w-4" />,
-																variant: "destructive",
-																onSelect: () => {
-																	if (window.confirm("이 경유지를 삭제할까요?")) {
-																		onDeletePoi(snap.id);
-																	}
-																},
-															},
-														]}
-													/>
-												);
-											}
-											if (
-												(row.markerKind === "cp" || row.markerKind === "summit") &&
-												onScheduleMarkerMemoSave
-											) {
-												return (
-													<DotsMenu
-														entries={[
-															{
-																type: "item",
-																key: "memo",
-																label: "메모 편집",
-																icon: <PencilIcon className="h-4 w-4" />,
-																onSelect: () => setScheduleMemoEditRow(row),
-															},
-														]}
-													/>
-												);
-											}
-											return null;
-										}
-							}
+							renderRowEnd={(row) => {
+								const gradientBtn =
+									row.markerKind === "summit" ? (
+										<SummitGradientButton
+											size="comfortable"
+											onClick={() => setSummitGradientWaypoint(row)}
+										/>
+									) : null;
+
+								if (readOnly) return gradientBtn;
+
+								let menu: ReactNode = null;
+								if (row.markerKind === "plan_poi" && row.planPoiId) {
+									const snap = snapped.find((s) => s.id === row.planPoiId);
+									if (snap) {
+										menu = (
+											<DotsMenu
+												entries={[
+													{
+														type: "item",
+														key: "edit",
+														label: "편집",
+														icon: <PencilIcon className="h-4 w-4" />,
+														onSelect: () => onEditPoi(snap),
+													},
+													{ type: "separator", key: "sep" },
+													{
+														type: "item",
+														key: "delete",
+														label: "삭제",
+														icon: <TrashIcon className="h-4 w-4" />,
+														variant: "destructive",
+														onSelect: () => {
+															if (window.confirm("이 경유지를 삭제할까요?")) {
+																onDeletePoi(snap.id);
+															}
+														},
+													},
+												]}
+											/>
+										);
+									}
+								} else if (row.markerKind === "cp" && onScheduleMarkerMemoSave) {
+									menu = (
+										<DotsMenu
+											entries={[
+												{
+													type: "item",
+													key: "memo",
+													label: "메모 편집",
+													icon: <PencilIcon className="h-4 w-4" />,
+													onSelect: () => setScheduleMemoEditRow(row),
+												},
+											]}
+										/>
+									);
+								} else if (row.markerKind === "summit" && onScheduleMarkerMemoSave) {
+									menu = (
+										<DotsMenu
+											entries={[
+												{
+													type: "item",
+													key: "memo",
+													label: "메모 편집",
+													icon: <PencilIcon className="h-4 w-4" />,
+													onSelect: () => setScheduleMemoEditRow(row),
+												},
+											]}
+										/>
+									);
+								}
+
+								if (gradientBtn && menu) {
+									return (
+										<span className="inline-flex shrink-0 items-center gap-1">
+											{gradientBtn}
+											{menu}
+										</span>
+									);
+								}
+								return gradientBtn ?? menu;
+							}}
 						/>
 					)}
 				</section>
 			</div>
+
+			{summitGradientRange ? (
+				<ClimbGradientSheet
+					open={summitGradientWaypoint != null}
+					onOpenChange={(open) => {
+						if (!open) setSummitGradientWaypoint(null);
+					}}
+					trackPoints={trackPoints}
+					startDistanceKm={summitGradientRange.startDistanceKm}
+					endDistanceKm={summitGradientRange.endDistanceKm}
+					title={summitGradientRange.title}
+					subtitle={summitGradientRange.subtitle}
+					endMarkerDistanceKm={summitGradientRange.endMarkerDistanceKm}
+				/>
+			) : null}
 
 			<ScheduleMarkerMemoDialog
 				open={scheduleMemoEditRow != null}
