@@ -451,6 +451,8 @@ const CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM = 5;
 
 /** 세로 마커(현재 위치)와 툴팁 사이 고정 간격(px) — 좌·우 배치 동일 */
 const ELEVATION_CHART_TOOLTIP_LINE_GAP_PX = 12;
+/** CP·서밋 라벨 밴드(margin.top) 아래 호버 툴팁 여백 */
+const ELEVATION_HOVER_TOOLTIP_TOP_BELOW_LABEL_BAND_PX = 6;
 
 /** AreaChart margin + YAxis width와 동일하게, 플롯 X 구간에 맞춘 앵커(px) */
 function elevationYAxisReservedWidth(tightFixedHeightChart: boolean, compactYAxis: boolean): number {
@@ -1560,7 +1562,10 @@ export function ElevationProfile({
 			plotLeft,
 			plotW,
 		);
-		return { left, top: 4, transform: translateX };
+		const hoverTooltipTopPx = showStageMarkerNames
+			? marginForScheduleTooltip.top + ELEVATION_HOVER_TOOLTIP_TOP_BELOW_LABEL_BAND_PX
+			: 4;
+		return { left, top: hoverTooltipTopPx, transform: translateX };
 	}, [
 		currentChartDatum,
 		chartBoxWidth,
@@ -1572,6 +1577,7 @@ export function ElevationProfile({
 		pinnedAnchorXPx,
 		isPinned,
 		positionIndex,
+		showStageMarkerNames,
 	]);
 
 	if (rawChartData.length === 0) {
