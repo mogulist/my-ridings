@@ -14,3 +14,10 @@ export {
 export { stageDayLabel } from "./stage-day-label";
 export type { SnapLatLngToTrackResult } from "./snap-lat-lng-to-track";
 export { snapLatLngToTrack } from "./snap-lat-lng-to-track";
+export type { GradientSegment, ClimbProfile } from "./gradient";
+export {
+	getGradientColor,
+	computeGradientSegments,
+	lookupGradientAtKm,
+	detectClimb,
+} from "./gradient";
