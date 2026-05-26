@@ -449,16 +449,54 @@ const STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX = 8;
 /** 종료 지점 변경 모드: X축 가시 구간 반폭(km) — 중앙에 경계, 좌우 각 5km */
 const CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM = 5;
 
-/** 선 오른쪽에 둘 때(툴팁 왼쪽 끝 = 앵커 + gap) */
-const SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX = 10;
-/** 선 왼쪽에 둘 때(툴팁 오른쪽 끝 = 앵커 - gap) */
-const SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX = 5;
-/** 플롯 내 앵커가 차트 박스 가로 중심보다 왼쪽이면 툴팁을 선 오른쪽에 둔다 */
-const SCHEDULE_SELECTION_TOOLTIP_RIGHT_PLACEMENT_MAX_CENTER_FR = 0.5;
+/** 세로 마커(현재 위치)와 툴팁 사이 고정 간격(px) — 좌·우 배치 동일 */
+const ELEVATION_CHART_TOOLTIP_LINE_GAP_PX = 12;
 
 /** AreaChart margin + YAxis width와 동일하게, 플롯 X 구간에 맞춘 앵커(px) */
 function elevationYAxisReservedWidth(tightFixedHeightChart: boolean, compactYAxis: boolean): number {
 	return tightFixedHeightChart ? 36 : compactYAxis ? 40 : 38;
+}
+
+type ChartPlotBox = { plotLeft: number; plotW: number };
+
+function getChartPlotBox(
+	chartBoxWidth: number,
+	margin: ChartMarginBox,
+	yAxisWidth: number,
+): ChartPlotBox {
+	const plotLeft = margin.left + yAxisWidth;
+	const plotRight = chartBoxWidth - margin.right;
+	const plotW = Math.max(1, plotRight - plotLeft);
+	return { plotLeft, plotW };
+}
+
+/** km → 플롯 X(px). Recharts 호버 좌표 없을 때(맵 연동 등) 폴백 */
+function elevationChartAnchorXFromKm(params: {
+	km: number;
+	visibleStart: number;
+	visibleEnd: number;
+	chartBoxWidth: number;
+	margin: ChartMarginBox;
+	yAxisWidth: number;
+}): number {
+	const { km, visibleStart, visibleEnd, chartBoxWidth, margin, yAxisWidth } = params;
+	const span = visibleEnd - visibleStart;
+	const { plotLeft, plotW } = getChartPlotBox(chartBoxWidth, margin, yAxisWidth);
+	const t = span > 0 ? (km - visibleStart) / span : 0.5;
+	return plotLeft + t * plotW;
+}
+
+/** Recharts activeCoordinate.x → chartContainerRef 기준 px */
+function chartOverlayXFromRechartsCoordinate(
+	coordinateX: number,
+	chartContainer: HTMLElement | null,
+): number {
+	if (!chartContainer) return coordinateX;
+	const wrapper = chartContainer.querySelector(".recharts-wrapper");
+	if (!wrapper) return coordinateX;
+	const offset =
+		wrapper.getBoundingClientRect().left - chartContainer.getBoundingClientRect().left;
+	return coordinateX + offset;
 }
 
 /** Recharts 플롯과 동일한 X 앵커(px) + 세로선과 겹치지 않는 translateX — 스케줄·핀 오버레이 공통 */
@@ -466,6 +504,19 @@ type ElevationChartTooltipLineOffsetStyle = {
 	left: number;
 	translateX: string;
 };
+
+function elevationChartTooltipPlacementFromAnchorX(
+	anchorX: number,
+	plotLeft: number,
+	plotW: number,
+): ElevationChartTooltipLineOffsetStyle {
+	const placeTooltipRightOfLine = anchorX < plotLeft + plotW / 2;
+	const gap = ELEVATION_CHART_TOOLTIP_LINE_GAP_PX;
+	const translateX = placeTooltipRightOfLine
+		? `translateX(${gap}px)`
+		: `translateX(calc(-100% - ${gap}px))`;
+	return { left: anchorX, translateX };
+}
 
 function elevationChartTooltipLineOffsetStyle(params: {
 	km: number;
@@ -475,19 +526,10 @@ function elevationChartTooltipLineOffsetStyle(params: {
 	margin: ChartMarginBox;
 	yAxisWidth: number;
 }): ElevationChartTooltipLineOffsetStyle {
-	const { km, visibleStart, visibleEnd, chartBoxWidth, margin, yAxisWidth } = params;
-	const span = visibleEnd - visibleStart;
-	const plotLeft = margin.left + yAxisWidth;
-	const plotRight = chartBoxWidth - margin.right;
-	const plotW = Math.max(1, plotRight - plotLeft);
-	const t = span > 0 ? (km - visibleStart) / span : 0.5;
-	const anchorX = plotLeft + t * plotW;
-	const placeTooltipRightOfLine =
-		anchorX < chartBoxWidth * SCHEDULE_SELECTION_TOOLTIP_RIGHT_PLACEMENT_MAX_CENTER_FR;
-	const translateX = placeTooltipRightOfLine
-		? `translateX(${SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX}px)`
-		: `translateX(calc(-100% - ${SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX}px))`;
-	return { left: anchorX, translateX };
+	const { chartBoxWidth, margin, yAxisWidth } = params;
+	const anchorX = elevationChartAnchorXFromKm(params);
+	const { plotLeft, plotW } = getChartPlotBox(chartBoxWidth, margin, yAxisWidth);
+	return elevationChartTooltipPlacementFromAnchorX(anchorX, plotLeft, plotW);
 }
 
 /**
@@ -1151,7 +1193,12 @@ export function ElevationProfile({
 
 	type TooltipState = {
 		activeTooltipIndex?: number | string | null;
+		activeCoordinate?: { x?: number; y?: number };
 	};
+
+	const [scrubAnchorXPx, setScrubAnchorXPx] = useState<number | null>(null);
+	const [pinnedAnchorXPx, setPinnedAnchorXPx] = useState<number | null>(null);
+	const scrubAnchorXPxRef = useRef<number | null>(null);
 
 	const getChartDataIndexAtTooltip = useCallback(
 		(state: TooltipState): number | null => {
@@ -1166,12 +1213,23 @@ export function ElevationProfile({
 		[chartData],
 	);
 
+	const lastHoverIndexRef = useRef<number | null>(null);
+
 	const handleMouseMove = useCallback(
 		(state: TooltipState) => {
 			if (chartInteractionDisabled) return;
 			const index = getChartDataIndexAtTooltip(state);
 			if (index == null) return;
 			lastHoverIndexRef.current = index;
+			const coordX = state.activeCoordinate?.x;
+			if (typeof coordX === "number" && Number.isFinite(coordX)) {
+				const overlayX = chartOverlayXFromRechartsCoordinate(
+					coordX,
+					chartContainerRef.current,
+				);
+				scrubAnchorXPxRef.current = overlayX;
+				setScrubAnchorXPx(overlayX);
+			}
 			if (!isPinned && onPositionChange) onPositionChange(index);
 		},
 		[getChartDataIndexAtTooltip, onPositionChange, isPinned, chartInteractionDisabled],
@@ -1181,15 +1239,15 @@ export function ElevationProfile({
 		// 마우스 벗어나도 마커 유지 (null 전달하지 않음)
 	}, []);
 
-	const lastHoverIndexRef = useRef<number | null>(null);
-
 	const handleChartClick = useCallback(() => {
 		if (chartInteractionDisabled) return;
 		if (isPinned && onUnpin) {
+			setPinnedAnchorXPx(null);
 			onUnpin();
 			return;
 		}
 		if (!onPin || lastHoverIndexRef.current == null) return;
+		setPinnedAnchorXPx(scrubAnchorXPxRef.current);
 		onPin(lastHoverIndexRef.current);
 	}, [isPinned, onPin, onUnpin, chartInteractionDisabled]);
 
@@ -1472,27 +1530,36 @@ export function ElevationProfile({
 			: null;
 
 	const hoverTooltipPlacementStyle = useMemo((): CSSProperties | null => {
-		if (currentChartDatum == null) return null;
-		if (chartBoxWidth <= 0) {
-			const span = visibleEnd - visibleStart;
-			const leftPct = span > 0 ? ((currentChartDatum.distanceKm - visibleStart) / span) * 100 : 50;
-			return {
-				left: `${Math.max(4, Math.min(96, leftPct))}%`,
-				top: 4,
-				transform:
-					leftPct > 60
-						? `translateX(calc(-100% - ${SCHEDULE_SELECTION_TOOLTIP_GAP_LEFT_OF_LINE_PX}px))`
-						: `translateX(${SCHEDULE_SELECTION_TOOLTIP_GAP_RIGHT_OF_LINE_PX}px)`,
-			};
-		}
-		const { left, translateX } = elevationChartTooltipLineOffsetStyle({
+		if (currentChartDatum == null || chartBoxWidth <= 0) return null;
+		const { plotLeft, plotW } = getChartPlotBox(
+			chartBoxWidth,
+			marginForScheduleTooltip,
+			yAxisWidthForScheduleTooltip,
+		);
+		const kmAnchorParams = {
 			km: currentChartDatum.distanceKm,
 			visibleStart,
 			visibleEnd,
 			chartBoxWidth,
 			margin: marginForScheduleTooltip,
 			yAxisWidth: yAxisWidthForScheduleTooltip,
-		});
+		};
+		const useRechartsScrubAnchor =
+			!isPinned &&
+			scrubAnchorXPx != null &&
+			positionIndex != null &&
+			lastHoverIndexRef.current === positionIndex;
+		const anchorX =
+			isPinned && pinnedAnchorXPx != null
+				? pinnedAnchorXPx
+				: useRechartsScrubAnchor
+					? scrubAnchorXPx
+					: elevationChartAnchorXFromKm(kmAnchorParams);
+		const { left, translateX } = elevationChartTooltipPlacementFromAnchorX(
+			anchorX,
+			plotLeft,
+			plotW,
+		);
 		return { left, top: 4, transform: translateX };
 	}, [
 		currentChartDatum,
@@ -1501,6 +1568,10 @@ export function ElevationProfile({
 		visibleEnd,
 		marginForScheduleTooltip,
 		yAxisWidthForScheduleTooltip,
+		scrubAnchorXPx,
+		pinnedAnchorXPx,
+		isPinned,
+		positionIndex,
 	]);
 
 	if (rawChartData.length === 0) {
