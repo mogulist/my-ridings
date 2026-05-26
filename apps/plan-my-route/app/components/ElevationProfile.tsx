@@ -951,6 +951,8 @@ function ElevationHoverTooltip({
 			: null;
 
 	const rowGap = compactTooltip ? "gap-3" : "gap-4";
+	const rowClass = cn("flex flex-nowrap justify-between whitespace-nowrap", rowGap);
+	const valueClass = "shrink-0 tabular-nums";
 	const blockY = compactTooltip ? "mt-0.5" : "mt-1";
 	const cpTop = compactTooltip ? "pt-0.5" : "pt-1";
 
@@ -965,16 +967,16 @@ function ElevationHoverTooltip({
 
 	const body = (
 		<>
-			<span className={cn("flex justify-between font-semibold", titleTextClass, rowGap)}>
-				<span>{pinned ? "📌 전체" : "전체"}</span>
-				<span>
+			<span className={cn(rowClass, "font-semibold", titleTextClass)}>
+				<span className="shrink-0">{pinned ? "📌 전체" : "전체"}</span>
+				<span className={valueClass}>
 					{km.toFixed(1)} km · △ {ele} m
 				</span>
 			</span>
 			{hasStageStats && (
-				<span className={cn("flex justify-between", stageTextClass, blockY, rowGap)}>
-					<span>스테이지</span>
-					<span>
+				<span className={cn(rowClass, stageTextClass, blockY)}>
+					<span className="shrink-0">스테이지</span>
+					<span className={valueClass}>
 						+{Number(datum.distanceFromStageStartKm).toFixed(1)} km · ▲{" "}
 						{datum.elevationGainFromStageStart} m
 					</span>
@@ -984,16 +986,16 @@ function ElevationHoverTooltip({
 				<span
 					className={cn("flex flex-col space-y-0.5 border-t", cpBorderClass, blockY, cpTop)}
 				>
-					<span className={cn("flex justify-between", cpTextClass, rowGap)}>
-						<span>{cpSegLabel}</span>
-						<span>
+					<span className={cn(rowClass, cpTextClass)}>
+						<span className="shrink-0">{cpSegLabel}</span>
+						<span className={valueClass}>
 							+{segDist.toFixed(1)} km · ▲ {segGain} m
 						</span>
 					</span>
 					{nextTargetLabel != null && remainKm != null && remainGain != null && (
-						<span className={cn("flex justify-between", cpTextClass, rowGap)}>
-							<span>{nextTargetLabel}</span>
-							<span>
+						<span className={cn(rowClass, cpTextClass)}>
+							<span className="shrink-0">{nextTargetLabel}</span>
+							<span className={valueClass}>
 								{remainKm.toFixed(1)} km · ▲ {remainGain} m
 							</span>
 						</span>
@@ -1007,8 +1009,8 @@ function ElevationHoverTooltip({
 	);
 
 	const sizeClass = compactTooltip
-		? "min-w-[168px] max-w-[min(100%,280px)] px-2 py-1.5 text-[10px] leading-snug"
-		: "min-w-[200px] px-3 py-2 text-xs";
+		? "box-border w-max max-w-[min(280px,calc(100%-12px))] shrink-0 min-w-[168px] px-2 py-1.5 text-[10px] leading-snug"
+		: "box-border w-max shrink-0 min-w-[200px] px-3 py-2 text-xs";
 
 	if (pinned) {
 		return (
