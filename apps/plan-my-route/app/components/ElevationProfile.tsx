@@ -1097,7 +1097,8 @@ export function ElevationProfile({
 		const ro = new ResizeObserver(measure);
 		ro.observe(root);
 		return () => ro.disconnect();
-	}, []);
+		/** 트랙이 늦게 로드되면 첫 페인트에 차트 루트가 없어 이펙트가 스킵됨 → `chartBoxWidth`가 영구 0. 로드 후 재측정. */
+	}, [trackPoints.length]);
 
 	const rawChartData = useMemo(
 		() => buildChartData(trackPoints, stages, elevationCalibratedThreshold),
