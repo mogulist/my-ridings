@@ -1152,25 +1152,16 @@ function ClimbHoverTooltip({
 
 	const body = (
 		<>
-			<span className={cn(rowClass, "font-semibold", titleTextClass)}>
-				<span className="shrink-0">{pinned ? "📌 현재 위치" : "현재 위치"}</span>
-				<span className={valueClass}>
-					{km.toFixed(1)} km · △ {ele} m
-				</span>
-			</span>
 			{gradientPct != null && (
-				<span
-					className={cn(rowClass, blockY)}
-					style={{ color: getGradientColor(gradientPct) }}
-				>
-					<span className="shrink-0">경사도</span>
+				<span className={cn(rowClass, "font-semibold", titleTextClass)}>
+					<span className="shrink-0">{pinned ? "📌 경사도" : "경사도"}</span>
 					<span className={valueClass}>
 						{gradientPct > 0 ? "+" : ""}
 						{gradientPct.toFixed(1)}%
 					</span>
 				</span>
 			)}
-			<span className={cn("flex flex-col space-y-0.5 border-t border-white/10", blockY, compactTooltip ? "pt-0.5" : "pt-1")}>
+			<span className={cn("flex flex-col space-y-0.5", gradientPct != null ? cn("border-t border-white/10", blockY, compactTooltip ? "pt-0.5" : "pt-1") : "")}>
 				<span className={cn(rowClass, segTextClass)}>
 					<span className="shrink-0">클라임 시작부터</span>
 					<span className={valueClass}>
