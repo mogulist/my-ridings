@@ -1088,6 +1088,145 @@ function ElevationHoverTooltip({
 	);
 }
 
+// ── 클라임 줌 전용 호버 툴팁 ─────────────────────────────────────────
+
+type ClimbHoverTooltipProps = {
+	datum: ChartDatum;
+	climbProfile: ClimbProfile;
+	trackPoints: TrackPoint[];
+	elevationCalibratedThreshold?: number;
+	compactTooltip: boolean;
+	pinned: boolean;
+	placementStyle: CSSProperties;
+	onUnpin?: () => void;
+	gradientPct?: number | null;
+};
+
+function ClimbHoverTooltip({
+	datum,
+	climbProfile,
+	trackPoints,
+	elevationCalibratedThreshold,
+	compactTooltip,
+	pinned,
+	placementStyle,
+	onUnpin,
+	gradientPct,
+}: ClimbHoverTooltipProps) {
+	const km = datum.distanceKm;
+	const ele = datum.ele;
+
+	const doneKm = Math.max(0, km - climbProfile.startDistanceKm);
+	const remainKm = Math.max(0, climbProfile.summitDistanceKm - km);
+
+	const doneGainM =
+		trackPoints.length > 0
+			? computeSegmentGainBetweenKm(
+					trackPoints,
+					climbProfile.startDistanceKm,
+					km,
+					elevationCalibratedThreshold,
+				)
+			: null;
+	const remainGainM =
+		trackPoints.length > 0 && remainKm > 0
+			? computeSegmentGainBetweenKm(
+					trackPoints,
+					km,
+					climbProfile.summitDistanceKm,
+					elevationCalibratedThreshold,
+				)
+			: null;
+
+	const rowGap = compactTooltip ? "gap-3" : "gap-4";
+	const rowClass = cn("flex flex-nowrap justify-between whitespace-nowrap", rowGap);
+	const valueClass = "shrink-0 tabular-nums";
+	const blockY = compactTooltip ? "mt-0.5" : "mt-1";
+
+	const panelClass = pinned
+		? "rounded-lg border border-orange-300 bg-white shadow-lg dark:border-orange-600 dark:bg-zinc-800"
+		: ELEVATION_CHART_TOOLTIP_PANEL_CLASS;
+	const titleTextClass = pinned ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-100";
+	const segTextClass = pinned ? "text-emerald-700 dark:text-emerald-400" : "text-emerald-400";
+	const hintTextClass = pinned ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-400";
+
+	const body = (
+		<>
+			<span className={cn(rowClass, "font-semibold", titleTextClass)}>
+				<span className="shrink-0">{pinned ? "📌 현재 위치" : "현재 위치"}</span>
+				<span className={valueClass}>
+					{km.toFixed(1)} km · △ {ele} m
+				</span>
+			</span>
+			{gradientPct != null && (
+				<span
+					className={cn(rowClass, blockY)}
+					style={{ color: getGradientColor(gradientPct) }}
+				>
+					<span className="shrink-0">경사도</span>
+					<span className={valueClass}>
+						{gradientPct > 0 ? "+" : ""}
+						{gradientPct.toFixed(1)}%
+					</span>
+				</span>
+			)}
+			<span className={cn("flex flex-col space-y-0.5 border-t border-white/10", blockY, compactTooltip ? "pt-0.5" : "pt-1")}>
+				<span className={cn(rowClass, segTextClass)}>
+					<span className="shrink-0">클라임 시작부터</span>
+					<span className={valueClass}>
+						+{doneKm.toFixed(1)} km{doneGainM != null ? ` · ▲ ${doneGainM} m` : ""}
+					</span>
+				</span>
+				{remainKm > 0 && (
+					<span className={cn(rowClass, segTextClass)}>
+						<span className="shrink-0">정상까지</span>
+						<span className={valueClass}>
+							{remainKm.toFixed(1)} km{remainGainM != null ? ` · ▲ ${remainGainM} m` : ""}
+						</span>
+					</span>
+				)}
+			</span>
+			{pinned && (
+				<span className={cn("block text-center", hintTextClass, blockY)}>클릭하여 해제</span>
+			)}
+		</>
+	);
+
+	const sizeClass = compactTooltip
+		? "box-border w-max max-w-[min(280px,calc(100%-12px))] shrink-0 min-w-[168px] px-2 py-1.5 text-[10px] leading-snug"
+		: "box-border w-max shrink-0 min-w-[200px] px-3 py-2 text-xs";
+
+	if (pinned) {
+		return (
+			<button
+				type="button"
+				aria-label="고정 툴팁 해제"
+				className={cn(
+					"pointer-events-auto absolute z-20 cursor-pointer text-left font-normal",
+					panelClass,
+					sizeClass,
+				)}
+				style={placementStyle}
+				onClick={(e) => {
+					e.stopPropagation();
+					onUnpin?.();
+				}}
+			>
+				{body}
+			</button>
+		);
+	}
+
+	return (
+		<div
+			className={cn("pointer-events-none absolute z-20", panelClass, sizeClass)}
+			style={placementStyle}
+		>
+			{body}
+		</div>
+	);
+}
+
 // ── 경사도 컬러 스트립 ─────────────────────────────────────────────
 
 function GradientStrip({
@@ -2329,24 +2468,38 @@ export function ElevationProfile({
 						}}
 					/>
 				) : null}
-				{/* 호버/핀 공용 툴팁 — 가로 배치는 elevationChartTooltipLineOffsetStyle 공통 */}
+				{/* 호버/핀 공용 툴팁 — 클라임 줌 시 클라임 전용 툴팁으로 교체 */}
 				{!chartInteractionDisabled &&
 				currentChartDatum != null &&
 				hoverTooltipPlacementStyle != null ? (
-					<ElevationHoverTooltip
-						datum={currentChartDatum}
-						trackPoints={trackPoints}
-						cpMarkers={cpMarkers}
-						elevationCalibratedThreshold={elevationCalibratedThreshold}
-						cpAnchorMinKm={tooltipCpAnchorKm}
-						cpAnchorMaxKm={tooltipCpAnchorMaxKm}
-						anchorFallbackDayNumber={tooltipAnchorDayNumber}
-						compactTooltip={compactTooltip}
-						pinned={isPinned}
-						placementStyle={hoverTooltipPlacementStyle}
-						onUnpin={onUnpin}
-						gradientPct={hoveredGradientPct}
-					/>
+					climbProfile != null ? (
+						<ClimbHoverTooltip
+							datum={currentChartDatum}
+							climbProfile={climbProfile}
+							trackPoints={trackPoints}
+							elevationCalibratedThreshold={elevationCalibratedThreshold}
+							compactTooltip={compactTooltip}
+							pinned={isPinned}
+							placementStyle={hoverTooltipPlacementStyle}
+							onUnpin={onUnpin}
+							gradientPct={hoveredGradientPct}
+						/>
+					) : (
+						<ElevationHoverTooltip
+							datum={currentChartDatum}
+							trackPoints={trackPoints}
+							cpMarkers={cpMarkers}
+							elevationCalibratedThreshold={elevationCalibratedThreshold}
+							cpAnchorMinKm={tooltipCpAnchorKm}
+							cpAnchorMaxKm={tooltipCpAnchorMaxKm}
+							anchorFallbackDayNumber={tooltipAnchorDayNumber}
+							compactTooltip={compactTooltip}
+							pinned={isPinned}
+							placementStyle={hoverTooltipPlacementStyle}
+							onUnpin={onUnpin}
+							gradientPct={hoveredGradientPct}
+						/>
+					)
 				) : null}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
 				{canDragBoundary && selectedStage && stageEndBoundaryHitLeftPct != null && (
