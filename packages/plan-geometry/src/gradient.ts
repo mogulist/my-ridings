@@ -158,17 +158,20 @@ function classifyClimb(gainM: number, lengthKm: number): ClimbProfile["category"
  * Wahoo Summit 기준에 준하는 클라임을 서밋 위치 기준으로 역탐색.
  * - summitDistanceKm: 서밋의 경로 상 누적 거리(km)
  * - 최대 30km 역방향 탐색, 최저점을 클라임 시작점으로 결정
- * - 유효 기준: 상승고도 ≥ 80m, 길이 ≥ 1km, 평균경사 ≥ 3%
+ * - valley-break: 탐색 중 고도가 현재 최저점보다 50m 이상 올라가면 이전 산군(山群)으로
+ *   진입한 것으로 보고 탐색 중단
+ * - 유효 기준: 상승고도 ≥ 50m, 길이 ≥ 500m, 평균경사 ≥ 2%
  */
 export function detectClimb(
 	summitDistanceKm: number,
 	trackPoints: TrackPoint[],
 ): ClimbProfile | null {
-	const MIN_GAIN_M = 80;
-	const MIN_LENGTH_M = 1000;
-	const MIN_AVG_GRADIENT_PCT = 3.0;
+	const MIN_GAIN_M = 50;
+	const MIN_LENGTH_M = 500;
+	const MIN_AVG_GRADIENT_PCT = 2.0;
 	const MAX_LOOKBACK_M = 30000;
 	const MAX_GRADIENT_WINDOW_M = 500;
+	const VALLEY_BREAK_M = 50;
 
 	const validPts = filterValidPts(trackPoints);
 	if (validPts.length < 2) return null;
@@ -188,6 +191,7 @@ export function detectClimb(
 	const summitPt = validPts[summitIdx];
 
 	// 역방향 탐색: 최저 고도점 찾기
+	// valley-break: 탐색 중 현재 최저점보다 VALLEY_BREAK_M 이상 올라가면 중단
 	let minEle = summitPt.e;
 	let minIdx = summitIdx;
 	for (let i = summitIdx - 1; i >= 0; i--) {
@@ -196,6 +200,8 @@ export function detectClimb(
 		if (pt.e < minEle) {
 			minEle = pt.e;
 			minIdx = i;
+		} else if (pt.e > minEle + VALLEY_BREAK_M) {
+			break;
 		}
 	}
 

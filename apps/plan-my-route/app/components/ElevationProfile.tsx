@@ -800,19 +800,29 @@ function SummitMarkerLabel({
 	const triW = 4;
 	const triH = 6;
 	const labelY = y - 4 - row * LABEL_STAGGER_ROW_HEIGHT_PX;
-	const hitPad = 8;
+	const hitPad = 10;
+	// labelY는 row=0이면 y-4, row>0이면 더 위. 텍스트 상단까지 히트 영역 확장
+	const hitTop = showName ? labelY - 12 : y - hitPad;
+	const hitHeight = showName ? (y + triH + hitPad) - hitTop : triH + hitPad * 2;
 	return (
 		<g
-			onClick={onClick}
+			onMouseDown={
+				onClick
+					? (e) => {
+							e.stopPropagation();
+							onClick();
+						}
+					: undefined
+			}
 			style={onClick ? { cursor: "pointer" } : undefined}
 		>
-			{/* 클릭 히트 영역 확장 */}
+			{/* 클릭 히트 영역 (텍스트+삼각형 전체 커버) */}
 			{onClick && (
 				<rect
-					x={x - triW - hitPad}
-					y={y - hitPad}
-					width={triW * 2 + hitPad * 2}
-					height={triH + hitPad * 2}
+					x={x - Math.max(triW + hitPad, 30)}
+					y={hitTop}
+					width={Math.max(triW + hitPad, 30) * 2}
+					height={hitHeight}
 					fill="transparent"
 				/>
 			)}
@@ -1266,7 +1276,7 @@ export function ElevationProfile({
 		return computeVisibleRange(stages, selectedDayNumber, totalKm);
 	}, [hasStages, selectedDayNumber, stages, totalKm]);
 
-	// 스케줄 탭에서 서밋 포커스 시 자동 줌, 일반 모드에서는 클릭 으로 설정
+	// 스케줄 탭에서 서밋 포커스 시 자동 줌, 일반 모드에서는 클릭으로 설정
 	const effectiveClimbZoomSummitId = useMemo(() => {
 		if (disablePinAndHoverScrub && scheduleMarkerFocus?.kind === "summit") {
 			return scheduleMarkerFocus.id;
@@ -1274,12 +1284,24 @@ export function ElevationProfile({
 		return climbZoomSummitId;
 	}, [disablePinAndHoverScrub, scheduleMarkerFocus, climbZoomSummitId]);
 
+	const focusedSummit = useMemo(
+		() => summitMarkers.find((s) => s.id === effectiveClimbZoomSummitId) ?? null,
+		[effectiveClimbZoomSummitId, summitMarkers],
+	);
+
 	const climbProfile = useMemo(() => {
-		if (!effectiveClimbZoomSummitId) return null;
-		const summit = summitMarkers.find((s) => s.id === effectiveClimbZoomSummitId);
-		if (!summit) return null;
-		return detectClimb(summit.distanceKm, trackPoints);
-	}, [effectiveClimbZoomSummitId, summitMarkers, trackPoints]);
+		if (!focusedSummit) return null;
+		return detectClimb(focusedSummit.distanceKm, trackPoints);
+	}, [focusedSummit, trackPoints]);
+
+	// 클라임 미감지 시에도 서밋 주변 ±2km 줌은 제공
+	const summitFocusZoomRange = useMemo(() => {
+		if (!focusedSummit || climbProfile != null) return null;
+		return {
+			startKm: Math.max(0, focusedSummit.distanceKm - 2),
+			endKm: Math.min(totalKm, focusedSummit.distanceKm + 1),
+		};
+	}, [focusedSummit, climbProfile, totalKm]);
 
 	const boundaryKmForVisibleZoom = useMemo(() => {
 		if (pendingStageEdit) return pendingStageEdit.previewEndKm;
@@ -1321,20 +1343,25 @@ export function ElevationProfile({
 		totalKm,
 	]);
 
-	// 클라임 줌 모드이면 해당 구간으로 오버라이드
+	// 클라임 줌 → 해당 구간으로, 서밋 포커스만 있으면 ±2km로 오버라이드
 	const visibleStart =
 		climbProfile != null
 			? Math.max(0, climbProfile.startDistanceKm - 0.1)
-			: _baseRange.startKm;
+			: summitFocusZoomRange != null
+				? summitFocusZoomRange.startKm
+				: _baseRange.startKm;
 	const visibleEnd =
 		climbProfile != null
 			? Math.min(totalKm, climbProfile.summitDistanceKm + 0.5)
-			: _baseRange.endKm;
+			: summitFocusZoomRange != null
+				? summitFocusZoomRange.endKm
+				: _baseRange.endKm;
 
 	const clippedChartData = useMemo(() => {
-		if (selectedDayNumber == null && climbProfile == null) return rawChartData;
+		if (selectedDayNumber == null && climbProfile == null && summitFocusZoomRange == null)
+			return rawChartData;
 		return rawChartData.filter((d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd);
-	}, [rawChartData, selectedDayNumber, climbProfile, visibleStart, visibleEnd]);
+	}, [rawChartData, selectedDayNumber, climbProfile, summitFocusZoomRange, visibleStart, visibleEnd]);
 
 	const { data: multiStageData, keys: stageKeys } = useMemo(
 		() => buildStageKeys(clippedChartData, stages),
@@ -1588,18 +1615,17 @@ export function ElevationProfile({
 		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
 	);
 	const showStageMarkerNames = selectedDayNumber != null || climbProfile != null;
-	const visibleSummits = showStageMarkerNames
-		? summitMarkers
-				.filter((summit) => summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd)
-				.filter(
-					(summit) =>
-						!visibleCPs.some(
-							(cp) =>
-								Math.abs(cp.trackPointIndex - summit.trackPointIndex) <=
-								CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE,
-						),
-				)
-		: [];
+	// 서밋 마커는 항상 렌더링(클릭 가능하도록). 이름은 스테이지 선택/클라임 줌 시에만.
+	const visibleSummits = summitMarkers
+		.filter((summit) => summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd)
+		.filter(
+			(summit) =>
+				!visibleCPs.some(
+					(cp) =>
+						Math.abs(cp.trackPointIndex - summit.trackPointIndex) <=
+						CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE,
+				),
+		);
 
 	// 클라임 줌 시 Area fill에 사용할 경사도 그라디언트 stops
 	const climbGradientFillStops = useMemo(() => {
