@@ -1232,7 +1232,7 @@ function GradientStrip({
 	const span = visibleEnd - visibleStart;
 	if (span <= 0 || segments.length === 0) return null;
 	return (
-		<div className="relative h-[10px] overflow-hidden rounded-[2px]">
+		<div className="relative h-[6px] overflow-hidden rounded-[3px]">
 			{segments.map((seg, i) => {
 				const startPct = Math.max(0, ((seg.startKm - visibleStart) / span) * 100);
 				const endPct = Math.min(100, ((seg.endKm - visibleStart) / span) * 100);
@@ -2180,13 +2180,7 @@ export function ElevationProfile({
 						? "relative w-full shrink-0 overflow-visible"
 						: "relative min-h-0 flex-1 overflow-visible"
 				}
-				style={{
-					...(chartHeightPx != null ? { height: chartHeightPx } : undefined),
-					// 경사도 스트립 공간 확보: SVG를 10px 줄이고 스트립이 그 자리를 채움
-					...(gradientSegments.length > 0 && climbProfile == null
-						? { paddingBottom: 10 }
-						: undefined),
-				}}
+				style={chartHeightPx != null ? { height: chartHeightPx } : undefined}
 			>
 				{pendingStageEdit != null && (
 					<div className="pointer-events-none absolute inset-0 z-30">
@@ -2553,6 +2547,7 @@ export function ElevationProfile({
 							pinned={isPinned}
 							placementStyle={hoverTooltipPlacementStyle}
 							onUnpin={onUnpin}
+							gradientPct={hoveredGradientPct}
 						/>
 					)
 				) : null}
@@ -2662,14 +2657,12 @@ export function ElevationProfile({
 					</>
 				)}
 			</div>
-			{/* 경사도 컬러 스트립 — X축 위에 절대 위치로 오버레이 */}
+			{/* 경사도 컬러 스트립 — 클라임 줌에서는 차트 fill이 대신하므로 숨김 */}
 			{gradientSegments.length > 0 && chartBoxWidth > 0 && climbProfile == null && (
 				<div
-					className="pointer-events-none absolute bottom-0 z-[1]"
 					style={{
-						left: elevationYAxisReservedWidth(tightFixedHeightChart, compactYAxis),
-						right: effectiveChartMargin.right,
-						height: 10,
+						paddingLeft: elevationYAxisReservedWidth(tightFixedHeightChart, compactYAxis),
+						paddingRight: effectiveChartMargin.right,
 					}}
 				>
 					<GradientStrip
