@@ -1488,10 +1488,35 @@ export function ElevationProfile({
 				: _baseRange.endKm;
 
 	const clippedChartData = useMemo(() => {
-		if (selectedDayNumber == null && climbProfile == null && summitFocusZoomRange == null)
-			return rawChartData;
+		if (climbProfile != null || summitFocusZoomRange != null) {
+			// 클라임 줌: 원본 트랙포인트를 다운샘플링 없이 사용해 호버 해상도 확보
+			const filteredPts = trackPoints.filter(
+				(p) =>
+					p.e != null &&
+					p.d != null &&
+					(p.d as number) / 1000 >= visibleStart - 0.05 &&
+					(p.d as number) / 1000 <= visibleEnd + 0.05,
+			);
+			return buildChartData(
+				filteredPts,
+				stages,
+				elevationCalibratedThreshold,
+				Number.POSITIVE_INFINITY,
+			);
+		}
+		if (selectedDayNumber == null) return rawChartData;
 		return rawChartData.filter((d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd);
-	}, [rawChartData, selectedDayNumber, climbProfile, summitFocusZoomRange, visibleStart, visibleEnd]);
+	}, [
+		rawChartData,
+		trackPoints,
+		stages,
+		elevationCalibratedThreshold,
+		selectedDayNumber,
+		climbProfile,
+		summitFocusZoomRange,
+		visibleStart,
+		visibleEnd,
+	]);
 
 	const { data: multiStageData, keys: stageKeys } = useMemo(
 		() => buildStageKeys(clippedChartData, stages),
@@ -1721,12 +1746,12 @@ export function ElevationProfile({
 	}, [selectedDayNumber]);
 
 	const currentChartDatum = useMemo(() => {
-		if (positionIndex == null || rawChartData.length === 0) return null;
-		return rawChartData.reduce<ChartDatum | null>((best, d) => {
+		if (positionIndex == null || clippedChartData.length === 0) return null;
+		return clippedChartData.reduce<ChartDatum | null>((best, d) => {
 			if (!best) return d;
 			return Math.abs(d.index - positionIndex) < Math.abs(best.index - positionIndex) ? d : best;
 		}, null);
-	}, [positionIndex, rawChartData]);
+	}, [positionIndex, clippedChartData]);
 
 	const stageEndBoundaryMenuPosition = useMemo(() => {
 		if (stageEndBoundaryMenuAnchor == null) return null;
