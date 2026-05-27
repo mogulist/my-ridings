@@ -22,15 +22,15 @@ export type ClimbProfile = {
 /** 클라임 시작점 감지 방식 */
 export type ClimbStartMode = "full" | "sustained" | "steep";
 
-// ── Wahoo Summit 색상 기준 ───────────────────────────────────────
+// ── Wahoo 공식 기준 색상 (ELEMNT ACE/BOLT3/ROAM3) ─────────────────
+// 0–3.9% green, 4–7.9% yellow, 8–11.9% orange, 12–19.9% maroon, 20%+ darkRed
 
 const GRADIENT_ZONES: { max: number; color: string }[] = [
-	{ max: 3, color: "#9CA3AF" }, // gray  — 0–3%
-	{ max: 5, color: "#EAB308" }, // yellow — 3–5%
-	{ max: 8, color: "#F97316" }, // orange — 5–8%
-	{ max: 10, color: "#EA580C" }, // dark-orange — 8–10%
-	{ max: 15, color: "#EF4444" }, // red — 10–15%
-	{ max: Infinity, color: "#A855F7" }, // purple — 15%+
+	{ max: 4,        color: "#4ADE80" }, // green  — 0–3.9%
+	{ max: 8,        color: "#FACC15" }, // yellow — 4–7.9%
+	{ max: 12,       color: "#F97316" }, // orange — 8–11.9%
+	{ max: 20,       color: "#9B1C1C" }, // maroon — 12–19.9%
+	{ max: Infinity, color: "#7F1D1D" }, // darkRed — 20%+
 ];
 
 export function getGradientColor(pct: number): string {
@@ -38,7 +38,7 @@ export function getGradientColor(pct: number): string {
 	for (const zone of GRADIENT_ZONES) {
 		if (pct < zone.max) return zone.color;
 	}
-	return "#A855F7";
+	return "#7F1D1D";
 }
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────────────
@@ -170,8 +170,8 @@ export function detectClimb(
 	startMode: ClimbStartMode = "full",
 ): ClimbProfile | null {
 	const MIN_GAIN_M = 50;
-	const MIN_LENGTH_M = 500;
-	const MIN_AVG_GRADIENT_PCT = 2.0;
+	const MIN_LENGTH_M = 250;    // Wahoo 공식 최소 250m
+	const MIN_AVG_GRADIENT_PCT = 3.0; // Wahoo 공식 최소 3%
 	const MAX_LOOKBACK_M = 30000;
 	const MAX_GRADIENT_WINDOW_M = 500;
 	const VALLEY_BREAK_M = 50;
