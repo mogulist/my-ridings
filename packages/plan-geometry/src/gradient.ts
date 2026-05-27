@@ -19,6 +19,9 @@ export type ClimbProfile = {
 	category: "HC" | "1" | "2" | "3" | "4" | null;
 };
 
+/** 클라임 시작점 감지 방식 */
+export type ClimbStartMode = "full" | "sustained" | "steep";
+
 // ── Wahoo Summit 색상 기준 ───────────────────────────────────────
 
 const GRADIENT_ZONES: { max: number; color: string }[] = [
@@ -156,15 +159,15 @@ function classifyClimb(gainM: number, lengthKm: number): ClimbProfile["category"
 
 /**
  * Wahoo Summit 기준에 준하는 클라임을 서밋 위치 기준으로 역탐색.
- * - summitDistanceKm: 서밋의 경로 상 누적 거리(km)
- * - 최대 30km 역방향 탐색, 최저점을 클라임 시작점으로 결정
- * - valley-break: 탐색 중 고도가 현재 최저점보다 50m 이상 올라가면 이전 산군(山群)으로
- *   진입한 것으로 보고 탐색 중단
- * - 유효 기준: 상승고도 ≥ 50m, 길이 ≥ 500m, 평균경사 ≥ 2%
+ * - startMode:
+ *   "full"      — valley-break 내 최저점 (현재 기본, 접근 구간 포함)
+ *   "sustained" — 서밋까지 평균경사 ≥ 5% 인 가장 먼 시작점
+ *   "steep"     — 서밋까지 평균경사 ≥ 7% 인 가장 먼 시작점 (Wahoo 유사)
  */
 export function detectClimb(
 	summitDistanceKm: number,
 	trackPoints: TrackPoint[],
+	startMode: ClimbStartMode = "full",
 ): ClimbProfile | null {
 	const MIN_GAIN_M = 50;
 	const MIN_LENGTH_M = 500;
@@ -190,18 +193,37 @@ export function detectClimb(
 	}
 	const summitPt = validPts[summitIdx];
 
-	// 역방향 탐색: 최저 고도점 찾기
-	// valley-break: 탐색 중 현재 최저점보다 VALLEY_BREAK_M 이상 올라가면 중단
-	let minEle = summitPt.e;
-	let minIdx = summitIdx;
-	for (let i = summitIdx - 1; i >= 0; i--) {
-		const pt = validPts[i];
-		if (summitPt.d - pt.d > MAX_LOOKBACK_M) break;
-		if (pt.e < minEle) {
-			minEle = pt.e;
-			minIdx = i;
-		} else if (pt.e > minEle + VALLEY_BREAK_M) {
-			break;
+	// 역방향 탐색: valley-break 공통 적용
+	let searchMinEle = summitPt.e;
+	let minIdx = summitIdx; // "full" 모드의 최저점 인덱스
+
+	if (startMode === "full") {
+		for (let i = summitIdx - 1; i >= 0; i--) {
+			const pt = validPts[i];
+			if (summitPt.d - pt.d > MAX_LOOKBACK_M) break;
+			if (pt.e < searchMinEle) {
+				searchMinEle = pt.e;
+				minIdx = i;
+			} else if (pt.e > searchMinEle + VALLEY_BREAK_M) {
+				break;
+			}
+		}
+	} else {
+		// "sustained" | "steep": 서밋까지 평균경사 threshold 기반
+		const avgGradThreshold = startMode === "steep" ? 7.0 : 5.0;
+		for (let i = summitIdx - 1; i >= 0; i--) {
+			const pt = validPts[i];
+			if (summitPt.d - pt.d > MAX_LOOKBACK_M) break;
+			if (pt.e < searchMinEle) {
+				searchMinEle = pt.e;
+			} else if (pt.e > searchMinEle + VALLEY_BREAK_M) {
+				break;
+			}
+			const dist = summitPt.d - pt.d;
+			const gain = summitPt.e - pt.e;
+			if (dist > 0 && gain > 0 && (gain / dist) * 100 >= avgGradThreshold) {
+				minIdx = i;
+			}
 		}
 	}
 
