@@ -1232,7 +1232,7 @@ function GradientStrip({
 	const span = visibleEnd - visibleStart;
 	if (span <= 0 || segments.length === 0) return null;
 	return (
-		<div className="relative h-[6px] overflow-hidden rounded-[3px]">
+		<div className="relative h-2 overflow-hidden rounded-sm">
 			{segments.map((seg, i) => {
 				const startPct = Math.max(0, ((seg.startKm - visibleStart) / span) * 100);
 				const endPct = Math.min(100, ((seg.endKm - visibleStart) / span) * 100);
@@ -2547,7 +2547,6 @@ export function ElevationProfile({
 							pinned={isPinned}
 							placementStyle={hoverTooltipPlacementStyle}
 							onUnpin={onUnpin}
-							gradientPct={hoveredGradientPct}
 						/>
 					)
 				) : null}
@@ -2656,22 +2655,23 @@ export function ElevationProfile({
 						)}
 					</>
 				)}
+				{/* 경사도 컬러 스트립 — X축 위에 오버레이, 클라임 줌에서는 숨김 */}
+				{gradientSegments.length > 0 && climbProfile == null && (
+					<div
+						className="pointer-events-none absolute bottom-0 z-[1]"
+						style={{
+							left: elevationYAxisReservedWidth(tightFixedHeightChart, compactYAxis),
+							right: effectiveChartMargin.right,
+						}}
+					>
+						<GradientStrip
+							segments={gradientSegments}
+							visibleStart={visibleStart}
+							visibleEnd={visibleEnd}
+						/>
+					</div>
+				)}
 			</div>
-			{/* 경사도 컬러 스트립 — 클라임 줌에서는 차트 fill이 대신하므로 숨김 */}
-			{gradientSegments.length > 0 && chartBoxWidth > 0 && climbProfile == null && (
-				<div
-					style={{
-						paddingLeft: elevationYAxisReservedWidth(tightFixedHeightChart, compactYAxis),
-						paddingRight: effectiveChartMargin.right,
-					}}
-				>
-					<GradientStrip
-						segments={gradientSegments}
-						visibleStart={visibleStart}
-						visibleEnd={visibleEnd}
-					/>
-				</div>
-			)}
 		</div>
 	);
 }
