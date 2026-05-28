@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@my-ridings/ui";
+import { cn, ToggleGroup, ToggleGroupItem } from "@my-ridings/ui";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -10,11 +10,21 @@ import {
 	ReferenceDot,
 	ReferenceLine,
 	ResponsiveContainer,
+	usePlotArea,
 	XAxis,
 	YAxis,
 } from "recharts";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
-import { computeElevationGainCurve, computeTrackElevationGainLoss } from "@my-ridings/plan-geometry";
+import {
+	computeElevationGainCurve,
+	computeTrackElevationGainLoss,
+	computeGradientSegments,
+	detectClimb,
+	DOWNHILL_COLOR,
+	getGradientColor,
+	lookupGradientAtKm,
+} from "@my-ridings/plan-geometry";
+import type { GradientSegment, ClimbProfile, ClimbStartMode } from "@my-ridings/plan-geometry";
 import type { PendingStageEdit } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
@@ -779,19 +789,45 @@ function SummitMarkerLabel({
 	showName,
 	name,
 	row = 0,
+	onClick,
 }: {
 	viewBox?: { x?: number; y?: number };
 	showName: boolean;
 	name: string;
 	row?: LabelRow;
+	onClick?: () => void;
 }) {
 	if (viewBox?.x == null || viewBox?.y == null) return null;
 	const { x, y } = viewBox;
 	const triW = 4;
 	const triH = 6;
 	const labelY = y - 4 - row * LABEL_STAGGER_ROW_HEIGHT_PX;
+	const hitPad = 10;
+	// labelY는 row=0이면 y-4, row>0이면 더 위. 텍스트 상단까지 히트 영역 확장
+	const hitTop = showName ? labelY - 12 : y - hitPad;
+	const hitHeight = showName ? (y + triH + hitPad) - hitTop : triH + hitPad * 2;
 	return (
-		<g>
+		<g
+			onMouseDown={
+				onClick
+					? (e) => {
+							e.stopPropagation();
+							onClick();
+						}
+					: undefined
+			}
+			style={onClick ? { cursor: "pointer" } : undefined}
+		>
+			{/* 클릭 히트 영역 (텍스트+삼각형 전체 커버) */}
+			{onClick && (
+				<rect
+					x={x - Math.max(triW + hitPad, 30)}
+					y={hitTop}
+					width={Math.max(triW + hitPad, 30) * 2}
+					height={hitHeight}
+					fill="transparent"
+				/>
+			)}
 			<polygon
 				points={`${x - triW},${y + triH} ${x + triW},${y + triH} ${x},${y}`}
 				fill={SUMMIT_COLOR}
@@ -905,6 +941,7 @@ type ElevationHoverTooltipProps = {
 	pinned: boolean;
 	placementStyle: CSSProperties;
 	onUnpin?: () => void;
+	gradientPct?: number | null;
 };
 
 function ElevationHoverTooltip({
@@ -919,6 +956,7 @@ function ElevationHoverTooltip({
 	pinned,
 	placementStyle,
 	onUnpin,
+	gradientPct,
 }: ElevationHoverTooltipProps) {
 	const km = datum.distanceKm;
 	const ele = datum.ele;
@@ -973,6 +1011,15 @@ function ElevationHoverTooltip({
 					{km.toFixed(1)} km · △ {ele} m
 				</span>
 			</span>
+			{gradientPct != null && (
+				<span className={cn(rowClass, blockY)} style={{ color: getGradientColor(gradientPct) }}>
+					<span className="shrink-0">경사도</span>
+					<span className={valueClass}>
+						{gradientPct > 0 ? "+" : ""}
+						{gradientPct.toFixed(1)}%
+					</span>
+				</span>
+			)}
 			{hasStageStats && (
 				<span className={cn(rowClass, stageTextClass, blockY)}>
 					<span className="shrink-0">스테이지</span>
@@ -1043,6 +1090,292 @@ function ElevationHoverTooltip({
 	);
 }
 
+// ── 클라임 줌 전용 호버 툴팁 ─────────────────────────────────────────
+
+type ClimbHoverTooltipProps = {
+	datum: ChartDatum;
+	climbProfile: ClimbProfile;
+	trackPoints: TrackPoint[];
+	elevationCalibratedThreshold?: number;
+	compactTooltip: boolean;
+	pinned: boolean;
+	placementStyle: CSSProperties;
+	onUnpin?: () => void;
+	gradientPct?: number | null;
+};
+
+function ClimbHoverTooltip({
+	datum,
+	climbProfile,
+	trackPoints,
+	elevationCalibratedThreshold,
+	compactTooltip,
+	pinned,
+	placementStyle,
+	onUnpin,
+	gradientPct,
+}: ClimbHoverTooltipProps) {
+	const km = datum.distanceKm;
+	const ele = datum.ele;
+
+	const doneKm = Math.max(0, km - climbProfile.startDistanceKm);
+	const remainKm = Math.max(0, climbProfile.summitDistanceKm - km);
+
+	const doneGainM =
+		trackPoints.length > 0
+			? computeSegmentGainBetweenKm(
+					trackPoints,
+					climbProfile.startDistanceKm,
+					km,
+					elevationCalibratedThreshold,
+				)
+			: null;
+	const remainGainM =
+		trackPoints.length > 0 && remainKm > 0
+			? computeSegmentGainBetweenKm(
+					trackPoints,
+					km,
+					climbProfile.summitDistanceKm,
+					elevationCalibratedThreshold,
+				)
+			: null;
+
+	const rowGap = compactTooltip ? "gap-3" : "gap-4";
+	const rowClass = cn("flex flex-nowrap justify-between whitespace-nowrap", rowGap);
+	const valueClass = "shrink-0 tabular-nums";
+	const blockY = compactTooltip ? "mt-0.5" : "mt-1";
+
+	const panelClass = pinned
+		? "rounded-lg border border-orange-300 bg-white shadow-lg dark:border-orange-600 dark:bg-zinc-800"
+		: ELEVATION_CHART_TOOLTIP_PANEL_CLASS;
+	const titleTextClass = pinned ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-100";
+	const segTextClass = pinned ? "text-emerald-700 dark:text-emerald-400" : "text-emerald-400";
+	const hintTextClass = pinned ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-400";
+
+	const body = (
+		<>
+			{gradientPct != null && (
+				<span className={cn(rowClass, "font-semibold", titleTextClass)}>
+					<span className="shrink-0">{pinned ? "📌 경사도" : "경사도"}</span>
+					<span className={valueClass}>
+						{gradientPct > 0 ? "+" : ""}
+						{gradientPct.toFixed(1)}%
+					</span>
+				</span>
+			)}
+			<span className={cn("flex flex-col space-y-0.5", gradientPct != null ? cn("border-t border-white/10", blockY, compactTooltip ? "pt-0.5" : "pt-1") : "")}>
+				<span className={cn(rowClass, segTextClass)}>
+					<span className="shrink-0">클라임 시작부터</span>
+					<span className={valueClass}>
+						+{doneKm.toFixed(1)} km{doneGainM != null ? ` · ▲ ${doneGainM} m` : ""}
+					</span>
+				</span>
+				{remainKm > 0 && (
+					<span className={cn(rowClass, segTextClass)}>
+						<span className="shrink-0">정상까지</span>
+						<span className={valueClass}>
+							{remainKm.toFixed(1)} km{remainGainM != null ? ` · ▲ ${remainGainM} m` : ""}
+						</span>
+					</span>
+				)}
+			</span>
+			{pinned && (
+				<span className={cn("block text-center", hintTextClass, blockY)}>클릭하여 해제</span>
+			)}
+		</>
+	);
+
+	const sizeClass = compactTooltip
+		? "box-border w-max max-w-[min(280px,calc(100%-12px))] shrink-0 min-w-[168px] px-2 py-1.5 text-[10px] leading-snug"
+		: "box-border w-max shrink-0 min-w-[200px] px-3 py-2 text-xs";
+
+	if (pinned) {
+		return (
+			<button
+				type="button"
+				aria-label="고정 툴팁 해제"
+				className={cn(
+					"pointer-events-auto absolute z-20 cursor-pointer text-left font-normal",
+					panelClass,
+					sizeClass,
+				)}
+				style={placementStyle}
+				onClick={(e) => {
+					e.stopPropagation();
+					onUnpin?.();
+				}}
+			>
+				{body}
+			</button>
+		);
+	}
+
+	return (
+		<div
+			className={cn("pointer-events-none absolute z-20", panelClass, sizeClass)}
+			style={placementStyle}
+		>
+			{body}
+		</div>
+	);
+}
+
+
+
+// ── 경사도 컬러 스트립 (SVG 오버레이) ──────────────────────────────
+// AreaChart 자식으로 렌더링 → usePlotArea()로 플롯 영역 픽셀 좌표를 얻어 X축 0선 바로 아래에 그림
+
+const GRADIENT_STRIP_HEIGHT = 8;
+const GRADIENT_STRIP_TOP_GAP = 1; // 0선과 스트립 사이 간격(px)
+
+function GradientStripSvgOverlay({
+	segments,
+	visibleStart,
+	visibleEnd,
+}: {
+	segments: GradientSegment[];
+	visibleStart: number;
+	visibleEnd: number;
+}) {
+	const plotArea = usePlotArea();
+	const span = visibleEnd - visibleStart;
+	if (!plotArea || span <= 0 || plotArea.width <= 0) return null;
+	const { x, y, width, height } = plotArea;
+	// 플롯 영역 하단(0선) 바로 아래에 배치
+	const stripY = y + height + GRADIENT_STRIP_TOP_GAP;
+	return (
+		<g>
+			<defs>
+				<clipPath id="gradientStripClip">
+					<rect x={x} y={stripY} width={width} height={GRADIENT_STRIP_HEIGHT} rx={3} />
+				</clipPath>
+			</defs>
+			<g clipPath="url(#gradientStripClip)">
+				{segments.map((seg, i) => {
+					// 내리막(회색) 구간은 렌더링하지 않고 비워둠
+					if (seg.color === DOWNHILL_COLOR) return null;
+					const startFrac = Math.max(0, (seg.startKm - visibleStart) / span);
+					const endFrac = Math.min(1, (seg.endKm - visibleStart) / span);
+					if (endFrac <= startFrac) return null;
+					return (
+						<rect
+							key={i}
+							x={x + startFrac * width}
+							y={stripY}
+							width={(endFrac - startFrac) * width}
+							height={GRADIENT_STRIP_HEIGHT}
+							fill={seg.color}
+						/>
+					);
+				})}
+			</g>
+		</g>
+	);
+}
+
+// ── 클라임 카드 ────────────────────────────────────────────────────
+
+const CLIMB_CATEGORY_STYLE: Record<
+	string,
+	{ bg: string; text: string }
+> = {
+	HC: { bg: "bg-red-500", text: "text-white" },
+	"1": { bg: "bg-orange-500", text: "text-white" },
+	"2": { bg: "bg-amber-500", text: "text-white" },
+	"3": { bg: "bg-yellow-400", text: "text-zinc-800" },
+	"4": { bg: "bg-zinc-300 dark:bg-zinc-600", text: "text-zinc-700 dark:text-zinc-200" },
+};
+
+function ClimbCard({
+	summitName,
+	profile,
+	onDismiss,
+	climbRange,
+	onClimbRangeChange,
+}: {
+	summitName: string;
+	profile: ClimbProfile;
+	onDismiss?: () => void;
+	climbRange: ClimbStartMode;
+	onClimbRangeChange: (v: ClimbStartMode) => void;
+}) {
+	const catStyle = profile.category ? CLIMB_CATEGORY_STYLE[profile.category] : null;
+	return (
+		<div className="flex min-w-0 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs shadow-sm dark:border-zinc-700 dark:bg-zinc-800/80">
+			{onDismiss && (
+				<button
+					type="button"
+					onClick={onDismiss}
+					className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+					aria-label="전체 보기"
+				>
+					<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+						<path
+							d="M9 2L4 7l5 5"
+							stroke="currentColor"
+							strokeWidth="1.8"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+					</svg>
+				</button>
+			)}
+			<span className="shrink-0 font-medium text-zinc-800 dark:text-zinc-100">{summitName}</span>
+			{catStyle && profile.category && (
+				<span
+					className={cn(
+						"shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none",
+						catStyle.bg,
+						catStyle.text,
+					)}
+				>
+					{profile.category === "HC" ? "HC" : `Cat ${profile.category}`}
+				</span>
+			)}
+			{/* 범위 토글: 배지 바로 오른쪽 */}
+			<ToggleGroup
+				type="single"
+				value={climbRange}
+				onValueChange={(v) => {
+					if (v) onClimbRangeChange(v as ClimbStartMode);
+				}}
+				className="shrink-0 gap-0 rounded-md border border-zinc-200 p-0.5 dark:border-zinc-600"
+			>
+				{(["full", "sustained", "steep"] as const).map((v) => (
+					<ToggleGroupItem
+						key={v}
+						value={v}
+						size="sm"
+						className={cn(
+							"h-5 rounded px-2 py-0 text-[10px] font-medium capitalize",
+							"text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200",
+							"data-[state=on]:bg-zinc-800 data-[state=on]:text-white dark:data-[state=on]:bg-zinc-200 dark:data-[state=on]:text-zinc-900",
+						)}
+					>
+						{v.charAt(0).toUpperCase() + v.slice(1)}
+					</ToggleGroupItem>
+				))}
+			</ToggleGroup>
+			<div className="ml-auto flex shrink-0 items-center gap-3 text-zinc-500 dark:text-zinc-400">
+				<span className="tabular-nums">{profile.lengthKm.toFixed(1)} km</span>
+				<span className="tabular-nums">↑{profile.gainM} m</span>
+				<span className="tabular-nums">
+					avg{" "}
+					<span style={{ color: getGradientColor(profile.avgGradientPct) }}>
+						{profile.avgGradientPct.toFixed(1)}%
+					</span>
+				</span>
+				<span className="tabular-nums">
+					max{" "}
+					<span style={{ color: getGradientColor(profile.maxGradientPct) }}>
+						{profile.maxGradientPct.toFixed(1)}%
+					</span>
+				</span>
+			</div>
+		</div>
+	);
+}
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────
 export function ElevationProfile({
 	trackPoints,
@@ -1083,6 +1416,8 @@ export function ElevationProfile({
 	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
 	const [isHoveringStageEndBoundary, setIsHoveringStageEndBoundary] = useState(false);
+	const [climbZoomSummitId, setClimbZoomSummitId] = useState<string | null>(null);
+	const [climbRange, setClimbRange] = useState<ClimbStartMode>("full");
 	const [stageEndBoundaryMenuAnchor, setStageEndBoundaryMenuAnchor] = useState<{
 		leftPx: number;
 		topPx: number;
@@ -1110,10 +1445,45 @@ export function ElevationProfile({
 	const hasStages = stages.length > 0;
 	const totalKm = rawChartData.length > 0 ? rawChartData[rawChartData.length - 1].distanceKm : 0;
 
+	const gradientSegments = useMemo(
+		() => computeGradientSegments(trackPoints),
+		[trackPoints],
+	);
+
 	const computedVisibleRange = useMemo(() => {
 		if (!hasStages || selectedDayNumber == null) return { startKm: 0, endKm: totalKm };
 		return computeVisibleRange(stages, selectedDayNumber, totalKm);
 	}, [hasStages, selectedDayNumber, stages, totalKm]);
+
+	// 스케줄 탭에서 서밋 포커스 시 자동 줌, 일반 모드에서는 클릭으로 설정
+	const effectiveClimbZoomSummitId = useMemo(() => {
+		if (disablePinAndHoverScrub && scheduleMarkerFocus?.kind === "summit") {
+			return scheduleMarkerFocus.id;
+		}
+		return climbZoomSummitId;
+	}, [disablePinAndHoverScrub, scheduleMarkerFocus, climbZoomSummitId]);
+
+	const focusedSummit = useMemo(
+		() => summitMarkers.find((s) => s.id === effectiveClimbZoomSummitId) ?? null,
+		[effectiveClimbZoomSummitId, summitMarkers],
+	);
+
+	const climbProfile = useMemo(() => {
+		if (!focusedSummit) return null;
+		return detectClimb(focusedSummit.distanceKm, trackPoints, climbRange);
+	}, [focusedSummit, trackPoints, climbRange]);
+
+	// 경사도 스트립은 클라임 줌이 아닐 때만 X축 0선 아래에 표시
+	const showGradientStrip = gradientSegments.length > 0 && climbProfile == null;
+
+	// 클라임 미감지 시에도 서밋 주변 ±2km 줌은 제공
+	const summitFocusZoomRange = useMemo(() => {
+		if (!focusedSummit || climbProfile != null) return null;
+		return {
+			startKm: Math.max(0, focusedSummit.distanceKm - 2),
+			endKm: Math.min(totalKm, focusedSummit.distanceKm + 1),
+		};
+	}, [focusedSummit, climbProfile, totalKm]);
 
 	const boundaryKmForVisibleZoom = useMemo(() => {
 		if (pendingStageEdit) return pendingStageEdit.previewEndKm;
@@ -1124,7 +1494,7 @@ export function ElevationProfile({
 		return 0;
 	}, [pendingStageEdit, hasStages, selectedDayNumber, stages]);
 
-	const { startKm: visibleStart, endKm: visibleEnd } = useMemo(() => {
+	const _baseRange = useMemo(() => {
 		if (!pendingStageEdit) {
 			frozenVisibleRangeRef.current = null;
 			if (stageEndBoundaryChartEditMode && totalKm > 0) {
@@ -1155,10 +1525,50 @@ export function ElevationProfile({
 		totalKm,
 	]);
 
+	// 클라임 줌 → 해당 구간으로, 서밋 포커스만 있으면 ±2km로 오버라이드
+	const visibleStart =
+		climbProfile != null
+			? Math.max(0, climbProfile.startDistanceKm - 0.1)
+			: summitFocusZoomRange != null
+				? summitFocusZoomRange.startKm
+				: _baseRange.startKm;
+	const visibleEnd =
+		climbProfile != null
+			? Math.min(totalKm, climbProfile.summitDistanceKm + 0.5)
+			: summitFocusZoomRange != null
+				? summitFocusZoomRange.endKm
+				: _baseRange.endKm;
+
 	const clippedChartData = useMemo(() => {
+		if (climbProfile != null || summitFocusZoomRange != null) {
+			// 클라임 줌: 원본 트랙포인트를 다운샘플링 없이 사용해 호버 해상도 확보
+			const filteredPts = trackPoints.filter(
+				(p) =>
+					p.e != null &&
+					p.d != null &&
+					(p.d as number) / 1000 >= visibleStart - 0.05 &&
+					(p.d as number) / 1000 <= visibleEnd + 0.05,
+			);
+			return buildChartData(
+				filteredPts,
+				stages,
+				elevationCalibratedThreshold,
+				Number.POSITIVE_INFINITY,
+			);
+		}
 		if (selectedDayNumber == null) return rawChartData;
 		return rawChartData.filter((d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd);
-	}, [rawChartData, selectedDayNumber, visibleStart, visibleEnd]);
+	}, [
+		rawChartData,
+		trackPoints,
+		stages,
+		elevationCalibratedThreshold,
+		selectedDayNumber,
+		climbProfile,
+		summitFocusZoomRange,
+		visibleStart,
+		visibleEnd,
+	]);
 
 	const { data: multiStageData, keys: stageKeys } = useMemo(
 		() => buildStageKeys(clippedChartData, stages),
@@ -1263,6 +1673,16 @@ export function ElevationProfile({
 		setPinnedAnchorXPx(scrubAnchorXPxRef.current);
 		onPin(lastHoverIndexRef.current);
 	}, [isPinned, onPin, onUnpin, chartInteractionDisabled]);
+
+	const handleSummitClick = useCallback(
+		(summitId: string) => {
+			setClimbZoomSummitId((prev) => {
+				if (prev !== summitId) setClimbRange("full");
+				return prev === summitId ? null : summitId;
+			});
+		},
+		[],
+	);
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
@@ -1375,13 +1795,18 @@ export function ElevationProfile({
 		if (!pendingStageEdit) endBoundaryWindowDrag();
 	}, [pendingStageEdit, endBoundaryWindowDrag]);
 
+	// 스테이지 선택 변경 시 클라임 줌 초기화
+	useEffect(() => {
+		setClimbZoomSummitId(null);
+	}, [selectedDayNumber]);
+
 	const currentChartDatum = useMemo(() => {
-		if (positionIndex == null || rawChartData.length === 0) return null;
-		return rawChartData.reduce<ChartDatum | null>((best, d) => {
+		if (positionIndex == null || clippedChartData.length === 0) return null;
+		return clippedChartData.reduce<ChartDatum | null>((best, d) => {
 			if (!best) return d;
 			return Math.abs(d.index - positionIndex) < Math.abs(best.index - positionIndex) ? d : best;
 		}, null);
-	}, [positionIndex, rawChartData]);
+	}, [positionIndex, clippedChartData]);
 
 	const stageEndBoundaryMenuPosition = useMemo(() => {
 		if (stageEndBoundaryMenuAnchor == null) return null;
@@ -1399,19 +1824,42 @@ export function ElevationProfile({
 	const visibleCPs = cpMarkers.filter(
 		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
 	);
-	const showStageMarkerNames = selectedDayNumber != null;
-	const visibleSummits = showStageMarkerNames
-		? summitMarkers
-				.filter((summit) => summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd)
-				.filter(
-					(summit) =>
-						!visibleCPs.some(
-							(cp) =>
-								Math.abs(cp.trackPointIndex - summit.trackPointIndex) <=
-								CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE,
-						),
-				)
-		: [];
+	const showStageMarkerNames = selectedDayNumber != null || climbProfile != null;
+	// 서밋 마커는 항상 렌더링(클릭 가능하도록). 이름은 스테이지 선택/클라임 줌 시에만.
+	const visibleSummits = summitMarkers
+		.filter((summit) => summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd)
+		.filter(
+			(summit) =>
+				!visibleCPs.some(
+					(cp) =>
+						Math.abs(cp.trackPointIndex - summit.trackPointIndex) <=
+						CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE,
+				),
+		);
+
+	// 클라임 줌 시 Area fill에 사용할 경사도 그라디언트 stops
+	const climbGradientFillStops = useMemo(() => {
+		if (!climbProfile || gradientSegments.length === 0) return null;
+		const span = visibleEnd - visibleStart;
+		if (span <= 0) return null;
+		const stops: { offset: number; color: string }[] = [];
+		for (const seg of gradientSegments) {
+			if (seg.endKm <= visibleStart || seg.startKm >= visibleEnd) continue;
+			const startOffset = Math.max(0, (seg.startKm - visibleStart) / span);
+			const endOffset = Math.min(1, (seg.endKm - visibleStart) / span);
+			if (stops.length === 0 || stops[stops.length - 1].color !== seg.color) {
+				stops.push({ offset: startOffset, color: seg.color });
+			}
+			stops.push({ offset: endOffset, color: seg.color });
+		}
+		return stops.length > 0 ? stops : null;
+	}, [climbProfile, gradientSegments, visibleStart, visibleEnd]);
+
+	// 현재 호버 위치의 경사도
+	const hoveredGradientPct = useMemo(() => {
+		if (!currentChartDatum) return null;
+		return lookupGradientAtKm(gradientSegments, currentChartDatum.distanceKm);
+	}, [currentChartDatum, gradientSegments]);
 	const useSingleScheduleLabel =
 		Boolean(singleScheduleMarkerLabel) && showStageMarkerNames && scheduleMarkerFocus != null;
 
@@ -1732,6 +2180,21 @@ export function ElevationProfile({
 				</div>
 			)}
 
+			{/* 클라임 카드 */}
+			{climbProfile && (
+				<ClimbCard
+					summitName={
+						summitMarkers.find((s) => s.id === effectiveClimbZoomSummitId)?.name ?? "고개"
+					}
+					profile={climbProfile}
+					onDismiss={
+						!disablePinAndHoverScrub ? () => setClimbZoomSummitId(null) : undefined
+					}
+					climbRange={climbRange}
+					onClimbRangeChange={setClimbRange}
+				/>
+			)}
+
 			{/* 차트 */}
 			<div
 				ref={chartContainerRef}
@@ -1796,6 +2259,26 @@ export function ElevationProfile({
 								<stop offset="5%" stopColor={UNPLANNED_COLOR.stroke} stopOpacity={0.2} />
 								<stop offset="95%" stopColor={UNPLANNED_COLOR.stroke} stopOpacity={0.02} />
 							</linearGradient>
+							{/* 클라임 줌: 경사도별 수평 컬러 그라디언트 */}
+							{climbGradientFillStops && (
+								<linearGradient
+									id="climbGradientFill"
+									x1="0"
+									y1="0"
+									x2="1"
+									y2="0"
+									gradientUnits="objectBoundingBox"
+								>
+									{climbGradientFillStops.map((stop, i) => (
+										<stop
+											key={i}
+											offset={stop.offset}
+											stopColor={stop.color}
+											stopOpacity={0.88}
+										/>
+									))}
+								</linearGradient>
+							)}
 						</defs>
 
 						<CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.07)" />
@@ -1804,7 +2287,9 @@ export function ElevationProfile({
 							dataKey="distanceKm"
 							type="number"
 							domain={
-								selectedDayNumber != null ? [visibleStart, visibleEnd] : ["dataMin", "dataMax"]
+								selectedDayNumber != null || climbProfile != null
+									? [visibleStart, visibleEnd]
+									: ["dataMin", "dataMax"]
 							}
 							tickFormatter={(v: number) => {
 								const rounded = Math.round(v * 10) / 10;
@@ -1814,7 +2299,13 @@ export function ElevationProfile({
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
 							axisLine={false}
-							tickMargin={tightFixedHeightChart ? 2 : 6}
+							tickMargin={
+								showGradientStrip
+									? GRADIENT_STRIP_TOP_GAP + GRADIENT_STRIP_HEIGHT + 5
+									: tightFixedHeightChart
+										? 2
+										: 6
+							}
 						/>
 
 						<YAxis
@@ -1849,7 +2340,11 @@ export function ElevationProfile({
 								dataKey="ele"
 								stroke="#f97316"
 								strokeWidth={1.5}
-								fill="url(#eleGradient)"
+								fill={
+									climbProfile && climbGradientFillStops
+										? "url(#climbGradientFill)"
+										: "url(#eleGradient)"
+								}
 								isAnimationActive={false}
 								activeDot={{
 									r: 4,
@@ -1892,7 +2387,11 @@ export function ElevationProfile({
 										dataKey={key}
 										stroke={color.stroke}
 										strokeWidth={isActive ? 2.5 : 1.5}
-										fill={`url(#stageGradient_${idx})`}
+										fill={
+											climbProfile && climbGradientFillStops
+												? "url(#climbGradientFill)"
+												: `url(#stageGradient_${idx})`
+										}
 										isAnimationActive={false}
 										connectNulls={false}
 										dot={false}
@@ -1961,19 +2460,28 @@ export function ElevationProfile({
 								}
 							/>
 						))}
-						{/* Summit 마커 (스테이지 선택 시에만, CP 겹침은 제외) */}
+						{/* Summit 마커 */}
 						{visibleSummits.map((summit) => (
 							<ReferenceLine
 								key={`summit-${summit.id}`}
 								x={summit.distanceKm}
-								stroke={SUMMIT_COLOR}
-								strokeWidth={0.5}
+								stroke={
+									effectiveClimbZoomSummitId === summit.id
+										? "#f97316"
+										: SUMMIT_COLOR
+								}
+								strokeWidth={effectiveClimbZoomSummitId === summit.id ? 1 : 0.5}
 								strokeDasharray="2 3"
 								label={
 									<SummitMarkerLabel
 										showName={summitNameVisible(summit)}
 										name={summit.name}
 										row={labelRowByKey.get(`summit-${summit.id}`) ?? 0}
+										onClick={
+											!chartInteractionDisabled
+												? () => handleSummitClick(summit.id)
+												: undefined
+										}
 									/>
 								}
 							/>
@@ -2025,6 +2533,13 @@ export function ElevationProfile({
 								/>
 							</>
 						)}
+					{showGradientStrip && (
+						<GradientStripSvgOverlay
+							segments={gradientSegments}
+							visibleStart={visibleStart}
+							visibleEnd={visibleEnd}
+						/>
+					)}
 					</AreaChart>
 				</ResponsiveContainer>
 				{scheduleSelectionOverlay != null && scheduleTooltipStyle != null ? (
@@ -2039,23 +2554,37 @@ export function ElevationProfile({
 						}}
 					/>
 				) : null}
-				{/* 호버/핀 공용 툴팁 — 가로 배치는 elevationChartTooltipLineOffsetStyle 공통 */}
+				{/* 호버/핀 공용 툴팁 — 클라임 줌 시 클라임 전용 툴팁으로 교체 */}
 				{!chartInteractionDisabled &&
 				currentChartDatum != null &&
 				hoverTooltipPlacementStyle != null ? (
-					<ElevationHoverTooltip
-						datum={currentChartDatum}
-						trackPoints={trackPoints}
-						cpMarkers={cpMarkers}
-						elevationCalibratedThreshold={elevationCalibratedThreshold}
-						cpAnchorMinKm={tooltipCpAnchorKm}
-						cpAnchorMaxKm={tooltipCpAnchorMaxKm}
-						anchorFallbackDayNumber={tooltipAnchorDayNumber}
-						compactTooltip={compactTooltip}
-						pinned={isPinned}
-						placementStyle={hoverTooltipPlacementStyle}
-						onUnpin={onUnpin}
-					/>
+					climbProfile != null ? (
+						<ClimbHoverTooltip
+							datum={currentChartDatum}
+							climbProfile={climbProfile}
+							trackPoints={trackPoints}
+							elevationCalibratedThreshold={elevationCalibratedThreshold}
+							compactTooltip={compactTooltip}
+							pinned={isPinned}
+							placementStyle={hoverTooltipPlacementStyle}
+							onUnpin={onUnpin}
+							gradientPct={hoveredGradientPct}
+						/>
+					) : (
+						<ElevationHoverTooltip
+							datum={currentChartDatum}
+							trackPoints={trackPoints}
+							cpMarkers={cpMarkers}
+							elevationCalibratedThreshold={elevationCalibratedThreshold}
+							cpAnchorMinKm={tooltipCpAnchorKm}
+							cpAnchorMaxKm={tooltipCpAnchorMaxKm}
+							anchorFallbackDayNumber={tooltipAnchorDayNumber}
+							compactTooltip={compactTooltip}
+							pinned={isPinned}
+							placementStyle={hoverTooltipPlacementStyle}
+							onUnpin={onUnpin}
+						/>
+					)
 				) : null}
 				{/* 경계 드래그 핸들 + 미리보기 툴팁 (차트 위 오버레이) */}
 				{canDragBoundary && selectedStage && stageEndBoundaryHitLeftPct != null && (

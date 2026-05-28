@@ -21,4 +21,5 @@ export {
 	TooltipProvider,
 	TooltipTrigger,
 } from "./tooltip";
+export { ToggleGroup, ToggleGroupItem, toggleGroupItemVariants } from "./toggle-group";
 export { cn } from "./utils";
