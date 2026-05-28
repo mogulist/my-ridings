@@ -803,6 +803,10 @@ export default function KakaoMap({
 	const onPinRef = useRef(onPin);
 	const onUnpinRef = useRef(onUnpin);
 	const reviewContextRef = useRef(reviewContext);
+	const highlightPositionRef = useRef(highlightPosition);
+	highlightPositionRef.current = highlightPosition;
+	const trackPointsRef = useRef(trackPoints);
+	trackPointsRef.current = trackPoints;
 	const [mapReady, setMapReady] = useState(false);
 	const [zoomLevel, setZoomLevel] = useState<number | null>(null);
 	const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
@@ -931,6 +935,8 @@ export default function KakaoMap({
 		},
 		[],
 	);
+	const promptAndCreateOfficialSummitRef = useRef(promptAndCreateOfficialSummit);
+	promptAndCreateOfficialSummitRef.current = promptAndCreateOfficialSummit;
 
 	const drawRoute = useCallback(
 		(kakaoMaps: KakaoMapsAPI, routeData: RideWithGPSRoute) => {
@@ -2129,17 +2135,25 @@ export default function KakaoMap({
 		}) as KakaoCustomOverlay & { getContent?: () => unknown };
 		highlightOverlayRef.current = newOverlay;
 
-		const el = typeof newOverlay.getContent === "function" ? newOverlay.getContent() : null;
-		const node =
-			el instanceof HTMLElement
-				? el
-				: ((newOverlay as unknown as { a?: HTMLElement }).a?.querySelector?.(
-						".highlight-marker-circle",
-					) ?? null);
-		if (node instanceof HTMLElement) {
-			node.addEventListener("click", (e) => {
+		// setContent()로 내부 DOM이 교체되어도 컨테이너(.a)는 유지되므로 여기에 리스너를 붙임
+		const container = (newOverlay as unknown as { a?: HTMLElement }).a;
+		if (container instanceof HTMLElement) {
+			container.addEventListener("click", (e) => {
 				e.stopPropagation();
-				onUnpinRef.current?.();
+				if (isSummitAddModeRef.current && onCreateOfficialSummitRef.current) {
+					const pos = highlightPositionRef.current;
+					if (pos) {
+						isSummitAddModeRef.current = false;
+						setIsSummitAddMode(false);
+						void promptAndCreateOfficialSummitRef.current(
+							pos[0],
+							pos[1],
+							trackPointsRef.current,
+						);
+					}
+				} else {
+					onUnpinRef.current?.();
+				}
 			});
 		}
 	}, [highlightPosition, summitModeHighlightElevationLabel]);
@@ -2382,7 +2396,12 @@ export default function KakaoMap({
 				<div className="pointer-events-auto absolute bottom-4 left-4 z-10">
 					<button
 						type="button"
-						onClick={() => setIsSummitAddMode((prev) => !prev)}
+						onClick={() => {
+						setIsSummitAddMode((prev) => {
+							if (!prev) onUnpinRef.current?.();
+							return !prev;
+						});
+					}}
 						className={isSummitAddMode ? toggleBtnOn : toggleBtnOff}
 						title={
 							isSummitAddMode
