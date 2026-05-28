@@ -10,6 +10,7 @@ import {
 	ReferenceDot,
 	ReferenceLine,
 	ResponsiveContainer,
+	usePlotArea,
 	XAxis,
 	YAxis,
 } from "recharts";
@@ -19,6 +20,7 @@ import {
 	computeTrackElevationGainLoss,
 	computeGradientSegments,
 	detectClimb,
+	DOWNHILL_COLOR,
 	getGradientColor,
 	lookupGradientAtKm,
 } from "@my-ridings/plan-geometry";
@@ -1218,9 +1220,15 @@ function ClimbHoverTooltip({
 	);
 }
 
-// ── 경사도 컬러 스트립 ─────────────────────────────────────────────
 
-function GradientStrip({
+
+// ── 경사도 컬러 스트립 (SVG 오버레이) ──────────────────────────────
+// AreaChart 자식으로 렌더링 → usePlotArea()로 플롯 영역 픽셀 좌표를 얻어 X축 0선 바로 아래에 그림
+
+const GRADIENT_STRIP_HEIGHT = 8;
+const GRADIENT_STRIP_TOP_GAP = 1; // 0선과 스트립 사이 간격(px)
+
+function GradientStripSvgOverlay({
 	segments,
 	visibleStart,
 	visibleEnd,
@@ -1229,27 +1237,39 @@ function GradientStrip({
 	visibleStart: number;
 	visibleEnd: number;
 }) {
+	const plotArea = usePlotArea();
 	const span = visibleEnd - visibleStart;
-	if (span <= 0 || segments.length === 0) return null;
+	if (!plotArea || span <= 0 || plotArea.width <= 0) return null;
+	const { x, y, width, height } = plotArea;
+	// 플롯 영역 하단(0선) 바로 아래에 배치
+	const stripY = y + height + GRADIENT_STRIP_TOP_GAP;
 	return (
-		<div className="relative h-2 overflow-hidden rounded-sm">
-			{segments.map((seg, i) => {
-				const startPct = Math.max(0, ((seg.startKm - visibleStart) / span) * 100);
-				const endPct = Math.min(100, ((seg.endKm - visibleStart) / span) * 100);
-				if (endPct <= startPct) return null;
-				return (
-					<div
-						key={i}
-						className="absolute h-full"
-						style={{
-							left: `${startPct}%`,
-							width: `${endPct - startPct}%`,
-							backgroundColor: seg.color,
-						}}
-					/>
-				);
-			})}
-		</div>
+		<g>
+			<defs>
+				<clipPath id="gradientStripClip">
+					<rect x={x} y={stripY} width={width} height={GRADIENT_STRIP_HEIGHT} rx={3} />
+				</clipPath>
+			</defs>
+			<g clipPath="url(#gradientStripClip)">
+				{segments.map((seg, i) => {
+					// 내리막(회색) 구간은 렌더링하지 않고 비워둠
+					if (seg.color === DOWNHILL_COLOR) return null;
+					const startFrac = Math.max(0, (seg.startKm - visibleStart) / span);
+					const endFrac = Math.min(1, (seg.endKm - visibleStart) / span);
+					if (endFrac <= startFrac) return null;
+					return (
+						<rect
+							key={i}
+							x={x + startFrac * width}
+							y={stripY}
+							width={(endFrac - startFrac) * width}
+							height={GRADIENT_STRIP_HEIGHT}
+							fill={seg.color}
+						/>
+					);
+				})}
+			</g>
+		</g>
 	);
 }
 
@@ -1452,6 +1472,9 @@ export function ElevationProfile({
 		if (!focusedSummit) return null;
 		return detectClimb(focusedSummit.distanceKm, trackPoints, climbRange);
 	}, [focusedSummit, trackPoints, climbRange]);
+
+	// 경사도 스트립은 클라임 줌이 아닐 때만 X축 0선 아래에 표시
+	const showGradientStrip = gradientSegments.length > 0 && climbProfile == null;
 
 	// 클라임 미감지 시에도 서밋 주변 ±2km 줌은 제공
 	const summitFocusZoomRange = useMemo(() => {
@@ -2276,7 +2299,13 @@ export function ElevationProfile({
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
 							axisLine={false}
-							tickMargin={tightFixedHeightChart ? 2 : 6}
+							tickMargin={
+								showGradientStrip
+									? GRADIENT_STRIP_TOP_GAP + GRADIENT_STRIP_HEIGHT + 5
+									: tightFixedHeightChart
+										? 2
+										: 6
+							}
 						/>
 
 						<YAxis
@@ -2504,6 +2533,13 @@ export function ElevationProfile({
 								/>
 							</>
 						)}
+					{showGradientStrip && (
+						<GradientStripSvgOverlay
+							segments={gradientSegments}
+							visibleStart={visibleStart}
+							visibleEnd={visibleEnd}
+						/>
+					)}
 					</AreaChart>
 				</ResponsiveContainer>
 				{scheduleSelectionOverlay != null && scheduleTooltipStyle != null ? (
@@ -2654,22 +2690,6 @@ export function ElevationProfile({
 							/>
 						)}
 					</>
-				)}
-				{/* 경사도 컬러 스트립 — X축 위에 오버레이, 클라임 줌에서는 숨김 */}
-				{gradientSegments.length > 0 && climbProfile == null && (
-					<div
-						className="pointer-events-none absolute bottom-0 z-[1]"
-						style={{
-							left: elevationYAxisReservedWidth(tightFixedHeightChart, compactYAxis),
-							right: effectiveChartMargin.right,
-						}}
-					>
-						<GradientStrip
-							segments={gradientSegments}
-							visibleStart={visibleStart}
-							visibleEnd={visibleEnd}
-						/>
-					</div>
 				)}
 			</div>
 		</div>

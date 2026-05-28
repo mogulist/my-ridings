@@ -33,8 +33,11 @@ const GRADIENT_ZONES: { max: number; color: string }[] = [
 	{ max: Infinity, color: "#7F1D1D" }, // darkRed — 20%+
 ];
 
+/** 내리막(음수 경사) 색상 — 표시 측에서 투명 처리 대상 */
+export const DOWNHILL_COLOR = "#9CA3AF";
+
 export function getGradientColor(pct: number): string {
-	if (pct < 0) return "#9CA3AF"; // 내리막 → 회색
+	if (pct < 0) return DOWNHILL_COLOR; // 내리막 → 회색
 	for (const zone of GRADIENT_ZONES) {
 		if (pct < zone.max) return zone.color;
 	}
