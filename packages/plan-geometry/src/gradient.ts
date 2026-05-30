@@ -201,15 +201,15 @@ export function detectClimb(
 	let minIdx = summitIdx; // "full" 모드의 최저점 인덱스
 
 	if (startMode === "full") {
+		// valley는 점이 아니라 지대(region)로 취급:
+		// 최저점에서 정상 반대 방향으로도 VALLEY_BREAK_M 내에 머무는 한 시작점을 계속 확장.
+		// 이렇게 해야 Full.length ≥ Sustained.length ≥ Steep.length 라는 자연스러운 불변식이 유지됨.
 		for (let i = summitIdx - 1; i >= 0; i--) {
 			const pt = validPts[i];
 			if (summitPt.d - pt.d > MAX_LOOKBACK_M) break;
-			if (pt.e < searchMinEle) {
-				searchMinEle = pt.e;
-				minIdx = i;
-			} else if (pt.e > searchMinEle + VALLEY_BREAK_M) {
-				break;
-			}
+			if (pt.e > searchMinEle + VALLEY_BREAK_M) break;
+			if (pt.e < searchMinEle) searchMinEle = pt.e;
+			minIdx = i;
 		}
 	} else {
 		// "sustained" | "steep": 서밋까지 평균경사 threshold 기반
@@ -228,6 +228,21 @@ export function detectClimb(
 				minIdx = i;
 			}
 		}
+	}
+
+	// 선행 내리막/평지 트리밍: 시작점은 [minIdx, summitIdx] 구간의 글로벌 최저 표고 지점이어야 함.
+	// 모드별 minIdx 선택은 정상까지의 평균 경사만 보므로, 시작 직후 더 낮은 지점이 있어도 무시됨.
+	// 시각적으로 클라임 앞부분이 내리막/평지로 보이는 문제를 모든 모드에서 제거.
+	{
+		let trueMinEle = validPts[minIdx].e;
+		let trueMinIdx = minIdx;
+		for (let i = minIdx + 1; i < summitIdx; i++) {
+			if (validPts[i].e < trueMinEle) {
+				trueMinEle = validPts[i].e;
+				trueMinIdx = i;
+			}
+		}
+		minIdx = trueMinIdx;
 	}
 
 	let startPt = validPts[minIdx];

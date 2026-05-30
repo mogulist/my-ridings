@@ -1292,12 +1292,14 @@ function ClimbCard({
 	onDismiss,
 	climbRange,
 	onClimbRangeChange,
+	visibleModes,
 }: {
 	summitName: string;
 	profile: ClimbProfile;
 	onDismiss?: () => void;
 	climbRange: ClimbStartMode;
 	onClimbRangeChange: (v: ClimbStartMode) => void;
+	visibleModes: ClimbStartMode[];
 }) {
 	const catStyle = profile.category ? CLIMB_CATEGORY_STYLE[profile.category] : null;
 	return (
@@ -1332,30 +1334,32 @@ function ClimbCard({
 					{profile.category === "HC" ? "HC" : `Cat ${profile.category}`}
 				</span>
 			)}
-			{/* 범위 토글: 배지 바로 오른쪽 */}
-			<ToggleGroup
-				type="single"
-				value={climbRange}
-				onValueChange={(v) => {
-					if (v) onClimbRangeChange(v as ClimbStartMode);
-				}}
-				className="shrink-0 gap-0 rounded-md border border-zinc-200 p-0.5 dark:border-zinc-600"
-			>
-				{(["full", "sustained", "steep"] as const).map((v) => (
-					<ToggleGroupItem
-						key={v}
-						value={v}
-						size="sm"
-						className={cn(
-							"h-5 rounded px-2 py-0 text-[10px] font-medium capitalize",
-							"text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200",
-							"data-[state=on]:bg-zinc-800 data-[state=on]:text-white dark:data-[state=on]:bg-zinc-200 dark:data-[state=on]:text-zinc-900",
-						)}
-					>
-						{v.charAt(0).toUpperCase() + v.slice(1)}
-					</ToggleGroupItem>
-				))}
-			</ToggleGroup>
+			{/* 범위 토글: 배지 바로 오른쪽. 선택지가 둘 이상일 때만 노출. */}
+			{visibleModes.length > 1 && (
+				<ToggleGroup
+					type="single"
+					value={climbRange}
+					onValueChange={(v) => {
+						if (v) onClimbRangeChange(v as ClimbStartMode);
+					}}
+					className="shrink-0 gap-0 rounded-md border border-zinc-200 p-0.5 dark:border-zinc-600"
+				>
+					{visibleModes.map((v) => (
+						<ToggleGroupItem
+							key={v}
+							value={v}
+							size="sm"
+							className={cn(
+								"h-5 rounded px-2 py-0 text-[10px] font-medium capitalize",
+								"text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200",
+								"data-[state=on]:bg-zinc-800 data-[state=on]:text-white dark:data-[state=on]:bg-zinc-200 dark:data-[state=on]:text-zinc-900",
+							)}
+						>
+							{v.charAt(0).toUpperCase() + v.slice(1)}
+						</ToggleGroupItem>
+					))}
+				</ToggleGroup>
+			)}
 			<div className="ml-auto flex shrink-0 items-center gap-3 text-zinc-500 dark:text-zinc-400">
 				<span className="tabular-nums">{profile.lengthKm.toFixed(1)} km</span>
 				<span className="tabular-nums">↑{profile.gainM} m</span>
@@ -1468,10 +1472,55 @@ export function ElevationProfile({
 		[effectiveClimbZoomSummitId, summitMarkers],
 	);
 
-	const climbProfile = useMemo(() => {
+	const climbProfilesByMode = useMemo<Record<ClimbStartMode, ClimbProfile | null> | null>(() => {
 		if (!focusedSummit) return null;
-		return detectClimb(focusedSummit.distanceKm, trackPoints, climbRange);
-	}, [focusedSummit, trackPoints, climbRange]);
+		return {
+			full: detectClimb(focusedSummit.distanceKm, trackPoints, "full"),
+			sustained: detectClimb(focusedSummit.distanceKm, trackPoints, "sustained"),
+			steep: detectClimb(focusedSummit.distanceKm, trackPoints, "steep"),
+		};
+	}, [focusedSummit, trackPoints]);
+
+	// 인접 모드가 거의 동일하면 더 긴(=덜 제한적인) 쪽을 토글에서 숨김.
+	// 의미 없는 토글 옵션을 줄여서 사용자가 정보가 다른 두 모드만 비교하게 만듦.
+	const visibleClimbModes = useMemo<ClimbStartMode[]>(() => {
+		if (!climbProfilesByMode) return [];
+		const order: ClimbStartMode[] = ["full", "sustained", "steep"];
+		let modes = order.filter((m) => climbProfilesByMode[m] != null);
+		if (modes.length <= 1) return modes;
+		const isNearDup = (a: ClimbProfile, b: ClimbProfile) => {
+			const lenDiff = Math.abs(a.lengthKm - b.lengthKm);
+			const maxLen = Math.max(a.lengthKm, b.lengthKm);
+			const avgDiff = Math.abs(a.avgGradientPct - b.avgGradientPct);
+			return (lenDiff < 0.5 || lenDiff / maxLen < 0.05) && avgDiff < 0.3;
+		};
+		if (
+			modes.includes("full") &&
+			modes.includes("sustained") &&
+			isNearDup(climbProfilesByMode.full!, climbProfilesByMode.sustained!)
+		) {
+			modes = modes.filter((m) => m !== "full");
+		}
+		if (
+			modes.includes("sustained") &&
+			modes.includes("steep") &&
+			isNearDup(climbProfilesByMode.sustained!, climbProfilesByMode.steep!)
+		) {
+			modes = modes.filter((m) => m !== "sustained");
+		}
+		return modes;
+	}, [climbProfilesByMode]);
+
+	// 사용자 선택이 숨겨진 모드면 visible 중 첫 모드(=가장 넓은 컨텍스트)로 폴백.
+	const effectiveClimbRange = useMemo<ClimbStartMode>(() => {
+		if (visibleClimbModes.length === 0) return climbRange;
+		return visibleClimbModes.includes(climbRange) ? climbRange : visibleClimbModes[0];
+	}, [climbRange, visibleClimbModes]);
+
+	const climbProfile = useMemo(() => {
+		if (!climbProfilesByMode) return null;
+		return climbProfilesByMode[effectiveClimbRange] ?? null;
+	}, [climbProfilesByMode, effectiveClimbRange]);
 
 	// 경사도 스트립은 클라임 줌이 아닐 때만 X축 0선 아래에 표시
 	const showGradientStrip = gradientSegments.length > 0 && climbProfile == null;
@@ -1676,10 +1725,7 @@ export function ElevationProfile({
 
 	const handleSummitClick = useCallback(
 		(summitId: string) => {
-			setClimbZoomSummitId((prev) => {
-				if (prev !== summitId) setClimbRange("full");
-				return prev === summitId ? null : summitId;
-			});
+			setClimbZoomSummitId((prev) => (prev === summitId ? null : summitId));
 		},
 		[],
 	);
@@ -2190,8 +2236,9 @@ export function ElevationProfile({
 					onDismiss={
 						!disablePinAndHoverScrub ? () => setClimbZoomSummitId(null) : undefined
 					}
-					climbRange={climbRange}
+					climbRange={effectiveClimbRange}
 					onClimbRangeChange={setClimbRange}
+					visibleModes={visibleClimbModes}
 				/>
 			)}
 
