@@ -230,15 +230,36 @@ export function detectClimb(
 		}
 	}
 
-	const startPt = validPts[minIdx];
-	const gainM = summitPt.e - startPt.e;
-	const lengthM = summitPt.d - startPt.d;
+	let startPt = validPts[minIdx];
+	let gainM = summitPt.e - startPt.e;
+	let lengthM = summitPt.d - startPt.d;
 
 	if (gainM < MIN_GAIN_M) return null;
 	if (lengthM < MIN_LENGTH_M) return null;
 
-	const avgGradientPct = (gainM / lengthM) * 100;
-	if (avgGradientPct < MIN_AVG_GRADIENT_PCT) return null;
+	let avgGradientPct = (gainM / lengthM) * 100;
+
+	// 평균 경사가 문턱 미만이면 시작점을 정상 쪽으로 자동 트림.
+	// 긴 완경사 접근(예: 여우목고개)을 가진 클라임이 통째로 탈락하는 걸 막고,
+	// 문턱을 만족하는 가장 먼 시작점을 채택해 접근 구간을 최대한 유지.
+	if (avgGradientPct < MIN_AVG_GRADIENT_PCT) {
+		let trimmedIdx = -1;
+		for (let i = minIdx; i < summitIdx; i++) {
+			const dist = summitPt.d - validPts[i].d;
+			const gain = summitPt.e - validPts[i].e;
+			if (dist > 0 && gain > 0 && (gain / dist) * 100 >= MIN_AVG_GRADIENT_PCT) {
+				trimmedIdx = i;
+				break;
+			}
+		}
+		if (trimmedIdx < 0) return null;
+		minIdx = trimmedIdx;
+		startPt = validPts[minIdx];
+		gainM = summitPt.e - startPt.e;
+		lengthM = summitPt.d - startPt.d;
+		if (gainM < MIN_GAIN_M || lengthM < MIN_LENGTH_M) return null;
+		avgGradientPct = (gainM / lengthM) * 100;
+	}
 
 	// 500m 윈도우 최대 경사도 계산
 	let maxGradientPct = avgGradientPct;
