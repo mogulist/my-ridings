@@ -2,14 +2,24 @@
 
 import { useState } from "react";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
+import { type ActivitySortOrder, sortActivities } from "@/lib/sort";
 import type { StravaActivity } from "@/src/types";
 
 type ActivityListProps = {
 	activities: StravaActivity[];
 };
 
+const SORT_OPTIONS: { value: ActivitySortOrder; label: string }[] = [
+	{ value: "date-desc", label: "최신 순" },
+	{ value: "date-asc", label: "오래된 순" },
+	{ value: "distance-desc", label: "거리 긴 순" },
+	{ value: "duration-desc", label: "시간 긴 순" },
+];
+
 export function ActivityList({ activities }: ActivityListProps) {
 	const [expandedId, setExpandedId] = useState<number | null>(null);
+	const [sortOrder, setSortOrder] = useState<ActivitySortOrder>("date-desc");
+	const sortedActivities = sortActivities(activities, sortOrder);
 
 	const formatDate = (dateString: string): string => {
 		return new Intl.DateTimeFormat("ko-KR", {
@@ -50,9 +60,23 @@ export function ActivityList({ activities }: ActivityListProps) {
 
 	return (
 		<div className="bg-white rounded-lg shadow p-4 sm:p-6">
-			<h2 className="text-lg sm:text-xl font-semibold mb-4">활동 목록 ({activities.length}개)</h2>
+			<div className="flex items-center justify-between gap-3 mb-4">
+				<h2 className="text-lg sm:text-xl font-semibold">활동 목록 ({activities.length}개)</h2>
+				<select
+					value={sortOrder}
+					onChange={(e) => setSortOrder(e.target.value as ActivitySortOrder)}
+					className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shrink-0"
+					aria-label="활동 정렬"
+				>
+					{SORT_OPTIONS.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</select>
+			</div>
 			<div className="space-y-2 lg:max-h-[calc(100vh-28rem)] lg:overflow-y-auto">
-				{activities.map((activity) => {
+				{sortedActivities.map((activity) => {
 					const isExpanded = expandedId === activity.id;
 					return (
 						<div
