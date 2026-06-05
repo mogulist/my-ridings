@@ -7,6 +7,7 @@ import { OverallStats } from "@/components/OverallStats";
 import { YearlyStats } from "@/components/YearlyStats";
 import { useAuth } from "@/hooks/useAuth";
 import { type ActivityFilters, filterActivities } from "@/lib/filters";
+import { getStravaLocalYear } from "@/lib/strava-date";
 import { calculateStats } from "@/lib/stats";
 import type { SyncProgress } from "@/lib/sync";
 import { getLastSyncTime, getStoredActivities, syncActivities } from "@/lib/sync";
@@ -139,7 +140,7 @@ export default function Home() {
 		// 선택된 연도가 있으면 추가 필터링
 		if (selectedYears.length > 0) {
 			activities = activities.filter((a) =>
-				selectedYears.includes(new Date(a.start_date_local).getFullYear().toString()),
+				selectedYears.includes(getStravaLocalYear(a.start_date_local)),
 			);
 		}
 

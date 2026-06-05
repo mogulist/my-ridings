@@ -1,5 +1,6 @@
 "use client";
 
+import { getStravaLocalYear } from "@/lib/strava-date";
 import type { StravaActivity } from "@/src/types";
 
 export type ActivityStats = {
@@ -25,10 +26,6 @@ const secondsToHours = (seconds: number): number => {
 	return Math.round((seconds / 3600) * 100) / 100;
 };
 
-const getYearFromDate = (dateString: string): string => {
-	return new Date(dateString).getFullYear().toString();
-};
-
 export const calculateStats = (activities: StravaActivity[]): ActivityStats => {
 	let totalDistance = 0;
 	let totalTime = 0;
@@ -51,7 +48,7 @@ export const calculateStats = (activities: StravaActivity[]): ActivityStats => {
 		totalTime += timeHours;
 		totalElevation += elevation;
 
-		const year = getYearFromDate(activity.start_date_local);
+		const year = getStravaLocalYear(activity.start_date_local);
 
 		if (!byYear[year]) {
 			byYear[year] = { distance: 0, time: 0, elevation: 0, count: 0 };

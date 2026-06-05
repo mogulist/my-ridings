@@ -1,3 +1,4 @@
+import { getStravaLocalTimestamp } from "@/lib/strava-date";
 import type { StravaActivity } from "@/src/types";
 
 export type ActivitySortOrder = "date-desc" | "date-asc" | "distance-desc" | "duration-desc";
@@ -12,12 +13,14 @@ export const sortActivities = (
 		case "date-desc":
 			return sorted.sort(
 				(a, b) =>
-					new Date(b.start_date_local).getTime() - new Date(a.start_date_local).getTime(),
+					getStravaLocalTimestamp(b.start_date_local) -
+					getStravaLocalTimestamp(a.start_date_local),
 			);
 		case "date-asc":
 			return sorted.sort(
 				(a, b) =>
-					new Date(a.start_date_local).getTime() - new Date(b.start_date_local).getTime(),
+					getStravaLocalTimestamp(a.start_date_local) -
+					getStravaLocalTimestamp(b.start_date_local),
 			);
 		case "distance-desc":
 			return sorted.sort((a, b) => b.distance - a.distance);

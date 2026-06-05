@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
 import { type ActivitySortOrder, sortActivities } from "@/lib/sort";
+import { formatStravaLocalDate } from "@/lib/strava-date";
 import type { StravaActivity } from "@/src/types";
 
 type ActivityListProps = {
@@ -20,16 +21,6 @@ export function ActivityList({ activities }: ActivityListProps) {
 	const [expandedId, setExpandedId] = useState<number | null>(null);
 	const [sortOrder, setSortOrder] = useState<ActivitySortOrder>("date-desc");
 	const sortedActivities = sortActivities(activities, sortOrder);
-
-	const formatDate = (dateString: string): string => {
-		return new Intl.DateTimeFormat("ko-KR", {
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-			hour: "2-digit",
-			minute: "2-digit",
-		}).format(new Date(dateString));
-	};
 
 	const formatDistance = (meters: number): string => {
 		const km = meters / 1000;
@@ -90,7 +81,9 @@ export function ActivityList({ activities }: ActivityListProps) {
 										{activity.name}
 									</h3>
 									<div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
-										<span className="break-words">{formatDate(activity.start_date_local)}</span>
+										<span className="break-words">
+											{formatStravaLocalDate(activity.start_date_local)}
+										</span>
 										<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs whitespace-nowrap">
 											{getSportTypeDisplayName(activity.type)}
 										</span>
