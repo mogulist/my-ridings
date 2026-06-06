@@ -55,3 +55,12 @@ export type ChartPoint = {
 	absoluteMs: number;
 	altitude: number;
 };
+
+export type PauseSegment = {
+	distanceKmStart: number;
+	distanceKmEnd: number;
+	elapsedSecondsStart: number;
+	elapsedSecondsEnd: number;
+	absoluteMsStart: number;
+	absoluteMsEnd: number;
+};

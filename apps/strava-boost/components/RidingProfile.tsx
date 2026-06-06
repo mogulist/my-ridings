@@ -9,12 +9,14 @@ import {
 	CartesianGrid,
 	Tooltip,
 	ResponsiveContainer,
+	ReferenceArea,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
-import type { StravaActivity, ActivityStreams, XAxisMode, ChartPoint } from "@/src/types";
+import type { StravaActivity, ActivityStreams, XAxisMode, ChartPoint, PauseSegment } from "@/src/types";
 import { parseStravaLocalDate } from "@/lib/strava-date";
 import {
 	buildChartData,
+	detectPauses,
 	formatDistanceAxis,
 	formatRelativeTimeAxis,
 	formatAbsoluteTimeAxis,
@@ -53,10 +55,12 @@ function CustomTooltip({ active, payload }: TooltipContentProps) {
 export function RidingProfile({ activity, streams }: Props) {
 	const [xAxisMode, setXAxisMode] = useState<XAxisMode>("distance");
 
-	const chartData = useMemo(() => {
-		const startMs = parseStravaLocalDate(activity.start_date_local).getTime();
-		return buildChartData(streams, startMs);
-	}, [streams, activity.start_date_local]);
+	const startMs = useMemo(
+		() => parseStravaLocalDate(activity.start_date_local).getTime(),
+		[activity.start_date_local],
+	);
+	const chartData = useMemo(() => buildChartData(streams, startMs), [streams, startMs]);
+	const pauses = useMemo(() => detectPauses(streams, startMs), [streams, startMs]);
 
 	const xAxisDataKey: keyof ChartPoint =
 		xAxisMode === "distance"
@@ -126,6 +130,31 @@ export function RidingProfile({ activity, streams }: Props) {
 						width={45}
 					/>
 					<Tooltip content={CustomTooltip} />
+					{pauses.map((pause, i) => {
+						const x1 =
+							xAxisMode === "distance"
+								? pause.distanceKmStart
+								: xAxisMode === "relative-time"
+									? pause.elapsedSecondsStart
+									: pause.absoluteMsStart;
+						const x2 =
+							xAxisMode === "distance"
+								? pause.distanceKmEnd
+								: xAxisMode === "relative-time"
+									? pause.elapsedSecondsEnd
+									: pause.absoluteMsEnd;
+						return (
+							<ReferenceArea
+								key={i}
+								x1={x1}
+								x2={x2}
+								fill="rgba(156,163,175,0.25)"
+								stroke="rgba(156,163,175,0.5)"
+								strokeWidth={1}
+								strokeDasharray="4 2"
+							/>
+						);
+					})}
 					<Area
 						type="monotone"
 						dataKey="altitude"
