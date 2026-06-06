@@ -19,6 +19,7 @@ export function buildChartData(streams: ActivityStreams, startMs: number): Chart
       elapsedSeconds: streams.time[i],
       absoluteMs: startMs + streams.time[i] * 1000,
       altitude: Math.round(streams.altitude[i]),
+      streamIndex: i,
     });
   }
   return downsample(raw, 2000);

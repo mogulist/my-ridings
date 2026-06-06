@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUp, Clock, MapPin } from "lucide-react";
 import { dbUtils } from "@/lib/indexeddb";
 import { stravaApi } from "@/lib/strava-api";
 import { RidingProfile } from "@/components/RidingProfile";
+import { RouteMap } from "@/components/RouteMap";
 import { formatStravaLocalDate } from "@/lib/strava-date";
 import type { ActivityStreams, StravaActivity } from "@/src/types";
 
@@ -34,6 +35,7 @@ export default function ActivityDetailPage() {
 	const [streams, setStreams] = useState<ActivityStreams | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [streamsLoading, setStreamsLoading] = useState(true);
+	const [highlightPosition, setHighlightPosition] = useState<[number, number] | null>(null);
 
 	useEffect(() => {
 		if (!id || isNaN(id)) {
@@ -53,9 +55,10 @@ export default function ActivityDetailPage() {
 				}
 				setActivity(act);
 
+				// 캐시 확인: latlng가 있는 경우만 캐시 사용 (소프트 체크)
 				const cached = await dbUtils.getStreams(id);
 				if (cancelled) return;
-				if (cached) {
+				if (cached && cached.latlng && cached.latlng.length > 0) {
 					setStreams(cached);
 					setStreamsLoading(false);
 					return;
@@ -81,6 +84,10 @@ export default function ActivityDetailPage() {
 		};
 	}, [id]);
 
+	const polyline = streams?.latlng && streams.latlng.length > 0
+		? streams.latlng
+		: undefined;
+
 	if (error) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -100,6 +107,7 @@ export default function ActivityDetailPage() {
 
 	return (
 		<div className="min-h-screen bg-gray-50">
+			{/* 헤더 */}
 			<div className="bg-white shadow-sm sticky top-0 z-10">
 				<div className="px-4 py-3 flex items-center gap-3">
 					<button
@@ -126,6 +134,7 @@ export default function ActivityDetailPage() {
 			</div>
 
 			<div className="px-4 py-4 space-y-4">
+				{/* 요약 chips */}
 				{activity && (
 					<div className="flex flex-wrap gap-2">
 						<StatChip>
@@ -145,13 +154,17 @@ export default function ActivityDetailPage() {
 					</div>
 				)}
 
-				<div
-					className="bg-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm"
-					style={{ height: "40vh", minHeight: "200px" }}
-				>
-					지도 영역 (준비 중)
+				{/* 지도 */}
+				<div className="rounded-lg overflow-hidden shadow" style={{ height: "40vh", minHeight: "220px" }}>
+					<RouteMap
+						width="100%"
+						height="100%"
+						polyline={polyline}
+						highlightPosition={highlightPosition}
+					/>
 				</div>
 
+				{/* 라이딩 프로필 */}
 				{streamsLoading ? (
 					<div className="bg-white rounded-lg shadow p-6 flex items-center justify-center h-64">
 						<div className="text-center space-y-2">
@@ -160,7 +173,11 @@ export default function ActivityDetailPage() {
 						</div>
 					</div>
 				) : activity && streams && streams.altitude.length > 0 ? (
-					<RidingProfile activity={activity} streams={streams} />
+					<RidingProfile
+						activity={activity}
+						streams={streams}
+						onHoverPoint={setHighlightPosition}
+					/>
 				) : activity && streams && streams.altitude.length === 0 ? (
 					<div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 text-sm">
 						이 활동에는 고도 데이터가 없습니다.

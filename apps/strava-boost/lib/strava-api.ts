@@ -163,7 +163,7 @@ class StravaApiClient {
 		const client = await this.getClient();
 		const response = await client.get(`/activities/${activityId}/streams`, {
 			params: {
-				keys: "altitude,distance,time",
+				keys: "altitude,distance,time,latlng",
 				key_by_type: true,
 			},
 		});
@@ -172,6 +172,7 @@ class StravaApiClient {
 			altitude: response.data.altitude?.data ?? [],
 			distance: response.data.distance?.data ?? [],
 			time: response.data.time?.data ?? [],
+			latlng: response.data.latlng?.data ?? [],
 		};
 	}
 }
