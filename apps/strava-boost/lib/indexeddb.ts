@@ -1,12 +1,13 @@
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity, ActivityStreams } from "@/src/types";
 
 const DB_NAME = "strava-stats";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAMES = {
 	TOKENS: "tokens",
 	ACTIVITIES: "activities",
 	SYNC_META: "sync_meta",
 	GEAR: "gear",
+	STREAMS: "streams",
 } as const;
 
 type TokenData = {
@@ -75,6 +76,13 @@ const openDB = (): Promise<IDBDatabase> => {
 			if (!database.objectStoreNames.contains(STORE_NAMES.GEAR)) {
 				database.createObjectStore(STORE_NAMES.GEAR, {
 					keyPath: "id",
+				});
+			}
+
+			// Streams store (version 3+)
+			if (event.oldVersion < 3 && !database.objectStoreNames.contains(STORE_NAMES.STREAMS)) {
+				database.createObjectStore(STORE_NAMES.STREAMS, {
+					keyPath: "activityId",
 				});
 			}
 		};
@@ -253,6 +261,42 @@ export const dbUtils = {
 			const transaction = database.transaction([STORE_NAMES.GEAR], "readwrite");
 			const store = transaction.objectStore(STORE_NAMES.GEAR);
 			const request = store.put(gear);
+
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(request.error);
+		});
+	},
+
+	async getActivityById(id: number): Promise<StravaActivity | null> {
+		const database = await openDB();
+		return new Promise((resolve, reject) => {
+			const transaction = database.transaction([STORE_NAMES.ACTIVITIES], "readonly");
+			const store = transaction.objectStore(STORE_NAMES.ACTIVITIES);
+			const request = store.get(id);
+
+			request.onsuccess = () => resolve(request.result || null);
+			request.onerror = () => reject(request.error);
+		});
+	},
+
+	async getStreams(activityId: number): Promise<ActivityStreams | null> {
+		const database = await openDB();
+		return new Promise((resolve, reject) => {
+			const transaction = database.transaction([STORE_NAMES.STREAMS], "readonly");
+			const store = transaction.objectStore(STORE_NAMES.STREAMS);
+			const request = store.get(activityId);
+
+			request.onsuccess = () => resolve(request.result || null);
+			request.onerror = () => reject(request.error);
+		});
+	},
+
+	async saveStreams(streams: ActivityStreams): Promise<void> {
+		const database = await openDB();
+		return new Promise((resolve, reject) => {
+			const transaction = database.transaction([STORE_NAMES.STREAMS], "readwrite");
+			const store = transaction.objectStore(STORE_NAMES.STREAMS);
+			const request = store.put(streams);
 
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
