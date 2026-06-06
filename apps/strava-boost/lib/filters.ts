@@ -2,12 +2,18 @@
 
 import type { StravaActivity } from "@/src/types";
 
+export type RidingLocation = "indoor" | "outdoor";
+
 export type ActivityFilters = {
 	sportTypes?: string[]; // 'EBikeRide', 'Ride', etc.
 	bikeTypes?: string[]; // gear_id
 	keyword?: string; // 검색 키워드 (활동 이름에 포함)
-	indoorOnly?: boolean; // 인도어 라이딩만 표시
+	ridingLocations?: RidingLocation[]; // 'indoor', 'outdoor'
 	trainerTypes?: string[]; // 트레이너/디바이스 이름
+};
+
+const isIndoorActivity = (activity: StravaActivity): boolean => {
+	return activity.trainer === true;
 };
 
 export const filterActivities = (
@@ -38,9 +44,12 @@ export const filterActivities = (
 			}
 		}
 
-		// 인도어 라이딩 필터
-		if (filters.indoorOnly && !activity.trainer) {
-			return false;
+		// 라이딩 위치 필터 (indoor / outdoor)
+		if (filters.ridingLocations && filters.ridingLocations.length > 0) {
+			const location: RidingLocation = isIndoorActivity(activity) ? "indoor" : "outdoor";
+			if (!filters.ridingLocations.includes(location)) {
+				return false;
+			}
 		}
 
 		// 트레이너 타입 필터

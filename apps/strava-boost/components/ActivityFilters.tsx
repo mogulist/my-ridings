@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ActivityFilters } from "@/lib/filters";
+import type { ActivityFilters, RidingLocation } from "@/lib/filters";
 import { getUniqueBikeTypes, getUniqueSportTypes, getUniqueTrainerTypes } from "@/lib/filters";
 import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
@@ -253,10 +253,10 @@ export function ActivityFilters({ activities, filters, onFiltersChange }: Activi
 		});
 	};
 
-	const handleIndoorOnlyChange = (checked: boolean) => {
+	const handleRidingLocationsChange = (values: string[]) => {
 		onFiltersChange({
 			...filters,
-			indoorOnly: checked ? true : undefined,
+			ridingLocations: values.length > 0 ? (values as RidingLocation[]) : undefined,
 		});
 	};
 
@@ -275,7 +275,7 @@ export function ActivityFilters({ activities, filters, onFiltersChange }: Activi
 		(filters.sportTypes && filters.sportTypes.length > 0) ||
 		(filters.bikeTypes && filters.bikeTypes.length > 0) ||
 		filters.keyword ||
-		filters.indoorOnly ||
+		(filters.ridingLocations && filters.ridingLocations.length > 0) ||
 		(filters.trainerTypes && filters.trainerTypes.length > 0);
 
 	return (
@@ -358,20 +358,21 @@ export function ActivityFilters({ activities, filters, onFiltersChange }: Activi
 
 				{/* 두 번째 행: 인도어 필터, 트레이너 타입 */}
 				<div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-4">
-					{/* 인도어 라이딩 필터 */}
+					{/* 라이딩 위치 필터 */}
 					<div>
 						<label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
 							라이딩 위치
 						</label>
-						<label className="flex items-center space-x-2 px-4 py-3 sm:py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 touch-manipulation">
-							<input
-								type="checkbox"
-								checked={filters.indoorOnly || false}
-								onChange={(e) => handleIndoorOnlyChange(e.target.checked)}
-								className="w-5 h-5 text-blue-500 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-							/>
-							<span className="text-base sm:text-sm">인도어만 표시</span>
-						</label>
+						<MultiSelect
+							options={[
+								{ value: "indoor", label: "Indoor" },
+								{ value: "outdoor", label: "Outdoor" },
+							]}
+							selectedValues={filters.ridingLocations || []}
+							onChange={handleRidingLocationsChange}
+							placeholder="전체"
+							disabled={activities.length === 0}
+						/>
 					</div>
 
 					{/* 트레이너 타입 필터 */}
