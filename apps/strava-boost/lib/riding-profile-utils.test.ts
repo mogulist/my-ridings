@@ -5,6 +5,7 @@ import {
   formatDistanceAxis,
   formatRelativeTimeAxis,
   formatAbsoluteTimeAxis,
+  formatAbsoluteTimeTooltip,
 } from "./riding-profile-utils";
 import type { ActivityStreams } from "../src/types";
 
@@ -69,4 +70,9 @@ test("formatRelativeTimeAxis: 분 한 자리수 패딩", () => {
 test("formatAbsoluteTimeAxis: HH:MM 형식", () => {
   const d = new Date(2025, 0, 1, 9, 15, 0);
   expect(formatAbsoluteTimeAxis(d.getTime())).toBe("09:15");
+});
+
+test("formatAbsoluteTimeTooltip: HH:MM:SS 형식", () => {
+  const d = new Date(2025, 0, 1, 9, 15, 30);
+  expect(formatAbsoluteTimeTooltip(d.getTime())).toBe("09:15:30");
 });
