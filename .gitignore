@@ -49,3 +49,6 @@ next-env.d.ts
 
 # local debug logs
 .cursor/*.log
+
+# Playwright MCP browser state
+.playwright-mcp

@@ -101,7 +101,7 @@ export default function ActivityDetailPage() {
 	return (
 		<div className="min-h-screen bg-gray-50">
 			<div className="bg-white shadow-sm sticky top-0 z-10">
-				<div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+				<div className="px-4 py-3 flex items-center gap-3">
 					<button
 						type="button"
 						onClick={() => router.back()}
@@ -125,7 +125,7 @@ export default function ActivityDetailPage() {
 				</div>
 			</div>
 
-			<div className="max-w-4xl mx-auto px-4 py-4 space-y-4">
+			<div className="px-4 py-4 space-y-4">
 				{activity && (
 					<div className="flex flex-wrap gap-2">
 						<StatChip>
