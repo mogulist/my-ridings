@@ -1,7 +1,7 @@
 "use client";
 
 import axios, { type AxiosInstance } from "axios";
-import type { StravaActivity, StravaTokenResponse } from "@/src/types";
+import type { StravaActivity, StravaTokenResponse, ActivityStreams } from "@/src/types";
 import { dbUtils } from "./indexeddb";
 import { saveTokens } from "./strava-auth";
 
@@ -157,6 +157,22 @@ class StravaApiClient {
 			}
 			return null;
 		}
+	}
+
+	async getActivityStreams(activityId: number): Promise<ActivityStreams> {
+		const client = await this.getClient();
+		const response = await client.get(`/activities/${activityId}/streams`, {
+			params: {
+				keys: "altitude,distance,time",
+				key_by_type: true,
+			},
+		});
+		return {
+			activityId,
+			altitude: response.data.altitude?.data ?? [],
+			distance: response.data.distance?.data ?? [],
+			time: response.data.time?.data ?? [],
+		};
 	}
 }
 
