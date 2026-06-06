@@ -36,7 +36,10 @@ export default function ActivityDetailPage() {
 	const [streamsLoading, setStreamsLoading] = useState(true);
 
 	useEffect(() => {
-		if (!id) return;
+		if (!id || isNaN(id)) {
+			setError("잘못된 활동 ID입니다.");
+			return;
+		}
 
 		let cancelled = false;
 

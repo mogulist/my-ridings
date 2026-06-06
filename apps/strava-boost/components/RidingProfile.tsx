@@ -125,7 +125,7 @@ export function RidingProfile({ activity, streams }: Props) {
 						axisLine={false}
 						width={45}
 					/>
-					<Tooltip content={(props) => <CustomTooltip {...props} />} />
+					<Tooltip content={CustomTooltip} />
 					<Area
 						type="monotone"
 						dataKey="altitude"

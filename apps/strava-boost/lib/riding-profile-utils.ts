@@ -3,7 +3,7 @@ import type { ActivityStreams, ChartPoint } from "@/src/types";
 export function downsample<T>(arr: T[], maxPoints: number): T[] {
   if (arr.length <= maxPoints) return arr;
   const step = arr.length / maxPoints;
-  return Array.from({ length: maxPoints }, (_, i) => arr[Math.round(i * step)]);
+  return Array.from({ length: maxPoints }, (_, i) => arr[Math.min(Math.round(i * step), arr.length - 1)]);
 }
 
 export function buildChartData(streams: ActivityStreams, startMs: number): ChartPoint[] {
