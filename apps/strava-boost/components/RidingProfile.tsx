@@ -1,0 +1,143 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+	AreaChart,
+	Area,
+	XAxis,
+	YAxis,
+	CartesianGrid,
+	Tooltip,
+	ResponsiveContainer,
+} from "recharts";
+import type { TooltipContentProps } from "recharts";
+import type { StravaActivity, ActivityStreams, XAxisMode, ChartPoint } from "@/src/types";
+import { parseStravaLocalDate } from "@/lib/strava-date";
+import {
+	buildChartData,
+	formatDistanceAxis,
+	formatRelativeTimeAxis,
+	formatAbsoluteTimeAxis,
+	formatAbsoluteTimeTooltip,
+} from "@/lib/riding-profile-utils";
+
+type Props = {
+	activity: StravaActivity;
+	streams: ActivityStreams;
+};
+
+const X_AXIS_MODES: { value: XAxisMode; label: string }[] = [
+	{ value: "distance", label: "거리" },
+	{ value: "relative-time", label: "상대 시간" },
+	{ value: "absolute-time", label: "절대 시간" },
+];
+
+function CustomTooltip({ active, payload }: TooltipContentProps) {
+	if (!active || !payload?.length) return null;
+	const point = payload[0].payload as ChartPoint;
+
+	return (
+		<div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs space-y-1 min-w-[160px]">
+			<p className="font-semibold text-gray-800">고도 {point.altitude} m</p>
+			<p className="text-gray-500">거리 {point.distanceKm.toFixed(1)} km</p>
+			<p className="text-gray-500">
+				경과 {formatRelativeTimeAxis(point.elapsedSeconds)}
+			</p>
+			<p className="text-gray-500">
+				{formatAbsoluteTimeTooltip(point.absoluteMs)}
+			</p>
+		</div>
+	);
+}
+
+export function RidingProfile({ activity, streams }: Props) {
+	const [xAxisMode, setXAxisMode] = useState<XAxisMode>("distance");
+
+	const chartData = useMemo(() => {
+		const startMs = parseStravaLocalDate(activity.start_date_local).getTime();
+		return buildChartData(streams, startMs);
+	}, [streams, activity.start_date_local]);
+
+	const xAxisDataKey: keyof ChartPoint =
+		xAxisMode === "distance"
+			? "distanceKm"
+			: xAxisMode === "relative-time"
+				? "elapsedSeconds"
+				: "absoluteMs";
+
+	const xTickFormatter = (v: number) => {
+		if (xAxisMode === "distance") return formatDistanceAxis(v);
+		if (xAxisMode === "relative-time") return formatRelativeTimeAxis(v);
+		return formatAbsoluteTimeAxis(v);
+	};
+
+	const altitudes = chartData.map((p) => p.altitude);
+	const minAlt = Math.max(0, Math.min(...altitudes) - 20);
+	const maxAlt = Math.max(...altitudes) + 50;
+
+	return (
+		<div className="bg-white rounded-lg shadow p-4 sm:p-6">
+			<div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+				<h2 className="text-lg font-semibold text-gray-800">라이딩 프로필</h2>
+				<div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+					{X_AXIS_MODES.map((mode) => (
+						<button
+							key={mode.value}
+							type="button"
+							onClick={() => setXAxisMode(mode.value)}
+							className={[
+								"px-3 py-1.5 transition-colors",
+								xAxisMode === mode.value
+									? "bg-blue-600 text-white font-medium"
+									: "bg-white text-gray-600 hover:bg-gray-50",
+							].join(" ")}
+						>
+							{mode.label}
+						</button>
+					))}
+				</div>
+			</div>
+
+			<ResponsiveContainer width="100%" height={260}>
+				<AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+					<defs>
+						<linearGradient id="ridingGradient" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="5%" stopColor="#f97316" stopOpacity={0.4} />
+							<stop offset="95%" stopColor="#f97316" stopOpacity={0.05} />
+						</linearGradient>
+					</defs>
+					<CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.07)" />
+					<XAxis
+						dataKey={xAxisDataKey}
+						type="number"
+						domain={["dataMin", "dataMax"]}
+						tickFormatter={xTickFormatter}
+						tick={{ fill: "#9ca3af", fontSize: 10 }}
+						tickLine={false}
+						axisLine={false}
+						tickCount={6}
+					/>
+					<YAxis
+						domain={[minAlt, maxAlt]}
+						tickFormatter={(v: number) => `${v}m`}
+						tick={{ fill: "#9ca3af", fontSize: 10 }}
+						tickLine={false}
+						axisLine={false}
+						width={45}
+					/>
+					<Tooltip content={(props) => <CustomTooltip {...props} />} />
+					<Area
+						type="monotone"
+						dataKey="altitude"
+						stroke="#f97316"
+						strokeWidth={1.5}
+						fill="url(#ridingGradient)"
+						isAnimationActive={false}
+						dot={false}
+						activeDot={{ r: 4, fill: "#f97316", stroke: "#fff", strokeWidth: 2 }}
+					/>
+				</AreaChart>
+			</ResponsiveContainer>
+		</div>
+	);
+}
