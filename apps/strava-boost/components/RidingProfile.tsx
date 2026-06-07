@@ -150,10 +150,11 @@ export function RidingProfile({ activity, streams, onHoverPoint }: Props) {
 	const minAlt = Math.max(0, Math.min(...altitudes) - 20);
 	const maxAlt = Math.max(...altitudes) + 50;
 
-	const handleMouseMove = (state: { activeTooltipIndex?: number | string | null }) => {
-		const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
-		if (idx == null) return;
-		const point = chartData[idx] as ChartPoint | undefined;
+	// activeTooltipIndex는 numeric XAxis에서 km 값(문자열)으로 오므로 신뢰 불가.
+	// activePayload[0].payload가 실제 ChartPoint이므로 이를 사용.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const handleMouseMove = (state: any) => {
+		const point = state?.activePayload?.[0]?.payload as ChartPoint | undefined;
 		if (!point) return;
 		const latlng = streams.latlng?.[point.streamIndex];
 		onHoverPoint?.(latlng ?? null);
