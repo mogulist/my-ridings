@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import {
 	AreaChart,
 	Area,
@@ -43,6 +43,8 @@ const X_AXIS_MODES: { value: XAxisMode; label: string }[] = [
 
 const GRADIENT_STRIP_HEIGHT = 8;
 const GRADIENT_STRIP_TOP_GAP = 2;
+const YAXIS_W = 45;
+const CHART_MARGIN_R = 10;
 
 function GradientStripOverlay({
 	segments,
@@ -150,19 +152,57 @@ export function RidingProfile({ activity, streams, onHoverPoint }: Props) {
 	const minAlt = Math.max(0, Math.min(...altitudes) - 20);
 	const maxAlt = Math.max(...altitudes) + 50;
 
-	// activeTooltipIndex는 numeric XAxis에서 km 값(문자열)으로 오므로 신뢰 불가.
-	// activePayload[0].payload가 실제 ChartPoint이므로 이를 사용.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const handleMouseMove = (state: any) => {
-		const point = state?.activePayload?.[0]?.payload as ChartPoint | undefined;
-		if (!point) return;
-		const latlng = streams.latlng?.[point.streamIndex];
-		onHoverPoint?.(latlng ?? null);
-	};
+	// recharts onMouseMove는 numeric XAxis에서 activePayload를 신뢰할 수 없음.
+	// 대신 wrapper div의 네이티브 mousemove로 픽셀 → 데이터 직접 변환.
+	const containerRef = useRef<HTMLDivElement>(null);
 
-	const handleMouseLeave = () => {
+	const handleWrapperMouseMove = useCallback(
+		(e: React.MouseEvent<HTMLDivElement>) => {
+			if (!containerRef.current || !onHoverPoint || chartData.length < 2) return;
+			const rect = containerRef.current.getBoundingClientRect();
+			const mouseX = e.clientX - rect.left;
+			const plotWidth = rect.width - YAXIS_W - CHART_MARGIN_R;
+			if (mouseX < YAXIS_W || mouseX > YAXIS_W + plotWidth || plotWidth <= 0) return;
+
+			const fraction = (mouseX - YAXIS_W) / plotWidth;
+
+			const getX = (p: ChartPoint) =>
+				xAxisMode === "distance"
+					? p.distanceKm
+					: xAxisMode === "relative-time"
+						? p.elapsedSeconds
+						: p.absoluteMs;
+
+			const xMin = getX(chartData[0]);
+			const xMax = getX(chartData[chartData.length - 1]);
+			if (xMax === xMin) return;
+			const targetX = xMin + fraction * (xMax - xMin);
+
+			// binary search: first index where getX >= targetX
+			let lo = 0, hi = chartData.length - 1;
+			while (lo < hi) {
+				const mid = (lo + hi) >> 1;
+				if (getX(chartData[mid]) < targetX) lo = mid + 1;
+				else hi = mid;
+			}
+			const best =
+				lo > 0 &&
+				Math.abs(getX(chartData[lo - 1]) - targetX) <
+					Math.abs(getX(chartData[lo]) - targetX)
+					? lo - 1
+					: lo;
+
+			const point = chartData[best];
+			if (!point) return;
+			const latlng = streams.latlng?.[point.streamIndex];
+			onHoverPoint(latlng ?? null);
+		},
+		[chartData, xAxisMode, streams.latlng, onHoverPoint],
+	);
+
+	const handleWrapperMouseLeave = useCallback(() => {
 		onHoverPoint?.(null);
-	};
+	}, [onHoverPoint]);
 
 	return (
 		<div className="bg-white rounded-lg shadow p-4 sm:p-6">
@@ -187,12 +227,15 @@ export function RidingProfile({ activity, streams, onHoverPoint }: Props) {
 				</div>
 			</div>
 
+			<div
+				ref={containerRef}
+				onMouseMove={handleWrapperMouseMove}
+				onMouseLeave={handleWrapperMouseLeave}
+			>
 			<ResponsiveContainer width="100%" height={280}>
 				<AreaChart
 					data={chartData}
 					margin={{ top: 10, right: 10, left: 0, bottom: 16 }}
-					onMouseMove={handleMouseMove}
-					onMouseLeave={handleMouseLeave}
 				>
 					<defs>
 						<linearGradient id="ridingGradient" x1="0" y1="0" x2="0" y2="1">
@@ -263,6 +306,7 @@ export function RidingProfile({ activity, streams, onHoverPoint }: Props) {
 					)}
 				</AreaChart>
 			</ResponsiveContainer>
+			</div>
 		</div>
 	);
 }
