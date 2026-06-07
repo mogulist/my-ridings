@@ -450,6 +450,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
                 const maxDist = nextStage
                   ? stage.distanceKm + nextStage.distanceKm - 0.1
                   : stage.distanceKm + unplannedDistanceKm;
+                const startDist = stages.slice(0, idx).reduce((sum, s) => sum + s.distanceKm, 0);
                 const isHighlighted =
                   panelStageId === stage.id || activeStageId === stage.id;
                 return (
@@ -463,6 +464,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
                     onDelete={() => {}}
                     onEditStage={() => {}}
                     maxDistanceKm={maxDist}
+                    startDistanceKm={startDist}
                     dateLabel={stageDayLabel(
                       stage.dayNumber,
                       publicPlan.plan.start_date,

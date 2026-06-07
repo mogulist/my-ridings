@@ -23,6 +23,8 @@ type StageCardProps = {
   onDelete: (stageId: string) => void;
   onEditStage: (stageId: string) => void;
   maxDistanceKm: number;
+  /** 이 스테이지 직전까지의 누적 거리 */
+  startDistanceKm: number;
   dateLabel?: string;
   /** 공유 뷰 등: ⋮ 메뉴·거리(km) 숫자 편집 비활성 */
   readOnly?: boolean;
@@ -48,25 +50,31 @@ export default function StageCard({
   onDelete,
   onEditStage,
   maxDistanceKm,
+  startDistanceKm,
   dateLabel,
   readOnly = false,
 }: StageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const [isAbsoluteEdit, setIsAbsoluteEdit] = useState(false);
   const color = getStageColor(stage.dayNumber);
 
   const handleStartEdit = useCallback(() => {
+    setIsAbsoluteEdit(false);
     setEditValue(String(stage.distanceKm));
     setIsEditing(true);
   }, [stage.distanceKm]);
 
   const handleSaveEdit = useCallback(() => {
-    const newDist = parseFloat(editValue);
-    if (!Number.isNaN(newDist) && newDist > 0) {
-      onUpdateDistance(stage.id, newDist);
+    const val = parseFloat(editValue);
+    if (!Number.isNaN(val) && val > 0) {
+      const newDist = isAbsoluteEdit ? val - startDistanceKm : val;
+      if (newDist > 0 && newDist <= maxDistanceKm) {
+        onUpdateDistance(stage.id, newDist);
+      }
     }
     setIsEditing(false);
-  }, [editValue, stage.id, onUpdateDistance]);
+  }, [editValue, isAbsoluteEdit, startDistanceKm, maxDistanceKm, stage.id, onUpdateDistance]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -74,6 +82,22 @@ export default function StageCard({
       if (e.key === "Escape") setIsEditing(false);
     },
     [handleSaveEdit],
+  );
+
+  const handleToggleEditMode = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsAbsoluteEdit((v) => {
+        const next = !v;
+        if (next) {
+          setEditValue(String(startDistanceKm + stage.distanceKm));
+        } else {
+          setEditValue(String(stage.distanceKm));
+        }
+        return next;
+      });
+    },
+    [startDistanceKm, stage.distanceKm],
   );
 
   const startLabel = stage.startName?.trim();
@@ -171,21 +195,39 @@ export default function StageCard({
               </span>
             </span>
           ) : isEditing ? (
-            <>
-              <input
-                type="number"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={handleSaveEdit}
-                className="w-20 rounded border border-zinc-300 px-2 py-0.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
-                min={1}
-                max={maxDistanceKm}
-                step={1}
-                onClick={(e) => e.stopPropagation()}
-              />
-              <span className="text-xs text-zinc-400">km</span>
-            </>
+            <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleSaveEdit}
+                  className="w-24 rounded border border-zinc-300 px-2 py-0.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                  min={isAbsoluteEdit ? startDistanceKm + 0.1 : 1}
+                  max={isAbsoluteEdit ? startDistanceKm + maxDistanceKm : maxDistanceKm}
+                  step={1}
+                  autoFocus
+                />
+                <span className="text-xs text-zinc-400">km</span>
+                <button
+                  type="button"
+                  onClick={handleToggleEditMode}
+                  className="ml-1 text-[10px] text-blue-500 hover:text-blue-600 dark:text-blue-400"
+                >
+                  {isAbsoluteEdit ? "이번 거리" : "누적 거리"}
+                </button>
+              </div>
+              {isAbsoluteEdit && (() => {
+                const val = parseFloat(editValue);
+                const rel = isNaN(val) ? null : val - startDistanceKm;
+                return rel !== null ? (
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                    이번 스테이지: {rel.toFixed(1)} km
+                  </span>
+                ) : null;
+              })()}
+            </div>
           ) : (
             <button
               type="button"
