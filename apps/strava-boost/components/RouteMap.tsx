@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Expand, Locate } from "lucide-react";
 import type { NaverMapInstance, NaverLatLngBounds, FitBoundsOptions } from "@/types/naver-maps";
+import type { SummitPoi, EventInfo } from "@/src/types";
 
 type RouteMapProps = {
   width?: string;
@@ -11,6 +12,8 @@ type RouteMapProps = {
   polyline?: [number, number][];
   /** 현재 위치 하이라이트 [lat, lng] */
   highlightPosition?: [number, number] | null;
+  summits?: SummitPoi[];
+  eventInfo?: EventInfo | null;
 };
 
 const STROKE_COLOR = "#f97316";
@@ -18,6 +21,34 @@ const STROKE_WEIGHT = 3;
 const FIT_BOUNDS_PADDING = 24;
 const HIGHLIGHT_SIZE = 14;
 const HIGHLIGHT_COLOR = "#3b82f6";
+
+const WAYPOINT_MARKER_CONFIG: Record<string, { bg: string; text: string; icon: string }> = {
+  summit:     { bg: "#7c3aed", text: "#fff", icon: "△" },
+  supply:     { bg: "#2563eb", text: "#fff", icon: "W" },
+  water:      { bg: "#0891b2", text: "#fff", icon: "W" },
+  cutoff:     { bg: "#dc2626", text: "#fff", icon: "⏱" },
+  checkpoint: { bg: "#16a34a", text: "#fff", icon: "●" },
+  start:      { bg: "#16a34a", text: "#fff", icon: "S" },
+  finish:     { bg: "#1d4ed8", text: "#fff", icon: "F" },
+  rest:       { bg: "#6b7280", text: "#fff", icon: "R" },
+};
+
+function poiMarkerHtml(icon: string, bg: string, textColor: string, label: string): string {
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+    <div style="
+      width:22px;height:22px;border-radius:50%;
+      background:${bg};color:${textColor};
+      display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:700;
+      border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);
+    ">${icon}</div>
+    <div style="
+      background:rgba(0,0,0,0.65);color:#fff;
+      font-size:9px;font-weight:600;white-space:nowrap;
+      padding:1px 4px;border-radius:3px;max-width:80px;overflow:hidden;text-overflow:ellipsis;
+    ">${label}</div>
+  </div>`;
+}
 
 function highlightHtml(size: number): string {
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_COLOR};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`;
@@ -28,11 +59,14 @@ export function RouteMap({
   height = "100%",
   polyline,
   highlightPosition = null,
+  summits = [],
+  eventInfo = null,
 }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<NaverMapInstance | null>(null);
   const polylineRef = useRef<unknown>(null);
   const highlightMarkerRef = useRef<unknown>(null);
+  const poiMarkersRef = useRef<{ setMap: (m: null) => void }[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -131,6 +165,45 @@ export function RouteMap({
       highlightMarkerRef.current = marker;
     }
   }, [isLoaded, highlightPosition]);
+
+  // POI 마커 (서밋 + 이벤트 경유지)
+  useEffect(() => {
+    if (!isLoaded || !window.naver?.maps || !mapInstanceRef.current) return;
+    const maps = window.naver.maps;
+    const Point = (maps as { Point?: new (x: number, y: number) => unknown }).Point;
+
+    // 기존 마커 제거
+    for (const m of poiMarkersRef.current) m.setMap(null);
+    poiMarkersRef.current = [];
+
+    function addMarker(lat: number, lng: number, icon: string, bg: string, textColor: string, label: string) {
+      if (!mapInstanceRef.current) return;
+      const options: { position: unknown; map: unknown; icon?: unknown; zIndex?: number } = {
+        position: new maps.LatLng(lat, lng),
+        map: mapInstanceRef.current as unknown,
+        zIndex: 5,
+      };
+      if (Point) {
+        options.icon = {
+          content: poiMarkerHtml(icon, bg, textColor, label),
+          anchor: new Point(11, 36),
+        };
+      }
+      const marker = new maps.Marker(options as { position: unknown; map: unknown });
+      poiMarkersRef.current.push(marker as unknown as { setMap: (m: null) => void });
+    }
+
+    for (const summit of summits) {
+      const cfg = WAYPOINT_MARKER_CONFIG.summit;
+      addMarker(summit.lat, summit.lng, cfg.icon, cfg.bg, cfg.text, summit.name);
+    }
+
+    const waypoints = eventInfo?.waypoints ?? [];
+    for (const wp of waypoints) {
+      const cfg = WAYPOINT_MARKER_CONFIG[wp.waypoint_type] ?? WAYPOINT_MARKER_CONFIG.checkpoint;
+      addMarker(wp.lat, wp.lng, cfg.icon, cfg.bg, cfg.text, wp.name);
+    }
+  }, [isLoaded, summits, eventInfo]);
 
   // ResizeObserver
   useEffect(() => {

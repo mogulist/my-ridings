@@ -10,6 +10,7 @@ import {
 	Tooltip,
 	ResponsiveContainer,
 	ReferenceArea,
+	ReferenceLine,
 	usePlotArea,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
@@ -18,7 +19,7 @@ import {
 	DOWNHILL_COLOR,
 } from "@my-ridings/plan-geometry";
 import type { GradientSegment } from "@my-ridings/plan-geometry";
-import type { StravaActivity, ActivityStreams, XAxisMode, ChartPoint, PauseSegment } from "@/src/types";
+import type { StravaActivity, ActivityStreams, XAxisMode, ChartPoint, PauseSegment, SummitPoi, EventInfo } from "@/src/types";
 import { parseStravaLocalDate } from "@/lib/strava-date";
 import {
 	buildChartData,
@@ -33,6 +34,8 @@ type Props = {
 	activity: StravaActivity;
 	streams: ActivityStreams;
 	onHoverPoint?: (pos: [number, number] | null) => void;
+	summits?: SummitPoi[];
+	eventInfo?: EventInfo | null;
 };
 
 const X_AXIS_MODES: { value: XAxisMode; label: string }[] = [
@@ -104,7 +107,58 @@ function CustomTooltip({ active, payload }: TooltipContentProps) {
 	);
 }
 
-export function RidingProfile({ activity, streams, onHoverPoint }: Props) {
+const WAYPOINT_STYLES: Record<string, { stroke: string; dashArray: string }> = {
+	summit:     { stroke: "#7c3aed", dashArray: "4 3" },
+	supply:     { stroke: "#2563eb", dashArray: "" },
+	water:      { stroke: "#0891b2", dashArray: "" },
+	cutoff:     { stroke: "#dc2626", dashArray: "6 3" },
+	checkpoint: { stroke: "#16a34a", dashArray: "" },
+	start:      { stroke: "#16a34a", dashArray: "" },
+	finish:     { stroke: "#16a34a", dashArray: "" },
+	rest:       { stroke: "#9ca3af", dashArray: "3 3" },
+};
+
+function formatCutoffTime(startMs: number, cutoffSeconds: number): string {
+	const ms = startMs + cutoffSeconds * 1000;
+	return new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function distanceKmToXValue(distKm: number, data: ChartPoint[], mode: XAxisMode): number {
+	if (mode === "distance" || data.length === 0) return distKm;
+	let lo = 0, hi = data.length - 1;
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1;
+		if (data[mid].distanceKm < distKm) lo = mid + 1;
+		else hi = mid;
+	}
+	return mode === "relative-time" ? data[lo].elapsedSeconds : data[lo].absoluteMs;
+}
+
+function PoiLabel({ viewBox, label, color, index }: {
+	viewBox?: { x?: number; y?: number };
+	label: string;
+	color: string;
+	index: number;
+}) {
+	const x = viewBox?.x ?? 0;
+	const y = (viewBox?.y ?? 10) + (index % 3) * 14;
+	return (
+		<g>
+			<text
+				x={x + 4}
+				y={y + 12}
+				fill={color}
+				fontSize={9}
+				fontWeight={600}
+				style={{ pointerEvents: "none", userSelect: "none" }}
+			>
+				{label}
+			</text>
+		</g>
+	);
+}
+
+export function RidingProfile({ activity, streams, onHoverPoint, summits = [], eventInfo = null }: Props) {
 	const [xAxisMode, setXAxisMode] = useState<XAxisMode>("distance");
 
 	const startMs = useMemo(
@@ -285,6 +339,53 @@ export function RidingProfile({ activity, streams, onHoverPoint }: Props) {
 								stroke="rgba(156,163,175,0.5)"
 								strokeWidth={1}
 								strokeDasharray="4 2"
+							/>
+						);
+					})}
+					{/* 서밋 마커 */}
+					{summits.map((summit, i) => {
+						const xVal = distanceKmToXValue(summit.distanceKm, chartData, xAxisMode);
+						return (
+							<ReferenceLine
+								key={`summit-${summit.id}`}
+								x={xVal}
+								stroke="#7c3aed"
+								strokeWidth={1.5}
+								strokeDasharray="4 3"
+								label={(props) => (
+									<PoiLabel
+										{...props}
+										label={summit.name}
+										color="#7c3aed"
+										index={i}
+									/>
+								)}
+							/>
+						);
+					})}
+					{/* 이벤트 경유지 마커 */}
+					{eventInfo?.waypoints.map((wp, i) => {
+						const xVal = distanceKmToXValue(wp.distanceKm, chartData, xAxisMode);
+						const style = WAYPOINT_STYLES[wp.waypoint_type] ?? WAYPOINT_STYLES.checkpoint;
+						const label =
+							wp.waypoint_type === "cutoff" && wp.cutoff_seconds_from_start != null
+								? `${wp.name} (${formatCutoffTime(startMs, wp.cutoff_seconds_from_start)})`
+								: wp.name;
+						return (
+							<ReferenceLine
+								key={`wp-${wp.id}`}
+								x={xVal}
+								stroke={style.stroke}
+								strokeWidth={1.5}
+								strokeDasharray={style.dashArray || undefined}
+								label={(props) => (
+									<PoiLabel
+										{...props}
+										label={label}
+										color={style.stroke}
+										index={i + summits.length}
+									/>
+								)}
 							/>
 						);
 					})}

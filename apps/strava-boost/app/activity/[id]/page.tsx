@@ -8,7 +8,12 @@ import { stravaApi } from "@/lib/strava-api";
 import { RidingProfile } from "@/components/RidingProfile";
 import { RouteMap } from "@/components/RouteMap";
 import { formatStravaLocalDate } from "@/lib/strava-date";
-import type { ActivityStreams, StravaActivity } from "@/src/types";
+import type { ActivityStreams, EventInfo, SummitPoi, StravaActivity } from "@/src/types";
+import {
+	fetchSummitsForTrack,
+	findEventForActivity,
+	streamsToTrackPoints,
+} from "@/lib/poi-matching";
 
 function StatChip({ children }: { children: React.ReactNode }) {
 	return (
@@ -36,6 +41,8 @@ export default function ActivityDetailPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [streamsLoading, setStreamsLoading] = useState(true);
 	const [highlightPosition, setHighlightPosition] = useState<[number, number] | null>(null);
+	const [summits, setSummits] = useState<SummitPoi[]>([]);
+	const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
 
 	useEffect(() => {
 		if (!id || isNaN(id)) {
@@ -44,6 +51,18 @@ export default function ActivityDetailPage() {
 		}
 
 		let cancelled = false;
+
+		async function loadPois(act: StravaActivity, s: ActivityStreams) {
+			if (cancelled) return;
+			const trackPoints = streamsToTrackPoints(s);
+			const [summitData, eventData] = await Promise.all([
+				fetchSummitsForTrack(trackPoints),
+				findEventForActivity(act.name, act.start_date_local, trackPoints),
+			]);
+			if (cancelled) return;
+			setSummits(summitData);
+			setEventInfo(eventData);
+		}
 
 		async function load() {
 			try {
@@ -61,6 +80,7 @@ export default function ActivityDetailPage() {
 				if (cached && cached.latlng && cached.latlng.length > 0) {
 					setStreams(cached);
 					setStreamsLoading(false);
+					loadPois(act, cached);
 					return;
 				}
 
@@ -68,6 +88,7 @@ export default function ActivityDetailPage() {
 				if (cancelled) return;
 				await dbUtils.saveStreams(fetched);
 				setStreams(fetched);
+				loadPois(act, fetched);
 			} catch (err) {
 				if (!cancelled) {
 					console.error("활동 로드 실패:", err);
@@ -161,6 +182,8 @@ export default function ActivityDetailPage() {
 						height="100%"
 						polyline={polyline}
 						highlightPosition={highlightPosition}
+						summits={summits}
+						eventInfo={eventInfo}
 					/>
 				</div>
 
@@ -177,6 +200,8 @@ export default function ActivityDetailPage() {
 						activity={activity}
 						streams={streams}
 						onHoverPoint={setHighlightPosition}
+						summits={summits}
+						eventInfo={eventInfo}
 					/>
 				) : activity && streams && streams.altitude.length === 0 ? (
 					<div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 text-sm">

@@ -66,3 +66,32 @@ export type PauseSegment = {
 	absoluteMsStart: number;
 	absoluteMsEnd: number;
 };
+
+export type SummitPoi = {
+	id: string;
+	name: string;
+	lat: number;
+	lng: number;
+	elevation_m: number | null;
+	distanceKm: number;
+};
+
+export type EventWaypointPoi = {
+	id: string;
+	name: string;
+	waypoint_type: "start" | "finish" | "checkpoint" | "supply" | "water" | "cutoff" | "summit" | "rest";
+	lat: number;
+	lng: number;
+	distanceKm: number;
+	cutoff_seconds_from_start: number | null;
+	supplies_available: string | null;
+	memo: string | null;
+};
+
+export type EventInfo = {
+	id: string;
+	name: string;
+	event_type: string;
+	event_date: string;
+	waypoints: EventWaypointPoi[];
+};
