@@ -39,3 +39,30 @@ export type EBikeStats = {
 		};
 	};
 };
+
+export type ActivityStreams = {
+	activityId: number;
+	altitude: number[]; // 고도 (m)
+	distance: number[]; // 누적 거리 (m)
+	time: number[];     // 경과 시간 (초, 출발 기준 0)
+	latlng?: [number, number][]; // [lat, lng]
+};
+
+export type XAxisMode = "distance" | "relative-time" | "absolute-time";
+
+export type ChartPoint = {
+	distanceKm: number;
+	elapsedSeconds: number;
+	absoluteMs: number;
+	altitude: number;
+	streamIndex: number;
+};
+
+export type PauseSegment = {
+	distanceKmStart: number;
+	distanceKmEnd: number;
+	elapsedSecondsStart: number;
+	elapsedSecondsEnd: number;
+	absoluteMsStart: number;
+	absoluteMsEnd: number;
+};

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { ArrowUp, BarChart2, MapPin } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
 import { type ActivitySortOrder, sortActivities } from "@/lib/sort";
 import { formatStravaLocalDate } from "@/lib/strava-date";
@@ -20,11 +23,50 @@ const SORT_OPTIONS: { value: ActivitySortOrder; label: string }[] = [
 export function ActivityList({ activities }: ActivityListProps) {
 	const [expandedId, setExpandedId] = useState<number | null>(null);
 	const [sortOrder, setSortOrder] = useState<ActivitySortOrder>("date-desc");
+	const [gearNames, setGearNames] = useState<Map<string, string>>(new Map());
+	const router = useRouter();
 	const sortedActivities = sortActivities(activities, sortOrder);
 
-	const formatDistance = (meters: number): string => {
-		const km = meters / 1000;
-		return `${km.toFixed(2)} km`;
+	useEffect(() => {
+		const gearIds = activities
+			.map((activity) => activity.gear_id)
+			.filter((gearId): gearId is string => gearId !== null);
+
+		if (gearIds.length === 0) {
+			setGearNames(new Map());
+			return;
+		}
+
+		let isCancelled = false;
+
+		const loadGearNames = async () => {
+			try {
+				const gearMap = await getGearInfos(gearIds);
+				if (isCancelled) return;
+
+				const names = new Map<string, string>();
+				for (const [gearId, gearInfo] of gearMap) {
+					names.set(gearId, gearInfo.name);
+				}
+				setGearNames(names);
+			} catch (error) {
+				console.error("자전거 정보 로드 실패:", error);
+			}
+		};
+
+		loadGearNames();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [activities]);
+
+	const formatDistanceKm = (meters: number): string => {
+		return `${(meters / 1000).toFixed(2)}km`;
+	};
+
+	const formatElevationGain = (meters: number): string => {
+		return `${Math.round(meters)}m`;
 	};
 
 	const formatTime = (seconds: number): string => {
@@ -89,13 +131,35 @@ export function ActivityList({ activities }: ActivityListProps) {
 										</span>
 									</div>
 								</div>
-								<div className="text-right flex-shrink-0">
-									<p className="font-semibold text-base sm:text-lg">
-										{formatDistance(activity.distance)}
-									</p>
+								<div className="flex items-center gap-2 flex-shrink-0">
+								  <button
+								    type="button"
+								    onClick={(e) => {
+								      e.stopPropagation();
+								      router.push(`/activity/${activity.id}`);
+								    }}
+								    className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+								    aria-label="라이딩 프로필 보기"
+								  >
+								    <BarChart2 className="size-4" />
+								  </button>
+								  <div className="text-right">
+									<div className="flex flex-wrap items-center justify-end gap-2 text-sm sm:text-base font-semibold tabular-nums">
+										<span className="inline-flex items-center gap-0.5 text-gray-900">
+											<MapPin className="size-3.5 shrink-0 text-gray-500" aria-hidden />
+											{formatDistanceKm(activity.distance)}
+										</span>
+										{activity.total_elevation_gain != null && activity.total_elevation_gain > 0 ? (
+											<span className="inline-flex items-center gap-0.5 text-green-600">
+												<ArrowUp className="size-3.5 shrink-0" aria-hidden />
+												{formatElevationGain(activity.total_elevation_gain)}
+											</span>
+										) : null}
+									</div>
 									<p className="text-xs sm:text-sm text-gray-600">
 										{formatTime(activity.moving_time)}
 									</p>
+								  </div>
 								</div>
 							</div>
 
@@ -117,7 +181,9 @@ export function ActivityList({ activities }: ActivityListProps) {
 										{activity.gear_id && (
 											<div>
 												<p className="text-gray-600 mb-1">자전거</p>
-												<p className="font-semibold break-words">{activity.gear_id}</p>
+												<p className="font-semibold break-words">
+													{gearNames.get(activity.gear_id) ?? activity.gear_id}
+												</p>
 											</div>
 										)}
 									</div>

@@ -107,6 +107,7 @@ export function PlanStagesPane({
             const maxDist = nextStage
               ? stage.distanceKm + nextStage.distanceKm - 0.1
               : stage.distanceKm + unplannedDistanceKm;
+            const startDist = stages.slice(0, idx).reduce((sum, s) => sum + s.distanceKm, 0);
             const isHighlighted =
               panelStageId === stage.id || activeStageId === stage.id;
             return (
@@ -120,6 +121,7 @@ export function PlanStagesPane({
                 onDelete={requestDeleteStage}
                 onEditStage={onEditStage}
                 maxDistanceKm={maxDist}
+                startDistanceKm={startDist}
                 dateLabel={stageDayLabel(stage.dayNumber, planStartDate)}
               />
             );
@@ -127,6 +129,7 @@ export function PlanStagesPane({
         </div>
         <AddStageForm
           unplannedDistanceKm={unplannedDistanceKm}
+          plannedDistanceKm={totalRouteDistanceKm - unplannedDistanceKm}
           onAddStage={addStage}
           onAddLastStage={addLastStage}
           nextDayNumber={stages.length + 1}

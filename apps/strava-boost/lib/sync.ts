@@ -5,6 +5,13 @@ import { dbUtils } from "./indexeddb";
 import { stravaApi } from "./strava-api";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
+const defaultSyncLookbackWeeks = 4;
+const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+
+const getLookbackAfterTimestamp = (weeks = defaultSyncLookbackWeeks): number => {
+	return Math.floor((Date.now() - weeks * msPerWeek) / 1000);
+};
+
 export type SyncProgress = {
 	status: "idle" | "syncing" | "success" | "error";
 	current: number;
@@ -54,12 +61,15 @@ export const syncActivities = async (
 		const isIncremental = lastSyncAt !== null;
 
 		updateProgress({
-			message: isIncremental ? "새로운 활동을 가져오는 중..." : "전체 활동을 가져오는 중...",
+			message: isIncremental
+				? `최근 ${defaultSyncLookbackWeeks}주 활동을 가져오는 중...`
+				: "전체 활동을 가져오는 중...",
 		});
 
 		// Strava API에서 활동 가져오기
+		// 증분 동기화: 마지막 동기화 시각 대신 lookback 기간 사용 (뒤늦게 업로드된 활동 포함)
 		const activities = await stravaApi.getActivities(
-			isIncremental && lastSyncAt !== null ? { after: lastSyncAt } : undefined,
+			isIncremental ? { after: getLookbackAfterTimestamp() } : undefined,
 		);
 
 		if (activities.length === 0) {
