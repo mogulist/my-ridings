@@ -7,6 +7,19 @@ const PMR_URL = process.env.NEXT_PUBLIC_PLAN_MY_ROUTE_URL ?? "";
 const SUMMIT_SNAP_RADIUS_M = 200;
 const EVENT_WAYPOINT_SNAP_RADIUS_M = 500;
 
+/** 누적 거리(km) 기준으로 가장 가까운 TrackPoint 반환 */
+function trackPointAtDistance(trackPoints: TrackPoint[], distanceKm: number): TrackPoint | null {
+  if (trackPoints.length === 0) return null;
+  const targetM = distanceKm * 1000;
+  let lo = 0, hi = trackPoints.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((trackPoints[mid].d ?? 0) < targetM) lo = mid + 1;
+    else hi = mid;
+  }
+  return trackPoints[lo] ?? null;
+}
+
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -102,14 +115,21 @@ export async function findEventForActivity(
     const waypoints: EventWaypointPoi[] = [];
     for (const wp of data.waypoints ?? []) {
       let distanceKm: number;
+      let lat: number | null = wp.lat ?? null;
+      let lng: number | null = wp.lng ?? null;
 
       if (wp.distance_from_start_km != null) {
         distanceKm = wp.distance_from_start_km;
-      } else if (trackPoints.length > 0) {
-        const snap = snapLatLngToTrack(trackPoints, wp.lat, wp.lng);
+        // lat/lng가 없으면 거리로 트랙에서 역산
+        if ((lat == null || lng == null) && trackPoints.length > 0) {
+          const tp = trackPointAtDistance(trackPoints, distanceKm);
+          if (tp) { lat = tp.y; lng = tp.x; }
+        }
+      } else if (lat != null && lng != null && trackPoints.length > 0) {
+        const snap = snapLatLngToTrack(trackPoints, lat, lng);
         if (!snap) continue;
         const nearestTp = trackPoints[snap.index];
-        const dist = haversineMeters(wp.lat, wp.lng, nearestTp.y, nearestTp.x);
+        const dist = haversineMeters(lat, lng, nearestTp.y, nearestTp.x);
         if (dist > EVENT_WAYPOINT_SNAP_RADIUS_M) continue;
         distanceKm = snap.distanceKm;
       } else {
@@ -120,8 +140,8 @@ export async function findEventForActivity(
         id: wp.id,
         name: wp.name,
         waypoint_type: wp.waypoint_type,
-        lat: wp.lat,
-        lng: wp.lng,
+        lat,
+        lng,
         distanceKm,
         cutoff_seconds_from_start: wp.cutoff_seconds_from_start ?? null,
         supplies_available: wp.supplies_available ?? null,

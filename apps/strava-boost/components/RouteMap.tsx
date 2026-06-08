@@ -200,6 +200,7 @@ export function RouteMap({
 
     const waypoints = eventInfo?.waypoints ?? [];
     for (const wp of waypoints) {
+      if (wp.lat == null || wp.lng == null) continue;
       const cfg = WAYPOINT_MARKER_CONFIG[wp.waypoint_type] ?? WAYPOINT_MARKER_CONFIG.checkpoint;
       addMarker(wp.lat, wp.lng, cfg.icon, cfg.bg, cfg.text, wp.name);
     }

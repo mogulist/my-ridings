@@ -80,8 +80,8 @@ export type EventWaypointPoi = {
 	id: string;
 	name: string;
 	waypoint_type: "start" | "finish" | "checkpoint" | "supply" | "water" | "cutoff" | "summit" | "rest";
-	lat: number;
-	lng: number;
+	lat: number | null;
+	lng: number | null;
 	distanceKm: number;
 	cutoff_seconds_from_start: number | null;
 	supplies_available: string | null;

@@ -47,8 +47,8 @@ export type EventWaypointRow = {
   event_id: string;
   name: string;
   waypoint_type: WaypointType;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   elevation_m: number | null;
   distance_from_start_km: number | null;
   cutoff_seconds_from_start: number | null;

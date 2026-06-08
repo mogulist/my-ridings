@@ -29,11 +29,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
     if (!isValidWaypointType(waypointType))
       return NextResponse.json({ error: "invalid waypoint_type" }, { status: 400 });
-    if (lat == null || lng == null)
-      return NextResponse.json({ error: "lat and lng are required" }, { status: 400 });
+
+    const distanceKm = parseNumber(body.distance_from_start_km);
+    if (lat == null && lng == null && distanceKm == null)
+      return NextResponse.json({ error: "lat/lng 또는 distance_from_start_km 중 하나는 필요합니다" }, { status: 400 });
 
     const elevationM = parseNumber(body.elevation_m);
-    const distanceKm = parseNumber(body.distance_from_start_km);
     const cutoffSeconds = parseNumber(body.cutoff_seconds_from_start);
     const orderIndex = parseNumber(body.order_index) ?? 0;
 

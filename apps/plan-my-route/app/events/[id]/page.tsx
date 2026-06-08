@@ -69,18 +69,26 @@ export default function EventDetailPage({ params }: Props) {
           ? parseCutoffInput(form.cutoff_seconds_from_start)
           : null;
 
+      const distKm = form.distance_from_start_km ? Number(form.distance_from_start_km) : null;
+      const lat = form.lat ? Number(form.lat) : null;
+      const lng = form.lng ? Number(form.lng) : null;
+
+      if (distKm == null && (lat == null || lng == null)) {
+        alert("경로 상 거리(km) 또는 위도/경도를 입력해 주세요.");
+        setAdding(false);
+        return;
+      }
+
       const res = await fetch(`/api/events/${id}/waypoints`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
           waypoint_type: form.waypoint_type,
-          lat: Number(form.lat),
-          lng: Number(form.lng),
+          lat,
+          lng,
           elevation_m: form.elevation_m ? Number(form.elevation_m) : null,
-          distance_from_start_km: form.distance_from_start_km
-            ? Number(form.distance_from_start_km)
-            : null,
+          distance_from_start_km: distKm,
           cutoff_seconds_from_start: cutoffSec,
           supplies_available: form.supplies_available || null,
           is_mandatory_stop: form.is_mandatory_stop,
@@ -179,9 +187,11 @@ export default function EventDetailPage({ params }: Props) {
                       {wp.supplies_available && <span>물품: {wp.supplies_available}</span>}
                       {wp.memo && <span className="italic">{wp.memo}</span>}
                     </div>
-                    <div className="mt-0.5 text-xs text-gray-400 dark:text-zinc-500">
-                      {wp.lat.toFixed(5)}, {wp.lng.toFixed(5)}
-                    </div>
+                    {wp.lat != null && wp.lng != null && (
+                      <div className="mt-0.5 text-xs text-gray-400 dark:text-zinc-500">
+                        {wp.lat.toFixed(5)}, {wp.lng.toFixed(5)}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => handleDeleteWaypoint(wp.id)}
@@ -225,9 +235,23 @@ export default function EventDetailPage({ params }: Props) {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">위도 *</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
+              경로 상 거리 (km) <span className="text-red-500">*</span>
+            </label>
             <input
-              required
+              type="number"
+              step="any"
+              value={form.distance_from_start_km}
+              onChange={(e) => setForm((f) => ({ ...f, distance_from_start_km: e.target.value }))}
+              placeholder="45.3"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
+              위도 <span className="text-gray-400 font-normal">(선택)</span>
+            </label>
+            <input
               type="number"
               step="any"
               value={form.lat}
@@ -237,25 +261,15 @@ export default function EventDetailPage({ params }: Props) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">경도 *</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
+              경도 <span className="text-gray-400 font-normal">(선택)</span>
+            </label>
             <input
-              required
               type="number"
               step="any"
               value={form.lng}
               onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
               placeholder="128.12345"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">경로 상 거리 (km)</label>
-            <input
-              type="number"
-              step="any"
-              value={form.distance_from_start_km}
-              onChange={(e) => setForm((f) => ({ ...f, distance_from_start_km: e.target.value }))}
-              placeholder="45.3"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             />
           </div>
