@@ -2,7 +2,9 @@ import { snapLatLngToTrack } from "@my-ridings/plan-geometry";
 import type { TrackPoint } from "@my-ridings/plan-geometry";
 import type { ActivityStreams, SummitPoi, EventInfo, EventWaypointPoi } from "@/src/types";
 
-const PMR_URL = process.env.NEXT_PUBLIC_PLAN_MY_ROUTE_URL ?? "";
+// 클라이언트에서 호출 시 same-origin 프록시 사용 (CORS 방지)
+// window가 있으면 브라우저 환경 → 상대 경로, 없으면 서버 환경 → 절대 경로 불필요 (직접 호출 X)
+const POI_BASE = typeof window !== "undefined" ? "" : "";
 
 const SUMMIT_SNAP_RADIUS_M = 200;
 const EVENT_WAYPOINT_SNAP_RADIUS_M = 500;
@@ -55,19 +57,20 @@ function trackBbox(trackPoints: TrackPoint[]): { minLat: number; maxLat: number;
 }
 
 export async function fetchSummitsForTrack(trackPoints: TrackPoint[]): Promise<SummitPoi[]> {
-  if (!PMR_URL || trackPoints.length === 0) return [];
+  if (trackPoints.length === 0) return [];
 
   const bbox = trackBbox(trackPoints);
   if (!bbox) return [];
 
-  const url = new URL("/api/public/summits", PMR_URL);
-  url.searchParams.set("minLat", String(bbox.minLat));
-  url.searchParams.set("maxLat", String(bbox.maxLat));
-  url.searchParams.set("minLng", String(bbox.minLng));
-  url.searchParams.set("maxLng", String(bbox.maxLng));
+  const params = new URLSearchParams({
+    minLat: String(bbox.minLat),
+    maxLat: String(bbox.maxLat),
+    minLng: String(bbox.minLng),
+    maxLng: String(bbox.maxLng),
+  });
 
   try {
-    const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
+    const res = await fetch(`${POI_BASE}/api/poi/summits?${params}`);
     if (!res.ok) return [];
     const data = await res.json();
     if (!Array.isArray(data)) return [];
@@ -99,15 +102,13 @@ export async function findEventForActivity(
   activityDate: string,
   trackPoints: TrackPoint[],
 ): Promise<EventInfo | null> {
-  if (!PMR_URL || !activityName || !activityDate) return null;
+  if (!activityName || !activityDate) return null;
 
   const dateOnly = activityDate.slice(0, 10);
-  const url = new URL("/api/public/events", PMR_URL);
-  url.searchParams.set("name", activityName);
-  url.searchParams.set("date", dateOnly);
+  const params = new URLSearchParams({ name: activityName, date: dateOnly });
 
   try {
-    const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
+    const res = await fetch(`${POI_BASE}/api/poi/events?${params}`);
     if (!res.ok) return null;
     const data = await res.json();
     if (!data?.id) return null;
