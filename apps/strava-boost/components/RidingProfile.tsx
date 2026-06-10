@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
 	AreaChart,
 	Area,
@@ -210,53 +210,89 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 	// 대신 wrapper div의 네이티브 mousemove로 픽셀 → 데이터 직접 변환.
 	const containerRef = useRef<HTMLDivElement>(null);
 
-	const handleWrapperMouseMove = useCallback(
-		(e: React.MouseEvent<HTMLDivElement>) => {
-			if (!containerRef.current || !onHoverPoint || chartData.length < 2) return;
-			const rect = containerRef.current.getBoundingClientRect();
-			const mouseX = e.clientX - rect.left;
-			const plotWidth = rect.width - YAXIS_W - CHART_MARGIN_R;
-			if (mouseX < YAXIS_W || mouseX > YAXIS_W + plotWidth || plotWidth <= 0) return;
+	function pointAtClientX(clientX: number): ChartPoint | null {
+		if (!containerRef.current || chartData.length < 2) return null;
+		const rect = containerRef.current.getBoundingClientRect();
+		const mouseX = clientX - rect.left;
+		const plotWidth = rect.width - YAXIS_W - CHART_MARGIN_R;
+		if (mouseX < YAXIS_W || mouseX > YAXIS_W + plotWidth || plotWidth <= 0) return null;
 
-			const fraction = (mouseX - YAXIS_W) / plotWidth;
+		const fraction = (mouseX - YAXIS_W) / plotWidth;
 
-			const getX = (p: ChartPoint) =>
-				xAxisMode === "distance"
-					? p.distanceKm
-					: xAxisMode === "relative-time"
-						? p.elapsedSeconds
-						: p.absoluteMs;
+		const getX = (p: ChartPoint) =>
+			xAxisMode === "distance"
+				? p.distanceKm
+				: xAxisMode === "relative-time"
+					? p.elapsedSeconds
+					: p.absoluteMs;
 
-			const xMin = getX(chartData[0]);
-			const xMax = getX(chartData[chartData.length - 1]);
-			if (xMax === xMin) return;
-			const targetX = xMin + fraction * (xMax - xMin);
+		const xMin = getX(chartData[0]);
+		const xMax = getX(chartData[chartData.length - 1]);
+		if (xMax === xMin) return null;
+		const targetX = xMin + fraction * (xMax - xMin);
 
-			// binary search: first index where getX >= targetX
-			let lo = 0, hi = chartData.length - 1;
-			while (lo < hi) {
-				const mid = (lo + hi) >> 1;
-				if (getX(chartData[mid]) < targetX) lo = mid + 1;
-				else hi = mid;
-			}
-			const best =
-				lo > 0 &&
-				Math.abs(getX(chartData[lo - 1]) - targetX) <
-					Math.abs(getX(chartData[lo]) - targetX)
-					? lo - 1
-					: lo;
+		// binary search: first index where getX >= targetX
+		let lo = 0, hi = chartData.length - 1;
+		while (lo < hi) {
+			const mid = (lo + hi) >> 1;
+			if (getX(chartData[mid]) < targetX) lo = mid + 1;
+			else hi = mid;
+		}
+		const best =
+			lo > 0 &&
+			Math.abs(getX(chartData[lo - 1]) - targetX) <
+				Math.abs(getX(chartData[lo]) - targetX)
+				? lo - 1
+				: lo;
 
-			const point = chartData[best];
-			if (!point) return;
-			const latlng = streams.latlng?.[point.streamIndex];
-			onHoverPoint(latlng ?? null);
-		},
-		[chartData, xAxisMode, streams.latlng, onHoverPoint],
-	);
+		return chartData[best] ?? null;
+	}
 
-	const handleWrapperMouseLeave = useCallback(() => {
+	function handleWrapperMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+		if (!onHoverPoint) return;
+		const point = pointAtClientX(e.clientX);
+		if (!point) return;
+		const latlng = streams.latlng?.[point.streamIndex];
+		onHoverPoint(latlng ?? null);
+	}
+
+	function handleWrapperMouseLeave() {
 		onHoverPoint?.(null);
-	}, [onHoverPoint]);
+	}
+
+	// 우클릭 시 해당 지점의 GPS 좌표/거리/고도를 복사할 수 있는 컨텍스트 메뉴
+	const [contextMenu, setContextMenu] = useState<{ x: number; y: number; point: ChartPoint } | null>(null);
+	const [toast, setToast] = useState<string | null>(null);
+
+	function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
+		const point = pointAtClientX(e.clientX);
+		if (!point) return;
+		e.preventDefault();
+		setContextMenu({ x: e.clientX, y: e.clientY, point });
+	}
+
+	useEffect(() => {
+		if (!contextMenu) return;
+		const close = () => setContextMenu(null);
+		document.addEventListener("click", close);
+		return () => document.removeEventListener("click", close);
+	}, [contextMenu]);
+
+	useEffect(() => {
+		if (!toast) return;
+		const timer = setTimeout(() => setToast(null), 2000);
+		return () => clearTimeout(timer);
+	}, [toast]);
+
+	async function copyToClipboard(text: string, label: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			setToast(`${label} 복사됨: ${text}`);
+		} catch {
+			setToast("복사 실패");
+		}
+		setContextMenu(null);
+	}
 
 	return (
 		<div className="bg-white rounded-lg shadow p-4 sm:p-6">
@@ -285,6 +321,7 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 				ref={containerRef}
 				onMouseMove={handleWrapperMouseMove}
 				onMouseLeave={handleWrapperMouseLeave}
+				onContextMenu={handleContextMenu}
 			>
 			<ResponsiveContainer width="100%" height={280}>
 				<AreaChart
@@ -316,7 +353,7 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 						axisLine={false}
 						width={45}
 					/>
-					<Tooltip content={CustomTooltip} />
+					<Tooltip content={CustomTooltip} active={contextMenu ? false : undefined} />
 					{pauses.map((pause: PauseSegment, i: number) => {
 						const x1 =
 							xAxisMode === "distance"
@@ -408,6 +445,50 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 				</AreaChart>
 			</ResponsiveContainer>
 			</div>
+
+			{contextMenu && (() => {
+				const { point } = contextMenu;
+				const latlng = streams.latlng?.[point.streamIndex];
+				return (
+					<div
+						className="fixed z-50 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 text-xs shadow-lg"
+						style={{ left: contextMenu.x, top: contextMenu.y }}
+						onContextMenu={(e) => e.preventDefault()}
+					>
+						<button
+							type="button"
+							disabled={!latlng}
+							onClick={() =>
+								latlng &&
+								copyToClipboard(`${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}`, "위경도 좌표")
+							}
+							className="block w-full px-2.5 py-1 text-left text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-300"
+						>
+							📍 위경도 좌표 복사{latlng ? ` (${latlng[0].toFixed(5)}, ${latlng[1].toFixed(5)})` : ""}
+						</button>
+						<button
+							type="button"
+							onClick={() => copyToClipboard(point.distanceKm.toFixed(2), "경로 거리")}
+							className="block w-full px-2.5 py-1 text-left text-gray-700 hover:bg-gray-100"
+						>
+							📏 경로 거리 복사 ({point.distanceKm.toFixed(2)} km)
+						</button>
+						<button
+							type="button"
+							onClick={() => copyToClipboard(String(Math.round(point.altitude)), "고도")}
+							className="block w-full px-2.5 py-1 text-left text-gray-700 hover:bg-gray-100"
+						>
+							⛰️ 고도 복사 ({Math.round(point.altitude)} m)
+						</button>
+					</div>
+				);
+			})()}
+
+			{toast && (
+				<div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-gray-800 px-4 py-2 text-sm text-white shadow-lg">
+					{toast}
+				</div>
+			)}
 		</div>
 	);
 }
