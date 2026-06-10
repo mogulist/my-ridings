@@ -10,8 +10,9 @@ import {
 	Tooltip,
 	ResponsiveContainer,
 	ReferenceArea,
-	ReferenceLine,
 	usePlotArea,
+	useXAxisScale,
+	useYAxisScale,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
 import {
@@ -107,15 +108,15 @@ function CustomTooltip({ active, payload }: TooltipContentProps) {
 	);
 }
 
-const WAYPOINT_STYLES: Record<string, { stroke: string; dashArray: string }> = {
-	summit:     { stroke: "#7c3aed", dashArray: "4 3" },
-	supply:     { stroke: "#2563eb", dashArray: "" },
-	water:      { stroke: "#0891b2", dashArray: "" },
-	cutoff:     { stroke: "#dc2626", dashArray: "6 3" },
-	checkpoint: { stroke: "#16a34a", dashArray: "" },
-	start:      { stroke: "#16a34a", dashArray: "" },
-	finish:     { stroke: "#16a34a", dashArray: "" },
-	rest:       { stroke: "#9ca3af", dashArray: "3 3" },
+const WAYPOINT_COLORS: Record<string, string> = {
+	summit:     "#7c3aed",
+	supply:     "#2563eb",
+	water:      "#0891b2",
+	cutoff:     "#dc2626",
+	checkpoint: "#16a34a",
+	start:      "#16a34a",
+	finish:     "#1d4ed8",
+	rest:       "#6b7280",
 };
 
 function formatCutoffTime(startMs: number, cutoffSeconds: number): string {
@@ -123,37 +124,97 @@ function formatCutoffTime(startMs: number, cutoffSeconds: number): string {
 	return new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function distanceKmToXValue(distKm: number, data: ChartPoint[], mode: XAxisMode): number {
-	if (mode === "distance" || data.length === 0) return distKm;
+/** 누적 거리(km) 기준으로 가장 가까운 ChartPoint 반환 */
+function nearestChartPoint(distKm: number, data: ChartPoint[]): ChartPoint | null {
+	if (data.length === 0) return null;
 	let lo = 0, hi = data.length - 1;
 	while (lo < hi) {
 		const mid = (lo + hi) >> 1;
 		if (data[mid].distanceKm < distKm) lo = mid + 1;
 		else hi = mid;
 	}
-	return mode === "relative-time" ? data[lo].elapsedSeconds : data[lo].absoluteMs;
+	return data[lo];
 }
 
-function PoiLabel({ viewBox, label, color, index }: {
-	viewBox?: { x?: number; y?: number };
+function chartPointToXValue(point: ChartPoint, mode: XAxisMode): number {
+	if (mode === "distance") return point.distanceKm;
+	return mode === "relative-time" ? point.elapsedSeconds : point.absoluteMs;
+}
+
+type PoiMarker = {
+	id: string;
 	label: string;
 	color: string;
-	index: number;
-}) {
-	const x = viewBox?.x ?? 0;
-	const y = (viewBox?.y ?? 10) + (index % 3) * 14;
+	xValue: number;
+	altitude: number;
+};
+
+const POI_LABEL_TIERS = 3;
+const POI_LABEL_ROW_HEIGHT = 13;
+const POI_LABEL_CHAR_WIDTH = 7;
+// 가장 높은 지점(플롯 영역 상단)과 1단 라벨 사이의 최소 간격
+const POI_LABEL_GAP_PX = 24;
+// 차트 위 여백: 간격 + 라벨 단(tier) 수만큼 + 약간의 여유
+const POI_OVERLAY_TOP_MARGIN = POI_LABEL_GAP_PX + POI_LABEL_TIERS * POI_LABEL_ROW_HEIGHT + 4;
+
+/** 곡선 위 작은 점 마커 + 상단 다단 라벨 + 라벨↔지점 연결 점선 */
+function PoiOverlay({ markers }: { markers: PoiMarker[] }) {
+	const plotArea = usePlotArea();
+	const xScale = useXAxisScale();
+	const yScale = useYAxisScale();
+	if (!plotArea || !xScale || !yScale || markers.length === 0) return null;
+
+	const positioned = markers
+		.map((m) => {
+			const px = xScale(m.xValue);
+			const py = yScale(m.altitude);
+			if (px == null || py == null) return null;
+			return { ...m, px, py };
+		})
+		.filter((m): m is PoiMarker & { px: number; py: number } => m !== null)
+		.sort((a, b) => a.px - b.px);
+
+	// 가로 위치 기준 충돌 회피: 겹치면 다음 단으로 내림 (최대 3단)
+	const tierEndX: number[] = new Array(POI_LABEL_TIERS).fill(-Infinity);
+	const tiered = positioned.map((m) => {
+		const halfWidth = (m.label.length * POI_LABEL_CHAR_WIDTH) / 2 + 4;
+		let tier = 0;
+		while (tier < POI_LABEL_TIERS - 1 && m.px - halfWidth < tierEndX[tier]) tier++;
+		tierEndX[tier] = m.px + halfWidth;
+		return { ...m, tier };
+	});
+
 	return (
-		<g>
-			<text
-				x={x + 4}
-				y={y + 12}
-				fill={color}
-				fontSize={9}
-				fontWeight={600}
-				style={{ pointerEvents: "none", userSelect: "none" }}
-			>
-				{label}
-			</text>
+		<g style={{ pointerEvents: "none" }}>
+			{tiered.map((m) => {
+				const labelY = plotArea.y - POI_LABEL_GAP_PX - m.tier * POI_LABEL_ROW_HEIGHT - 4;
+				return (
+					<g key={m.id}>
+						<line
+							x1={m.px}
+							y1={labelY + 3}
+							x2={m.px}
+							y2={m.py}
+							stroke={m.color}
+							strokeWidth={1}
+							strokeDasharray="2 2"
+							opacity={0.35}
+						/>
+						<circle cx={m.px} cy={m.py} r={4} fill="#fff" stroke={m.color} strokeWidth={2} />
+						<text
+							x={m.px}
+							y={labelY}
+							fill={m.color}
+							fontSize={9}
+							fontWeight={600}
+							textAnchor="middle"
+							style={{ userSelect: "none" }}
+						>
+							{m.label}
+						</text>
+					</g>
+				);
+			})}
 		</g>
 	);
 }
@@ -189,6 +250,40 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 		[chartData],
 	);
 
+	const poiMarkers = useMemo<PoiMarker[]>(() => {
+		const markers: PoiMarker[] = [];
+
+		for (const summit of summits) {
+			const point = nearestChartPoint(summit.distanceKm, chartData);
+			if (!point) continue;
+			markers.push({
+				id: `summit-${summit.id}`,
+				label: summit.name,
+				color: WAYPOINT_COLORS.summit,
+				xValue: chartPointToXValue(point, xAxisMode),
+				altitude: point.altitude,
+			});
+		}
+
+		for (const wp of eventInfo?.waypoints ?? []) {
+			const point = nearestChartPoint(wp.distanceKm, chartData);
+			if (!point) continue;
+			const label =
+				wp.waypoint_type === "cutoff" && wp.cutoff_seconds_from_start != null
+					? `${wp.name} (${formatCutoffTime(startMs, wp.cutoff_seconds_from_start)})`
+					: wp.name;
+			markers.push({
+				id: `wp-${wp.id}`,
+				label,
+				color: WAYPOINT_COLORS[wp.waypoint_type] ?? WAYPOINT_COLORS.checkpoint,
+				xValue: chartPointToXValue(point, xAxisMode),
+				altitude: point.altitude,
+			});
+		}
+
+		return markers;
+	}, [summits, eventInfo, chartData, xAxisMode, startMs]);
+
 	const xAxisDataKey: keyof ChartPoint =
 		xAxisMode === "distance"
 			? "distanceKm"
@@ -204,7 +299,8 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 
 	const altitudes = chartData.map((p) => p.altitude);
 	const minAlt = Math.max(0, Math.min(...altitudes) - 20);
-	const maxAlt = Math.max(...altitudes) + 50;
+	// Y축 최고 고도를 가장 높은 지점에 맞춰서, POI 라벨은 차트 위 여백(margin)에 배치
+	const maxAlt = Math.max(...altitudes);
 
 	// recharts onMouseMove는 numeric XAxis에서 activePayload를 신뢰할 수 없음.
 	// 대신 wrapper div의 네이티브 mousemove로 픽셀 → 데이터 직접 변환.
@@ -326,7 +422,7 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 			<ResponsiveContainer width="100%" height={280}>
 				<AreaChart
 					data={chartData}
-					margin={{ top: 10, right: 10, left: 0, bottom: 16 }}
+					margin={{ top: POI_OVERLAY_TOP_MARGIN, right: 10, left: 0, bottom: 16 }}
 				>
 					<defs>
 						<linearGradient id="ridingGradient" x1="0" y1="0" x2="0" y2="1">
@@ -372,57 +468,8 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 								key={i}
 								x1={x1}
 								x2={x2}
-								fill="rgba(156,163,175,0.25)"
-								stroke="rgba(156,163,175,0.5)"
-								strokeWidth={1}
-								strokeDasharray="4 2"
-							/>
-						);
-					})}
-					{/* 서밋 마커 */}
-					{summits.map((summit, i) => {
-						const xVal = distanceKmToXValue(summit.distanceKm, chartData, xAxisMode);
-						return (
-							<ReferenceLine
-								key={`summit-${summit.id}`}
-								x={xVal}
-								stroke="#7c3aed"
-								strokeWidth={1.5}
-								strokeDasharray="4 3"
-								label={(props) => (
-									<PoiLabel
-										{...props}
-										label={summit.name}
-										color="#7c3aed"
-										index={i}
-									/>
-								)}
-							/>
-						);
-					})}
-					{/* 이벤트 경유지 마커 */}
-					{eventInfo?.waypoints.map((wp, i) => {
-						const xVal = distanceKmToXValue(wp.distanceKm, chartData, xAxisMode);
-						const style = WAYPOINT_STYLES[wp.waypoint_type] ?? WAYPOINT_STYLES.checkpoint;
-						const label =
-							wp.waypoint_type === "cutoff" && wp.cutoff_seconds_from_start != null
-								? `${wp.name} (${formatCutoffTime(startMs, wp.cutoff_seconds_from_start)})`
-								: wp.name;
-						return (
-							<ReferenceLine
-								key={`wp-${wp.id}`}
-								x={xVal}
-								stroke={style.stroke}
-								strokeWidth={1.5}
-								strokeDasharray={style.dashArray || undefined}
-								label={(props) => (
-									<PoiLabel
-										{...props}
-										label={label}
-										color={style.stroke}
-										index={i + summits.length}
-									/>
-								)}
+								fill="rgba(156,163,175,0.35)"
+								stroke="none"
 							/>
 						);
 					})}
@@ -436,6 +483,7 @@ export function RidingProfile({ activity, streams, onHoverPoint, summits = [], e
 						dot={false}
 						activeDot={{ r: 4, fill: "#f97316", stroke: "#fff", strokeWidth: 2 }}
 					/>
+					<PoiOverlay markers={poiMarkers} />
 					{xAxisMode === "distance" && gradientSegments.length > 0 && (
 						<GradientStripOverlay
 							segments={gradientSegments}
