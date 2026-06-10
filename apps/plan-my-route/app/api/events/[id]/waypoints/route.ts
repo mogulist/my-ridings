@@ -30,10 +30,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (!isValidWaypointType(waypointType))
       return NextResponse.json({ error: "invalid waypoint_type" }, { status: 400 });
 
-    const distanceKm = parseNumber(body.distance_from_start_km);
-    if (lat == null && lng == null && distanceKm == null)
-      return NextResponse.json({ error: "lat/lng 또는 distance_from_start_km 중 하나는 필요합니다" }, { status: 400 });
+    if (lat == null || lng == null)
+      return NextResponse.json({ error: "위도/경도는 필수입니다" }, { status: 400 });
 
+    const distanceKm = parseNumber(body.distance_from_start_km);
     const elevationM = parseNumber(body.elevation_m);
     const cutoffSeconds = parseNumber(body.cutoff_seconds_from_start);
     const orderIndex = parseNumber(body.order_index) ?? 0;

@@ -73,8 +73,8 @@ export default function EventDetailPage({ params }: Props) {
       const lat = form.lat ? Number(form.lat) : null;
       const lng = form.lng ? Number(form.lng) : null;
 
-      if (distKm == null && (lat == null || lng == null)) {
-        alert("경로 상 거리(km) 또는 위도/경도를 입력해 주세요.");
+      if (lat == null || lng == null) {
+        alert("위도/경도를 입력해 주세요.");
         setAdding(false);
         return;
       }
@@ -236,7 +236,35 @@ export default function EventDetailPage({ params }: Props) {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
-              경로 상 거리 (km) <span className="text-red-500">*</span>
+              위도 <span className="text-red-500">*</span>
+            </label>
+            <input
+              required
+              type="number"
+              step="any"
+              value={form.lat}
+              onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))}
+              placeholder="37.12345"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
+              경도 <span className="text-red-500">*</span>
+            </label>
+            <input
+              required
+              type="number"
+              step="any"
+              value={form.lng}
+              onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
+              placeholder="128.12345"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
+              경로 상 거리 (km) <span className="text-gray-400 font-normal">(선택)</span>
             </label>
             <input
               type="number"
@@ -249,32 +277,8 @@ export default function EventDetailPage({ params }: Props) {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
-              위도 <span className="text-gray-400 font-normal">(선택)</span>
+              고도 (m) <span className="text-gray-400 font-normal">(선택)</span>
             </label>
-            <input
-              type="number"
-              step="any"
-              value={form.lat}
-              onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))}
-              placeholder="37.12345"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">
-              경도 <span className="text-gray-400 font-normal">(선택)</span>
-            </label>
-            <input
-              type="number"
-              step="any"
-              value={form.lng}
-              onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
-              placeholder="128.12345"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-zinc-400">고도 (m)</label>
             <input
               type="number"
               value={form.elevation_m}
