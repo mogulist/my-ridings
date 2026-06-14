@@ -5,6 +5,15 @@ import { Expand, Locate } from "lucide-react";
 import type { NaverMapInstance, NaverLatLngBounds, FitBoundsOptions } from "@/types/naver-maps";
 import type { SummitPoi, EventInfo } from "@/src/types";
 
+type SelectionBounds = {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+  /** 선택 구간의 경로 좌표 [lat, lng][] (지도에 강조 표시용) */
+  polyline: [number, number][];
+};
+
 type RouteMapProps = {
   width?: string;
   height?: string;
@@ -14,10 +23,14 @@ type RouteMapProps = {
   highlightPosition?: [number, number] | null;
   summits?: SummitPoi[];
   eventInfo?: EventInfo | null;
+  /** 선택된 구간의 GPS 바운딩 박스 (null이면 전체 코스로 복귀) */
+  selectionBounds?: SelectionBounds | null;
 };
 
 const STROKE_COLOR = "#f97316";
 const STROKE_WEIGHT = 3;
+const SELECTION_STROKE_COLOR = "#3b82f6";
+const SELECTION_STROKE_WEIGHT = 5;
 const FIT_BOUNDS_PADDING = 24;
 const HIGHLIGHT_SIZE = 14;
 const HIGHLIGHT_COLOR = "#3b82f6";
@@ -61,10 +74,12 @@ export function RouteMap({
   highlightPosition = null,
   summits = [],
   eventInfo = null,
+  selectionBounds = null,
 }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<NaverMapInstance | null>(null);
   const polylineRef = useRef<unknown>(null);
+  const selectionPolylineRef = useRef<unknown>(null);
   const highlightMarkerRef = useRef<unknown>(null);
   const poiMarkersRef = useRef<{ setMap: (m: null) => void }[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -119,6 +134,26 @@ export function RouteMap({
     }
   }, [isLoaded, polyline]);
 
+  // 선택 구간 강조 폴리라인
+  useEffect(() => {
+    if (!isLoaded || !window.naver?.maps || !mapInstanceRef.current) return;
+    const maps = window.naver.maps;
+    const prev = selectionPolylineRef.current as { setMap: (m: null) => void } | null;
+    if (prev?.setMap) prev.setMap(null);
+    selectionPolylineRef.current = null;
+
+    if (selectionBounds && selectionBounds.polyline.length > 0) {
+      const path = selectionBounds.polyline.map(([lat, lng]) => new maps.LatLng(lat, lng) as unknown);
+      const line = new maps.Polyline({
+        path,
+        map: mapInstanceRef.current as unknown,
+        strokeColor: SELECTION_STROKE_COLOR,
+        strokeWeight: SELECTION_STROKE_WEIGHT,
+      });
+      selectionPolylineRef.current = line;
+    }
+  }, [isLoaded, selectionBounds]);
+
   // fitBounds (경로가 처음 로드될 때)
   useEffect(() => {
     if (!isLoaded || !window.naver?.maps || !mapInstanceRef.current) return;
@@ -137,6 +172,29 @@ export function RouteMap({
     };
     mapInstanceRef.current.fitBounds(bounds, padding);
   }, [isLoaded, polyline]);
+
+  // 구간 선택 시 해당 영역으로 줌, 해제 시 전체 코스로 복귀
+  useEffect(() => {
+    if (!isLoaded || !window.naver?.maps || !mapInstanceRef.current) return;
+    const maps = window.naver.maps;
+    const padding: FitBoundsOptions = {
+      top: FIT_BOUNDS_PADDING,
+      right: FIT_BOUNDS_PADDING,
+      bottom: FIT_BOUNDS_PADDING,
+      left: FIT_BOUNDS_PADDING,
+    };
+
+    if (selectionBounds) {
+      const bounds = new maps.LatLngBounds() as NaverLatLngBounds;
+      bounds.extend(new maps.LatLng(selectionBounds.minLat, selectionBounds.minLng) as unknown);
+      bounds.extend(new maps.LatLng(selectionBounds.maxLat, selectionBounds.maxLng) as unknown);
+      mapInstanceRef.current.fitBounds(bounds, padding);
+    } else if (polyline && polyline.length > 0) {
+      const bounds = new maps.LatLngBounds() as NaverLatLngBounds;
+      for (const [lat, lng] of polyline) bounds.extend(new maps.LatLng(lat, lng) as unknown);
+      mapInstanceRef.current.fitBounds(bounds, padding);
+    }
+  }, [isLoaded, selectionBounds, polyline]);
 
   // 하이라이트 마커
   useEffect(() => {

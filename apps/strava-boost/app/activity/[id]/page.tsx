@@ -43,6 +43,7 @@ export default function ActivityDetailPage() {
 	const [highlightPosition, setHighlightPosition] = useState<[number, number] | null>(null);
 	const [summits, setSummits] = useState<SummitPoi[]>([]);
 	const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
+	const [selectionBounds, setSelectionBounds] = useState<{ minLat: number; maxLat: number; minLng: number; maxLng: number; polyline: [number, number][] } | null>(null);
 
 	useEffect(() => {
 		if (!id || isNaN(id)) {
@@ -184,6 +185,7 @@ export default function ActivityDetailPage() {
 						highlightPosition={highlightPosition}
 						summits={summits}
 						eventInfo={eventInfo}
+						selectionBounds={selectionBounds}
 					/>
 				</div>
 
@@ -202,6 +204,7 @@ export default function ActivityDetailPage() {
 						onHoverPoint={setHighlightPosition}
 						summits={summits}
 						eventInfo={eventInfo}
+						onSelectionChange={setSelectionBounds}
 					/>
 				) : activity && streams && streams.altitude.length === 0 ? (
 					<div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 text-sm">
