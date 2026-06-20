@@ -8,21 +8,10 @@ name: weather-cron
 #
 # 단기/중기 ingest는 Vercel 함수 상한(약 5분)을 넘지 않도록 shard/total로 분할 호출한다.
 # 격자가 더 늘면 Ingest short-term step에 env: SHORT_SHARDS: "16" 처럼 늘린다.
+#
+# [2026-06] schedule 비활성화 — 날씨 기능 미사용 기간 Fluid CPU 절감. 재개 시 아래 schedule 블록 복원.
 
 on:
-  schedule:
-    # 단기예보 ingest (8회/일)
-    - cron: "10 17 * * *"
-    - cron: "10 20 * * *"
-    - cron: "10 23 * * *"
-    - cron: "10 2 * * *"
-    - cron: "10 5 * * *"
-    - cron: "10 8 * * *"
-    - cron: "10 11 * * *"
-    - cron: "10 14 * * *"
-    # 중기예보 ingest (2회/일)
-    - cron: "10 21 * * *"
-    - cron: "10 9 * * *"
   workflow_dispatch:
     inputs:
       kind:
