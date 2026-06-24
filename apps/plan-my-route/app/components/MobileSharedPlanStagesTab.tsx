@@ -7,6 +7,7 @@ import {
 	type SnappedPlanPoi,
 	stageDayLabel,
 } from "@my-ridings/plan-geometry";
+import { parseSummitScheduleRowKey, summitScheduleRowKey } from "@/lib/rwgps-plan-markers";
 import { Badge, cn } from "@my-ridings/ui";
 import { ArrowUp, ChevronDown, ChevronUp, MapPin, Mountain } from "lucide-react";
 import {
@@ -167,7 +168,7 @@ export function stageScheduleWaypoints(
 		);
 	});
 	const fromSummit: StageScheduleWaypoint[] = itemsInStage(summitMarkers, stage).map((s) => {
-		const rowKey = `summit:${s.id}`;
+		const rowKey = summitScheduleRowKey(s);
 		const rawMemo = scheduleMarkerMemos?.[rowKey];
 		const memo =
 			typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
@@ -209,9 +210,9 @@ function waypointRowToScheduleFocus(
 		return { kind: "cp", id };
 	}
 	if (row.markerKind === "summit") {
-		const id = row.rowKey.startsWith("summit:") ? row.rowKey.slice(7) : "";
-		if (!id) return null;
-		return { kind: "summit", id };
+		const parsed = parseSummitScheduleRowKey(row.rowKey);
+		if (!parsed) return null;
+		return { kind: "summit", id: parsed.id, passIndex: parsed.passIndex };
 	}
 	if (row.markerKind === "plan_poi" && row.planPoiId) {
 		return {

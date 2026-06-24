@@ -28,6 +28,7 @@ import type { GradientSegment, ClimbProfile, ClimbStartMode } from "@my-ridings/
 import type { PendingStageEdit } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
+import { summitMarkerKey } from "@/lib/rwgps-plan-markers";
 
 // ── 타입 ─────────────────────────────────────────────────────────
 export interface TrackPoint {
@@ -49,6 +50,7 @@ export type CPOnRoute = {
 
 export type SummitOnRoute = {
 	id: string;
+	passIndex: number;
 	name: string;
 	distanceKm: number;
 	elevation: number;
@@ -58,7 +60,7 @@ export type SummitOnRoute = {
 /** 모바일 공유 일정: 고도 차트에 표시할 단일 경유 포인트 포커스 */
 export type ElevationScheduleMarkerFocus =
 	| { kind: "cp"; id: number }
-	| { kind: "summit"; id: string }
+	| { kind: "summit"; id: string; passIndex: number }
 	| {
 			kind: "plan_poi";
 			id: string;
@@ -656,7 +658,9 @@ function computeLabelRows(params: {
 	const summitVisible = (summit: SummitOnRoute) => {
 		if (!isWithinStage(summit.distanceKm)) return false;
 		return useSingleScheduleLabel
-			? scheduleMarkerFocus?.kind === "summit" && scheduleMarkerFocus.id === summit.id
+			? scheduleMarkerFocus?.kind === "summit" &&
+					scheduleMarkerFocus.id === summit.id &&
+					scheduleMarkerFocus.passIndex === summit.passIndex
 			: showStageMarkerNames;
 	};
 
@@ -671,7 +675,7 @@ function computeLabelRows(params: {
 	for (const summit of visibleSummits) {
 		if (summitVisible(summit))
 			entries.push({
-				key: `summit-${summit.id}`,
+				key: summitMarkerKey(summit),
 				distanceKm: summit.distanceKm,
 				halfWidthPx: estimateLabelHalfWidthPx(summit.name),
 			});
@@ -1420,7 +1424,7 @@ export function ElevationProfile({
 	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
 	const [isHoveringStageEndBoundary, setIsHoveringStageEndBoundary] = useState(false);
-	const [climbZoomSummitId, setClimbZoomSummitId] = useState<string | null>(null);
+	const [climbZoomSummitKey, setClimbZoomSummitKey] = useState<string | null>(null);
 	const [climbRange, setClimbRange] = useState<ClimbStartMode>("full");
 	const [stageEndBoundaryMenuAnchor, setStageEndBoundaryMenuAnchor] = useState<{
 		leftPx: number;
@@ -1460,16 +1464,17 @@ export function ElevationProfile({
 	}, [hasStages, selectedDayNumber, stages, totalKm]);
 
 	// 스케줄 탭에서 서밋 포커스 시 자동 줌, 일반 모드에서는 클릭으로 설정
-	const effectiveClimbZoomSummitId = useMemo(() => {
+	const effectiveClimbZoomSummitKey = useMemo(() => {
 		if (disablePinAndHoverScrub && scheduleMarkerFocus?.kind === "summit") {
-			return scheduleMarkerFocus.id;
+			return summitMarkerKey(scheduleMarkerFocus);
 		}
-		return climbZoomSummitId;
-	}, [disablePinAndHoverScrub, scheduleMarkerFocus, climbZoomSummitId]);
+		return climbZoomSummitKey;
+	}, [disablePinAndHoverScrub, scheduleMarkerFocus, climbZoomSummitKey]);
 
 	const focusedSummit = useMemo(
-		() => summitMarkers.find((s) => s.id === effectiveClimbZoomSummitId) ?? null,
-		[effectiveClimbZoomSummitId, summitMarkers],
+		() =>
+			summitMarkers.find((s) => summitMarkerKey(s) === effectiveClimbZoomSummitKey) ?? null,
+		[effectiveClimbZoomSummitKey, summitMarkers],
 	);
 
 	const climbProfilesByMode = useMemo<Record<ClimbStartMode, ClimbProfile | null> | null>(() => {
@@ -1637,7 +1642,9 @@ export function ElevationProfile({
 			km = cp.distanceKm;
 			fallbackEle = Math.round(cp.elevation);
 		} else if (f.kind === "summit") {
-			const s = summitMarkers.find((x) => x.id === f.id);
+			const s = summitMarkers.find(
+				(x) => x.id === f.id && x.passIndex === f.passIndex,
+			);
 			if (!s) return null;
 			km = s.distanceKm;
 			fallbackEle = Math.round(s.elevation);
@@ -1723,12 +1730,9 @@ export function ElevationProfile({
 		onPin(lastHoverIndexRef.current);
 	}, [isPinned, onPin, onUnpin, chartInteractionDisabled]);
 
-	const handleSummitClick = useCallback(
-		(summitId: string) => {
-			setClimbZoomSummitId((prev) => (prev === summitId ? null : summitId));
-		},
-		[],
-	);
+	const handleSummitClick = useCallback((key: string) => {
+		setClimbZoomSummitKey((prev) => (prev === key ? null : key));
+	}, []);
 
 	const selectedStage =
 		hasStages && selectedDayNumber != null
@@ -1843,7 +1847,7 @@ export function ElevationProfile({
 
 	// 스테이지 선택 변경 시 클라임 줌 초기화
 	useEffect(() => {
-		setClimbZoomSummitId(null);
+		setClimbZoomSummitKey(null);
 	}, [selectedDayNumber]);
 
 	const currentChartDatum = useMemo(() => {
@@ -1928,7 +1932,11 @@ export function ElevationProfile({
 		if (!isWithinSelectedStage(summit.distanceKm)) return false;
 		if (!useSingleScheduleLabel) return showStageMarkerNames;
 		const f = scheduleMarkerFocus;
-		return f?.kind === "summit" && f.id === summit.id;
+		return (
+			f?.kind === "summit" &&
+			f.id === summit.id &&
+			f.passIndex === summit.passIndex
+		);
 	};
 
 	const planPoiFocusInView =
@@ -2229,12 +2237,10 @@ export function ElevationProfile({
 			{/* 클라임 카드 */}
 			{climbProfile && (
 				<ClimbCard
-					summitName={
-						summitMarkers.find((s) => s.id === effectiveClimbZoomSummitId)?.name ?? "고개"
-					}
+					summitName={focusedSummit?.name ?? "고개"}
 					profile={climbProfile}
 					onDismiss={
-						!disablePinAndHoverScrub ? () => setClimbZoomSummitId(null) : undefined
+						!disablePinAndHoverScrub ? () => setClimbZoomSummitKey(null) : undefined
 					}
 					climbRange={effectiveClimbRange}
 					onClimbRangeChange={setClimbRange}
@@ -2508,31 +2514,31 @@ export function ElevationProfile({
 							/>
 						))}
 						{/* Summit 마커 */}
-						{visibleSummits.map((summit) => (
+						{visibleSummits.map((summit) => {
+							const markerKey = summitMarkerKey(summit);
+							const isZoomed = effectiveClimbZoomSummitKey === markerKey;
+							return (
 							<ReferenceLine
-								key={`summit-${summit.id}`}
+								key={markerKey}
 								x={summit.distanceKm}
-								stroke={
-									effectiveClimbZoomSummitId === summit.id
-										? "#f97316"
-										: SUMMIT_COLOR
-								}
-								strokeWidth={effectiveClimbZoomSummitId === summit.id ? 1 : 0.5}
+								stroke={isZoomed ? "#f97316" : SUMMIT_COLOR}
+								strokeWidth={isZoomed ? 1 : 0.5}
 								strokeDasharray="2 3"
 								label={
 									<SummitMarkerLabel
 										showName={summitNameVisible(summit)}
 										name={summit.name}
-										row={labelRowByKey.get(`summit-${summit.id}`) ?? 0}
+										row={labelRowByKey.get(markerKey) ?? 0}
 										onClick={
 											!chartInteractionDisabled
-												? () => handleSummitClick(summit.id)
+												? () => handleSummitClick(markerKey)
 												: undefined
 										}
 									/>
 								}
 							/>
-						))}
+							);
+						})}
 						{planPoiFocusInView && scheduleMarkerFocus?.kind === "plan_poi" ? (
 							<ReferenceLine
 								key="plan-poi-schedule-focus"

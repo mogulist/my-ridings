@@ -319,7 +319,7 @@ function renderSummitMarkers(summitMarkers: SummitMarkerOnRoute[], trackPoints: 
 			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
 			return (
 				<NaverMapMarkerOverlay
-					key={`summit-${s.id}`}
+					key={`summit-${s.id}-${s.passIndex}`}
 					latitude={tp.y}
 					longitude={tp.x}
 					width={24}
