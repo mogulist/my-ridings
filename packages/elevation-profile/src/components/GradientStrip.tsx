@@ -5,20 +5,21 @@ import { usePlotArea, useXAxisScale } from "recharts";
 import { DOWNHILL_COLOR } from "../colors";
 
 const STRIP_HEIGHT = 8;
-const STRIP_TOP_GAP = 18;
 
 type Props = {
 	segments: GradientSegment[];
+	/** 플롯 영역 하단에서 스트립 상단까지의 간격(px). 기본 18 (x축 눈금 아래). 1이면 0선 바로 아래. */
+	topGap?: number;
 };
 
 /** 차트 x축 아래에 경사도 색상 띠를 그리는 recharts 커스텀 컴포넌트. */
-export function GradientStrip({ segments }: Props) {
+export function GradientStrip({ segments, topGap = 18 }: Props) {
 	const plotArea = usePlotArea();
 	const xScale = useXAxisScale();
 	if (!plotArea || !xScale || plotArea.width <= 0) return null;
 
 	const { x, y, width, height } = plotArea;
-	const stripY = y + height + STRIP_TOP_GAP;
+	const stripY = y + height + topGap;
 
 	return (
 		<g>
