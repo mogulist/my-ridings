@@ -1,0 +1,10 @@
+{
+	"extends": "@plan-my-route/typescript-config/base.json",
+	"compilerOptions": {
+		"rootDir": "src",
+		"noEmit": true,
+		"jsx": "react-jsx"
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx"],
+	"exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}
