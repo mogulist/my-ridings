@@ -98,6 +98,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@my-ridings/design-tokens": "workspace:*",
+        "@my-ridings/elevation-profile": "workspace:*",
         "@my-ridings/plan-geometry": "workspace:*",
         "@supabase/supabase-js": "^2.89.0",
         "@tanstack/react-query": "^5.90.12",
