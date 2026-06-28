@@ -8,7 +8,8 @@
 	"react-native": "./src/index.ts",
 	"sideEffects": false,
 	"scripts": {
-		"test": "bun test src"
+		"test": "bun test src",
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@plan-my-route/typescript-config": "workspace:*",

@@ -7,6 +7,7 @@
 		"dev": "next dev -p 3000",
 		"build": "next build",
 		"start": "next start",
+		"typecheck": "tsc --noEmit",
 		"stats": "bun run src/index.ts",
 		"auth": "bun run src/auth.ts"
 	},

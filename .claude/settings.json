@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/lim/repos/my-ridings && bash scripts/verify.sh strava-boost 2>&1 | tail -3",
+            "timeout": 60,
+            "statusMessage": "L1 gate 확인 중 (typecheck + tests)…"
+          }
+        ]
+      }
+    ]
+  }
+}
