@@ -1,5 +1,6 @@
 "use client";
 
+import { fromTrackPoints } from "@my-ridings/elevation-profile";
 import { useId, useMemo } from "react";
 import {
 	Area,
@@ -22,25 +23,7 @@ export function SharedPlanSummaryElevationMini({
 }: SharedPlanSummaryElevationMiniProps) {
 	const gradId = useId().replace(/:/g, "");
 
-	const data = useMemo(() => {
-		const withEle = trackPoints.filter((p) => p.e != null && p.d != null);
-		if (withEle.length === 0) return [];
-		const maxSamples = 480;
-		const step = Math.max(1, Math.ceil(withEle.length / maxSamples));
-		const out: { km: number; elevation: number }[] = [];
-		for (let i = 0; i < withEle.length; i += step) {
-			out.push({
-				km: Math.round((withEle[i].d! / 1000) * 10) / 10,
-				elevation: Math.round(withEle[i].e!),
-			});
-		}
-		const last = withEle[withEle.length - 1];
-		const lastKm = Math.round((last.d! / 1000) * 10) / 10;
-		if (out.length > 0 && out[out.length - 1].km !== lastKm) {
-			out.push({ km: lastKm, elevation: Math.round(last.e!) });
-		}
-		return out;
-	}, [trackPoints]);
+	const data = useMemo(() => fromTrackPoints(trackPoints, 480), [trackPoints]);
 
 	if (data.length === 0) {
 		return (
@@ -69,7 +52,7 @@ export function SharedPlanSummaryElevationMini({
 					className="stroke-border/80"
 				/>
 				<XAxis
-					dataKey="km"
+					dataKey="distanceKm"
 					type="number"
 					domain={["dataMin", "dataMax"]}
 					tick={{ fontSize: 10 }}
@@ -87,7 +70,7 @@ export function SharedPlanSummaryElevationMini({
 				/>
 				<Area
 					type="monotone"
-					dataKey="elevation"
+					dataKey="elevationM"
 					stroke="#f97316"
 					strokeWidth={1.5}
 					fill={`url(#pmr-sum-elev-${gradId})`}
