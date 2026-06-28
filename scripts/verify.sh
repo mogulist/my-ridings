@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # L1 verification gate: biome lint + typecheck + unit tests
 # Usage: ./scripts/verify.sh [scope]
-#   scope: all (default) | strava-boost | plan-my-route | plan-geometry | elevation-profile
+#   scope: all (default) | strava-boost | plan-my-route | plan-geometry | elevation-profile | kfondo
 set -euo pipefail
+
+KFONDO_ROOT="/Users/lim/repos/kfondo"
+# kfondo 타입체크 스코프: pre-existing 에러가 없는 파일들만 검사
+KFONDO_GATE_PATTERN="^(lib/gpx|components/ElevationProfile|app/\[event\]/map)"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCOPE="${1:-all}"
@@ -53,6 +57,22 @@ run_typecheck "plan-geometry"    "packages/plan-geometry"
 run_typecheck "strava-boost"     "apps/strava-boost"
 run_typecheck "plan-my-route"    "apps/plan-my-route"
 run_typecheck "elevation-profile" "packages/elevation-profile" 2>/dev/null || true
+
+# kfondo: 별도 레포, 우리가 건드리는 파일 스코프만 에러 0개 요구
+if [[ "$SCOPE" == "all" || "$SCOPE" == "kfondo" ]]; then
+  if [[ ! -d "$KFONDO_ROOT" ]]; then
+    fail "typecheck: kfondo (레포 없음: $KFONDO_ROOT)"
+  else
+    KFONDO_TSC_OUT=$(cd "$KFONDO_ROOT" && npx tsc --noEmit 2>&1 || true)
+    KFONDO_NEW_ERRORS=$(echo "$KFONDO_TSC_OUT" | grep "error TS" | grep -cE "$KFONDO_GATE_PATTERN" || true)
+    if [[ "$KFONDO_NEW_ERRORS" -gt 0 ]]; then
+      fail "typecheck: kfondo (gate 파일 $KFONDO_NEW_ERRORS 에러)"
+      echo "$KFONDO_TSC_OUT" | grep "error TS" | grep -E "$KFONDO_GATE_PATTERN" | head -10 || true
+    else
+      pass "typecheck: kfondo (gate 파일 에러 없음)"
+    fi
+  fi
+fi
 
 # ── unit tests ───────────────────────────────────────────────────────
 section "unit tests"
