@@ -71,6 +71,13 @@ if [[ "$SCOPE" == "all" || "$SCOPE" == "strava-boost" ]]; then
     pass "tests: strava-boost/lib"
   fi
 fi
+if [[ "$SCOPE" == "all" || "$SCOPE" == "elevation-profile" ]]; then
+  if ! bun test packages/elevation-profile/src 2>&1 | grep -q "pass"; then
+    fail "tests: elevation-profile"
+  else
+    pass "tests: elevation-profile"
+  fi
+fi
 
 # ── 결과 ─────────────────────────────────────────────────────────────
 echo ""
