@@ -101,6 +101,7 @@ export type CpMarkerOnRoute = {
 
 export type SummitMarkerOnRoute = {
 	id: string;
+	passIndex: number;
 	name: string;
 	distanceKm: number;
 	elevation: number;

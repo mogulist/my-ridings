@@ -1,4 +1,4 @@
-/** Keys match `StageScheduleWaypoint.rowKey` for cp/summit only, e.g. `cp:123`, `summit:uuid`. */
+/** Keys match `StageScheduleWaypoint.rowKey` for cp/summit only, e.g. `cp:123`, `summit:{uuid}:{passIndex}`. */
 export type ScheduleMarkerMemos = Record<string, string>;
 
 export function normalizeScheduleMarkerMemos(

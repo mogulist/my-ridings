@@ -1,6 +1,7 @@
 {
 	"extends": "@plan-my-route/typescript-config/nextjs.json",
 	"compilerOptions": {
+		"types": ["bun-types"],
 		"paths": {
 			"@/*": ["./*"]
 		}

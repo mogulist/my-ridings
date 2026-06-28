@@ -110,7 +110,7 @@ export function PlanStageTimelineStatic({
 		const summitRows: TimelineMilestone[] = summitMarkers
 			.filter((s) => s.distanceKm >= stageStartKm && s.distanceKm <= stageEndKm)
 			.map((s) => ({
-				id: `summit-${s.id}`,
+				id: `summit-${s.id}-${s.passIndex}`,
 				kind: "summit" as const,
 				relKm: Math.max(0, s.distanceKm - stageStartKm),
 				title: s.name?.trim() || SUMMIT_LABEL_KO,
