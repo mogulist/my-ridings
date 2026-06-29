@@ -1,0 +1,50 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (실제 비밀은 .env* — 예시 템플릿만 추적)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.DS_Store
+
+# local git worktrees
+.worktrees/
+
+coverage
+test-results
+*.old
+
+data/
+.env*.local
+.env.local
+
+# PostHog wizard report (local notes only)
+posthog-setup-report.md
+
+# Playwright MCP local artifacts
+.playwright-mcp/
+
+# Supabase CLI temporary files
+supabase/.temp/
