@@ -1,0 +1,1 @@
+ALTER TABLE event_editions ADD COLUMN IF NOT EXISTS notice TEXT;
