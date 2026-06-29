@@ -1,11 +1,12 @@
 {
-  "name": "my-v0-project",
+  "name": "kfondo",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest --no-coverage",
     "test:watch": "jest --watch --no-coverage",
@@ -23,7 +24,7 @@
     "publish:edition-records": "bun run scripts/publish-edition-records.ts"
   },
   "dependencies": {
-    "@my-ridings/elevation-profile": "file:../my-ridings/packages/elevation-profile",
+    "@my-ridings/elevation-profile": "workspace:*",
     "@emotion/is-prop-valid": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
