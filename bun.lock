@@ -18,6 +18,7 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@my-ridings/design-tokens": "workspace:*",
+        "@my-ridings/elevation-profile": "workspace:*",
         "@my-ridings/plan-geometry": "workspace:*",
         "@my-ridings/ui": "workspace:*",
         "@my-ridings/weather-types": "workspace:*",
@@ -98,6 +99,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@my-ridings/design-tokens": "workspace:*",
+        "@my-ridings/elevation-profile": "workspace:*",
         "@my-ridings/plan-geometry": "workspace:*",
         "@supabase/supabase-js": "^2.89.0",
         "@tanstack/react-query": "^5.90.12",
@@ -152,6 +154,24 @@
     "packages/design-tokens": {
       "name": "@my-ridings/design-tokens",
       "version": "0.0.0",
+    },
+    "packages/elevation-profile": {
+      "name": "@my-ridings/elevation-profile",
+      "version": "0.0.0",
+      "dependencies": {
+        "@my-ridings/plan-geometry": "workspace:*",
+      },
+      "devDependencies": {
+        "@plan-my-route/typescript-config": "workspace:*",
+        "@types/react": "^19",
+        "react": "19.2.3",
+        "recharts": "^3.8.1",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+        "recharts": "^3.0.0",
+      },
     },
     "packages/eslint-config": {
       "name": "@plan-my-route/eslint-config",
@@ -695,6 +715,8 @@
     "@mj-studio/react-native-naver-map": ["@mj-studio/react-native-naver-map@2.7.1", "", { "dependencies": { "object-hash": "^3.0.0" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-p5SnHGM0BD21FacETcEBI9Sn1RD0f6DIgpY4uQsHTYR1JZrrwdlVbB1NidrRbVoqafPcjZIJwcZy7sXOLcs9BA=="],
 
     "@my-ridings/design-tokens": ["@my-ridings/design-tokens@workspace:packages/design-tokens"],
+
+    "@my-ridings/elevation-profile": ["@my-ridings/elevation-profile@workspace:packages/elevation-profile"],
 
     "@my-ridings/kma-client": ["@my-ridings/kma-client@workspace:packages/kma-client"],
 

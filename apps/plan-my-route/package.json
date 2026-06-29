@@ -6,7 +6,8 @@
 		"dev": "next dev -p 3001",
 		"build": "next build",
 		"start": "next start",
-		"test": "bun test lib"
+		"test": "bun test lib",
+		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@auth/supabase-adapter": "^1.11.1",
@@ -14,6 +15,7 @@
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@my-ridings/design-tokens": "workspace:*",
+		"@my-ridings/elevation-profile": "workspace:*",
 		"@my-ridings/plan-geometry": "workspace:*",
 		"@my-ridings/ui": "workspace:*",
 		"@my-ridings/weather-types": "workspace:*",
