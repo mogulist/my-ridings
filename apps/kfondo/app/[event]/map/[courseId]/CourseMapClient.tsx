@@ -101,13 +101,14 @@ export function CourseMapClient({ gpxBlobUrl }: CourseMapClientProps) {
           height="100%"
         />
       </div>
-      <div className="shrink-0 border-t border-border bg-card px-3 py-2 min-h-[140px] h-[22dvh] max-h-[200px] flex flex-col min-h-0">
+      <div className="shrink-0 border-t border-border bg-card px-3 py-2 min-h-[160px] h-[26dvh] max-h-[240px] flex flex-col min-h-0">
         <div className="flex-1 min-h-0 overflow-hidden">
           <ElevationProfile
             data={profilePoints}
             onHoverPoint={isMobile ? undefined : setHighlightedPoint}
             zoom={false}
             height="fill"
+            xAxisModes={["distance"]}
             className="h-full"
           />
         </div>
