@@ -107,7 +107,7 @@ export function CourseMapClient({ gpxBlobUrl }: CourseMapClientProps) {
             data={profilePoints}
             onHoverPoint={isMobile ? undefined : setHighlightedPoint}
             zoom={false}
-            height={undefined}
+            height="fill"
             className="h-full"
           />
         </div>

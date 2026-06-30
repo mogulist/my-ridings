@@ -67,7 +67,8 @@ export type ElevationProfileProps = {
 	xAxisModes?: XAxisMode[];
 	defaultXAxisMode?: XAxisMode;
 	zoom?: boolean;
-	height?: number;
+	/** 차트 높이(px). "fill"이면 부모 컨테이너 높이를 가득 채움 (부모가 명시적 높이를 가져야 함) */
+	height?: number | "fill";
 	title?: string;
 	className?: string;
 	/** hover 중인 ProfilePoint 변경 콜백 */
@@ -127,9 +128,13 @@ export function ElevationProfile({
 		return (filtered.length > 0 ? filtered : data).map((p) => p.elevationM);
 	}, [data, zoomDomain]);
 
-	const minAlt = Math.max(0, Math.min(...visibleElevations) - 20);
+	// Y축 도메인을 50m 단위로 정리해 축 라벨이 정수로 떨어지도록 (소수점 라벨이 축 너비를 넘쳐 잘리는 것 방지)
+	const rawMin = Math.max(0, Math.min(...visibleElevations) - 20);
 	const peakAlt = Math.max(...visibleElevations);
-	const maxAlt = peakAlt + Math.max((peakAlt - minAlt) * 0.08, 10);
+	const rawMax = peakAlt + Math.max((peakAlt - rawMin) * 0.08, 10);
+	const Y_STEP = 50;
+	const minAlt = Math.floor(rawMin / Y_STEP) * Y_STEP;
+	const maxAlt = Math.ceil(rawMax / Y_STEP) * Y_STEP;
 
 	// X축 도메인 (줌 상태 고려)
 	const xDomain = useMemo<[number | string, number | string]>(() => {
@@ -186,7 +191,7 @@ export function ElevationProfile({
 	// POI 라벨이 있을 때만 상단 여백 확보 (마커 없으면 차트가 위쪽 공간을 쓰도록)
 	const topMargin = markers.length > 0 ? POI_TOP_MARGIN : 8;
 
-	const fluidHeight = height == null;
+	const fluidHeight = height === "fill";
 
 	return (
 		<div
@@ -245,7 +250,7 @@ export function ElevationProfile({
 				onMouseLeave={handleMouseLeave}
 				onContextMenu={onContextMenu ? handleContextMenu : undefined}
 			>
-				<ResponsiveContainer width="100%" height={fluidHeight ? "100%" : height}>
+				<ResponsiveContainer width="100%" height={fluidHeight ? "100%" : (height as number)}>
 					<AreaChart
 						data={data}
 						margin={{ top: topMargin, right: CHART_MARGIN_R, left: 0, bottom: bottomMargin }}
