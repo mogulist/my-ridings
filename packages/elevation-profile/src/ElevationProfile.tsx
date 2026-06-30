@@ -67,7 +67,8 @@ export type ElevationProfileProps = {
 	xAxisModes?: XAxisMode[];
 	defaultXAxisMode?: XAxisMode;
 	zoom?: boolean;
-	height?: number;
+	/** 차트 높이(px). "fill"이면 부모 컨테이너 높이를 가득 채움 (부모가 명시적 높이를 가져야 함) */
+	height?: number | "fill";
 	title?: string;
 	className?: string;
 	/** hover 중인 ProfilePoint 변경 콜백 */
@@ -127,9 +128,13 @@ export function ElevationProfile({
 		return (filtered.length > 0 ? filtered : data).map((p) => p.elevationM);
 	}, [data, zoomDomain]);
 
-	const minAlt = Math.max(0, Math.min(...visibleElevations) - 20);
+	// Y축 도메인을 50m 단위로 정리해 축 라벨이 정수로 떨어지도록 (소수점 라벨이 축 너비를 넘쳐 잘리는 것 방지)
+	const rawMin = Math.max(0, Math.min(...visibleElevations) - 20);
 	const peakAlt = Math.max(...visibleElevations);
-	const maxAlt = peakAlt + Math.max((peakAlt - minAlt) * 0.08, 10);
+	const rawMax = peakAlt + Math.max((peakAlt - rawMin) * 0.08, 10);
+	const Y_STEP = 50;
+	const minAlt = Math.floor(rawMin / Y_STEP) * Y_STEP;
+	const maxAlt = Math.ceil(rawMax / Y_STEP) * Y_STEP;
 
 	// X축 도메인 (줌 상태 고려)
 	const xDomain = useMemo<[number | string, number | string]>(() => {
@@ -183,11 +188,23 @@ export function ElevationProfile({
 
 	const bottomMargin = showGradientStrip ? 28 : 16;
 
+	// POI 라벨이 있을 때만 상단 여백 확보 (마커 없으면 차트가 위쪽 공간을 쓰도록)
+	const topMargin = markers.length > 0 ? POI_TOP_MARGIN : 8;
+
+	const fluidHeight = height === "fill";
+
 	return (
-		<div className={className ?? "bg-white rounded-lg shadow p-4 sm:p-6"}>
+		<div
+			className={[
+				fluidHeight ? "flex flex-col" : "",
+				className ?? "bg-white rounded-lg shadow p-4 sm:p-6",
+			]
+				.filter(Boolean)
+				.join(" ")}
+		>
 			{/* 헤더 */}
 			{(title != null || xAxisModes.length > 1 || selection) && (
-				<div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+				<div className="flex items-center justify-between flex-wrap gap-3 mb-4 shrink-0">
 					<div className="flex items-center gap-2 flex-wrap">
 						{title != null && <h2 className="text-lg font-semibold text-gray-800">{title}</h2>}
 						{selection && selectionStats}
@@ -227,15 +244,16 @@ export function ElevationProfile({
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: chart interaction div */}
 			<div
 				ref={containerRef}
+				className={fluidHeight ? "flex-1 min-h-0" : undefined}
 				onMouseDown={zoom ? handleMouseDown : undefined}
 				onMouseMove={handleMouseMove}
 				onMouseLeave={handleMouseLeave}
 				onContextMenu={onContextMenu ? handleContextMenu : undefined}
 			>
-				<ResponsiveContainer width="100%" height={height}>
+				<ResponsiveContainer width="100%" height={fluidHeight ? "100%" : (height as number)}>
 					<AreaChart
 						data={data}
-						margin={{ top: POI_TOP_MARGIN, right: CHART_MARGIN_R, left: 0, bottom: bottomMargin }}
+						margin={{ top: topMargin, right: CHART_MARGIN_R, left: 0, bottom: bottomMargin }}
 					>
 						<defs>
 							<linearGradient id="ep-area-fill" x1="0" y1="0" x2="0" y2="1">
