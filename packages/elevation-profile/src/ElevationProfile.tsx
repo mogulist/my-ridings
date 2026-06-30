@@ -183,11 +183,20 @@ export function ElevationProfile({
 
 	const bottomMargin = showGradientStrip ? 28 : 16;
 
+	const fluidHeight = height == null;
+
 	return (
-		<div className={className ?? "bg-white rounded-lg shadow p-4 sm:p-6"}>
+		<div
+			className={[
+				fluidHeight ? "flex flex-col" : "",
+				className ?? "bg-white rounded-lg shadow p-4 sm:p-6",
+			]
+				.filter(Boolean)
+				.join(" ")}
+		>
 			{/* 헤더 */}
 			{(title != null || xAxisModes.length > 1 || selection) && (
-				<div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+				<div className="flex items-center justify-between flex-wrap gap-3 mb-4 shrink-0">
 					<div className="flex items-center gap-2 flex-wrap">
 						{title != null && <h2 className="text-lg font-semibold text-gray-800">{title}</h2>}
 						{selection && selectionStats}
@@ -227,12 +236,13 @@ export function ElevationProfile({
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: chart interaction div */}
 			<div
 				ref={containerRef}
+				className={fluidHeight ? "flex-1 min-h-0" : undefined}
 				onMouseDown={zoom ? handleMouseDown : undefined}
 				onMouseMove={handleMouseMove}
 				onMouseLeave={handleMouseLeave}
 				onContextMenu={onContextMenu ? handleContextMenu : undefined}
 			>
-				<ResponsiveContainer width="100%" height={height}>
+				<ResponsiveContainer width="100%" height={fluidHeight ? "100%" : height}>
 					<AreaChart
 						data={data}
 						margin={{ top: POI_TOP_MARGIN, right: CHART_MARGIN_R, left: 0, bottom: bottomMargin }}
