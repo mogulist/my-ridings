@@ -1,3 +1,8 @@
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@my-ridings/elevation-profile", "@my-ridings/plan-geometry"],
@@ -8,7 +13,7 @@ const nextConfig = {
     unoptimized: true,
   },
   turbopack: {
-    root: process.cwd(),
+    root: path.join(__dirname, "../.."),
   },
   skipTrailingSlashRedirect: true,
 }
