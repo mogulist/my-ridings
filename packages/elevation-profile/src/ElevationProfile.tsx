@@ -183,6 +183,9 @@ export function ElevationProfile({
 
 	const bottomMargin = showGradientStrip ? 28 : 16;
 
+	// POI 라벨이 있을 때만 상단 여백 확보 (마커 없으면 차트가 위쪽 공간을 쓰도록)
+	const topMargin = markers.length > 0 ? POI_TOP_MARGIN : 8;
+
 	const fluidHeight = height == null;
 
 	return (
@@ -245,7 +248,7 @@ export function ElevationProfile({
 				<ResponsiveContainer width="100%" height={fluidHeight ? "100%" : height}>
 					<AreaChart
 						data={data}
-						margin={{ top: POI_TOP_MARGIN, right: CHART_MARGIN_R, left: 0, bottom: bottomMargin }}
+						margin={{ top: topMargin, right: CHART_MARGIN_R, left: 0, bottom: bottomMargin }}
 					>
 						<defs>
 							<linearGradient id="ep-area-fill" x1="0" y1="0" x2="0" y2="1">
