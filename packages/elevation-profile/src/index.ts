@@ -20,7 +20,9 @@ export {
 	formatAbsoluteTimeAxis,
 	formatAbsoluteTimeTooltip,
 	formatDistanceAxis,
+	formatElevationAxisTick,
 	formatRelativeTimeAxis,
+	computeElevationYDomain,
 	nearestProfilePoint,
 	profilePointToXValue,
 } from "./utils";

@@ -22,7 +22,9 @@ import {
 	formatAbsoluteTimeAxis,
 	formatAbsoluteTimeTooltip,
 	formatDistanceAxis,
+	formatElevationAxisTick,
 	formatRelativeTimeAxis,
+	computeElevationYDomain,
 	nearestProfilePoint,
 	profilePointToXValue,
 } from "./utils";
@@ -129,12 +131,7 @@ export function ElevationProfile({
 	}, [data, zoomDomain]);
 
 	// Y축 도메인을 50m 단위로 정리해 축 라벨이 정수로 떨어지도록 (소수점 라벨이 축 너비를 넘쳐 잘리는 것 방지)
-	const rawMin = Math.max(0, Math.min(...visibleElevations) - 20);
-	const peakAlt = Math.max(...visibleElevations);
-	const rawMax = peakAlt + Math.max((peakAlt - rawMin) * 0.08, 10);
-	const Y_STEP = 50;
-	const minAlt = Math.floor(rawMin / Y_STEP) * Y_STEP;
-	const maxAlt = Math.ceil(rawMax / Y_STEP) * Y_STEP;
+	const { minAlt, maxAlt } = computeElevationYDomain(visibleElevations);
 
 	// X축 도메인 (줌 상태 고려)
 	const xDomain = useMemo<[number | string, number | string]>(() => {
@@ -274,9 +271,11 @@ export function ElevationProfile({
 							tickCount={6}
 						/>
 						<YAxis
+							dataKey="elevationM"
+							type="number"
 							domain={[minAlt, maxAlt]}
 							allowDataOverflow
-							tickFormatter={(v: number) => `${v}m`}
+							tickFormatter={formatElevationAxisTick}
 							tick={{ fill: "#9ca3af", fontSize: 10 }}
 							tickLine={false}
 							axisLine={false}

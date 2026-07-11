@@ -3,7 +3,9 @@ import {
 	formatAbsoluteTimeAxis,
 	formatAbsoluteTimeTooltip,
 	formatDistanceAxis,
+	formatElevationAxisTick,
 	formatRelativeTimeAxis,
+	computeElevationYDomain,
 	nearestProfilePoint,
 	profilePointToXValue,
 } from "./utils";
@@ -141,5 +143,24 @@ describe("nearestProfilePoint edge cases", () => {
 		// exactly midpoint 1.0 → tied → strict-less condition false → returns right (lo=1)
 		const result = nearestProfilePoint(1.0, data);
 		expect(result?.distanceKm).toBe(2);
+	});
+});
+
+describe("computeElevationYDomain", () => {
+	it("rounds domain to 50m steps with headroom", () => {
+		const { minAlt, maxAlt } = computeElevationYDomain([32, 180, 332]);
+		expect(minAlt).toBe(0);
+		expect(maxAlt).toBe(400);
+	});
+
+	it("returns defaults for empty input", () => {
+		expect(computeElevationYDomain([])).toEqual({ minAlt: 0, maxAlt: 100 });
+	});
+});
+
+describe("formatElevationAxisTick", () => {
+	it("formats rounded integer meters", () => {
+		expect(formatElevationAxisTick(332.4)).toBe("332m");
+		expect(formatElevationAxisTick(99.996)).toBe("100m");
 	});
 });
