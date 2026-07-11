@@ -16,7 +16,6 @@ import {
 } from "recharts";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import {
-	computeElevationGainCurve,
 	computeTrackElevationGainLoss,
 	computeGradientSegments,
 	detectClimb,
@@ -28,6 +27,8 @@ import type { PendingStageEdit } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 import { summitMarkerKey } from "@/lib/rwgps-plan-markers";
+import { buildChartData } from "@/lib/enrich-chart-data";
+import type { ChartDatum } from "@/lib/enrich-chart-data";
 
 // ── 타입 ─────────────────────────────────────────────────────────
 export type { TrackPoint } from "@my-ridings/plan-geometry";
@@ -63,18 +64,6 @@ export type ElevationScheduleMarkerFocus =
 			elevationM: number;
 			categoryLabel: string;
 	  };
-
-interface ChartDatum {
-	distanceKm: number;
-	ele: number;
-	index: number;
-	/** 이 포인트가 속한 Stage 번호 (없으면 미계획) */
-	stageIndex: number | null;
-	/** 현재 스테이지 출발점 기준 거리(km). stageIndex 있을 때만 */
-	distanceFromStageStartKm?: number;
-	/** 현재 스테이지 출발점 기준 누적 상승고도(m). stageIndex 있을 때만 */
-	elevationGainFromStageStart?: number;
-}
 
 type PreviewStageStats = { distanceKm: number; elevationGain: number; elevationLoss: number };
 
@@ -136,128 +125,6 @@ interface ElevationProfileProps {
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────
-
-type GainCurve = { distanceM: number; gain: number }[];
-
-function lookupGainAtDistanceKm(curve: GainCurve, distanceKm: number): number {
-	if (curve.length === 0) return 0;
-	const distanceM = distanceKm * 1000;
-	let j = curve.length - 1;
-	while (j >= 0 && curve[j].distanceM > distanceM) j--;
-	return j >= 0 ? curve[j].gain : 0;
-}
-
-function buildChartData(
-	points: TrackPoint[],
-	stages: Stage[],
-	elevationCalibratedThreshold?: number,
-	maxSamples = 2000,
-): ChartDatum[] {
-	const withEle = points.filter(
-		(p): p is TrackPointWithElevation => p.e != null && p.d != null,
-	);
-	if (withEle.length === 0) return [];
-
-	const useSmoothedGain =
-		typeof elevationCalibratedThreshold === "number" &&
-		elevationCalibratedThreshold >= 0 &&
-		stages.length > 0;
-
-	// 스테이지별 스무딩 적용 상승고도 곡선 (elevationCalibratedThreshold 있을 때만 사용)
-	const stageGainCurves: GainCurve[] =
-		typeof elevationCalibratedThreshold === "number" &&
-		elevationCalibratedThreshold >= 0 &&
-		stages.length > 0
-			? stages.map((stage) =>
-					computeElevationGainCurve(
-						points,
-						stage.startDistanceKm,
-						stage.endDistanceKm,
-						elevationCalibratedThreshold,
-					),
-				)
-			: [];
-
-	// 스무딩 미사용 시: 전체 구간 누적 상승고도 (withEle 인덱스 기준)
-	const cumulativeGain: number[] = [];
-	if (!useSmoothedGain) {
-		for (let i = 0; i < withEle.length; i++) {
-			if (i === 0) {
-				cumulativeGain.push(0);
-			} else {
-				const prev = withEle[i - 1].e;
-				const curr = withEle[i].e;
-				cumulativeGain.push(cumulativeGain[i - 1] + Math.max(0, curr - prev));
-			}
-		}
-	}
-
-	const stageStartIndices: number[] = stages.map((stage) => {
-		const idx = withEle.findIndex((p) => p.d / 1000 >= stage.startDistanceKm);
-		return idx === -1 ? withEle.length : idx;
-	});
-
-	const findFirstIndexAtOrAfter = (distanceKm: number) => {
-		const idx = withEle.findIndex((p) => p.d / 1000 >= distanceKm);
-		return idx === -1 ? withEle.length - 1 : idx;
-	};
-
-	const step = Math.max(1, Math.ceil(withEle.length / maxSamples));
-	const sampledIndexSet = new Set<number>();
-	for (let i = 0; i < withEle.length; i += step) sampledIndexSet.add(i);
-	sampledIndexSet.add(withEle.length - 1);
-
-	for (const stage of stages) {
-		const startIdx = findFirstIndexAtOrAfter(stage.startDistanceKm);
-		const endIdx = findFirstIndexAtOrAfter(stage.endDistanceKm);
-		sampledIndexSet.add(startIdx);
-		sampledIndexSet.add(endIdx);
-		if (startIdx > 0) sampledIndexSet.add(startIdx - 1);
-		if (endIdx > 0) sampledIndexSet.add(endIdx - 1);
-	}
-
-	const sampledIndices = [...sampledIndexSet]
-		.filter((idx) => idx >= 0 && idx < withEle.length)
-		.sort((a, b) => a - b);
-
-	return sampledIndices.map((withEleIndex) => {
-		const rawDistanceKm = withEle[withEleIndex].d / 1000;
-		const distanceKm = Math.round(rawDistanceKm * 100) / 100;
-		let stageIndex: number | null = null;
-		for (let i = 0; i < stages.length; i++) {
-			if (rawDistanceKm >= stages[i].startDistanceKm && rawDistanceKm <= stages[i].endDistanceKm) {
-				stageIndex = i;
-				break;
-			}
-		}
-
-		const datum: ChartDatum = {
-			distanceKm,
-			ele: Math.round(withEle[withEleIndex].e),
-			index: points.indexOf(withEle[withEleIndex]),
-			stageIndex,
-		};
-
-		if (stageIndex !== null) {
-			const stage = stages[stageIndex];
-			datum.distanceFromStageStartKm =
-				Math.round((rawDistanceKm - stage.startDistanceKm) * 100) / 100;
-			if (useSmoothedGain && stageGainCurves[stageIndex]) {
-				datum.elevationGainFromStageStart = lookupGainAtDistanceKm(
-					stageGainCurves[stageIndex],
-					rawDistanceKm,
-				);
-			} else {
-				const startIdx = stageStartIndices[stageIndex];
-				datum.elevationGainFromStageStart = Math.round(
-					startIdx < withEleIndex ? cumulativeGain[withEleIndex] - cumulativeGain[startIdx] : 0,
-				);
-			}
-		}
-
-		return datum;
-	});
-}
 
 /** 선택 일차 기준 표시 구간: 선택 일차 전체 + 이전/다음 일차 15% */
 function computeVisibleRange(
