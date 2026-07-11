@@ -12,7 +12,7 @@
 	},
 	"peerDependencies": {
 		"react": "^18.0.0 || ^19.0.0",
-		"recharts": "^3.0.0"
+		"recharts": ">=3.8.0 <4"
 	},
 	"dependencies": {
 		"@my-ridings/plan-geometry": "workspace:*"
@@ -21,7 +21,7 @@
 		"@plan-my-route/typescript-config": "workspace:*",
 		"@types/react": "^19",
 		"react": "19.2.3",
-		"recharts": "^3.8.1",
+		"recharts": "3.9.2",
 		"typescript": "^5"
 	}
 }
