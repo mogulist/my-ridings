@@ -1,5 +1,6 @@
 "use client";
 
+import { GradientStrip } from "@my-ridings/elevation-profile";
 import { cn, ToggleGroup, ToggleGroupItem } from "@my-ridings/ui";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +11,6 @@ import {
 	ReferenceDot,
 	ReferenceLine,
 	ResponsiveContainer,
-	usePlotArea,
 	XAxis,
 	YAxis,
 } from "recharts";
@@ -20,11 +20,10 @@ import {
 	computeTrackElevationGainLoss,
 	computeGradientSegments,
 	detectClimb,
-	DOWNHILL_COLOR,
 	getGradientColor,
 	lookupGradientAtKm,
 } from "@my-ridings/plan-geometry";
-import type { ClimbProfile, ClimbStartMode, GradientSegment } from "@my-ridings/plan-geometry";
+import type { ClimbProfile, ClimbStartMode } from "@my-ridings/plan-geometry";
 import type { PendingStageEdit } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
@@ -1230,51 +1229,6 @@ function ClimbHoverTooltip({
 const GRADIENT_STRIP_HEIGHT = 8;
 const GRADIENT_STRIP_TOP_GAP = 1; // 0선과 스트립 사이 간격(px)
 const GRADIENT_STRIP_BOTTOM_MARGIN = GRADIENT_STRIP_TOP_GAP + GRADIENT_STRIP_HEIGHT + 14;
-
-/** 앱 로컬 recharts 컨텍스트에서 usePlotArea를 써야 함 (패키지 recharts 복제 시 훅이 null) */
-function GradientStripSvgOverlay({
-	segments,
-	visibleStart,
-	visibleEnd,
-}: {
-	segments: GradientSegment[];
-	visibleStart: number;
-	visibleEnd: number;
-}) {
-	const plotArea = usePlotArea();
-	const span = visibleEnd - visibleStart;
-	if (!plotArea || span <= 0 || plotArea.width <= 0) return null;
-	const { x, y, width, height } = plotArea;
-	const stripY = y + height + GRADIENT_STRIP_TOP_GAP;
-	return (
-		<g>
-			<defs>
-				<clipPath id="plan-gradient-strip-clip">
-					<rect x={x} y={stripY} width={width} height={GRADIENT_STRIP_HEIGHT} rx={2} />
-				</clipPath>
-			</defs>
-			<g clipPath="url(#plan-gradient-strip-clip)">
-				{segments.map((seg, i) => {
-					if (seg.color === DOWNHILL_COLOR) return null;
-					const startFrac = Math.max(0, (seg.startKm - visibleStart) / span);
-					const endFrac = Math.min(1, (seg.endKm - visibleStart) / span);
-					if (endFrac <= startFrac) return null;
-					return (
-						<rect
-							// biome-ignore lint/suspicious/noArrayIndexKey: segments are positional
-							key={i}
-							x={x + startFrac * width}
-							y={stripY}
-							width={(endFrac - startFrac) * width}
-							height={GRADIENT_STRIP_HEIGHT}
-							fill={seg.color}
-						/>
-					);
-				})}
-			</g>
-		</g>
-	);
-}
 
 // ── 클라임 카드 ────────────────────────────────────────────────────
 
@@ -2592,10 +2546,9 @@ export function ElevationProfile({
 							</>
 						)}
 					{showGradientStrip && (
-						<GradientStripSvgOverlay
+						<GradientStrip
 							segments={gradientSegments}
-							visibleStart={visibleStart}
-							visibleEnd={visibleEnd}
+							topGap={GRADIENT_STRIP_TOP_GAP}
 						/>
 					)}
 					</AreaChart>
