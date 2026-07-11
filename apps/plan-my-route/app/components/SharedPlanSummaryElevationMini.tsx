@@ -1,6 +1,7 @@
 "use client";
 
 import { fromTrackPoints } from "@my-ridings/elevation-profile";
+import type { TrackPoint } from "@my-ridings/plan-geometry";
 import { useId, useMemo } from "react";
 import {
 	Area,
@@ -10,7 +11,6 @@ import {
 	Tooltip,
 	XAxis,
 } from "recharts";
-import type { TrackPoint } from "./ElevationProfile";
 
 type SharedPlanSummaryElevationMiniProps = {
 	trackPoints: TrackPoint[];

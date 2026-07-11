@@ -46,3 +46,23 @@ export function formatAbsoluteTimeTooltip(ms: number): string {
 	const d = new Date(ms);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
+
+const ELEVATION_Y_STEP_M = 50;
+
+/** 고도 프로필 Y축 도메인 — 50m 단위 정수로 맞춰 좁은 축에서 소수 라벨이 잘리지 않게 함 */
+export function computeElevationYDomain(elevationsM: number[]): { minAlt: number; maxAlt: number } {
+	if (elevationsM.length === 0) return { minAlt: 0, maxAlt: 100 };
+
+	const rawMin = Math.max(0, Math.min(...elevationsM) - 20);
+	const peakAlt = Math.max(...elevationsM);
+	const rawMax = peakAlt + Math.max((peakAlt - rawMin) * 0.08, 10);
+
+	return {
+		minAlt: Math.floor(rawMin / ELEVATION_Y_STEP_M) * ELEVATION_Y_STEP_M,
+		maxAlt: Math.ceil(rawMax / ELEVATION_Y_STEP_M) * ELEVATION_Y_STEP_M,
+	};
+}
+
+export function formatElevationAxisTick(meters: number): string {
+	return `${Math.round(meters)}m`;
+}

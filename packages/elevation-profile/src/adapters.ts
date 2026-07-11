@@ -92,16 +92,18 @@ type TrackPoint = {
  * plan-my-route의 ElevationProfile에서 사용하는 형식.
  */
 export function fromTrackPoints(points: TrackPoint[], maxPoints = 2000): ProfilePoint[] {
-	const valid = points.filter(
-		(p): p is TrackPoint & { e: number; d: number } => p.e != null && p.d != null,
-	);
-	const raw: ProfilePoint[] = valid.map((p, i) => ({
-		distanceKm: p.d / 1000,
-		elevationM: p.e,
-		lat: p.y,
-		lng: p.x,
-		sourceIndex: i,
-	}));
+	const raw: ProfilePoint[] = [];
+	for (let i = 0; i < points.length; i++) {
+		const p = points[i];
+		if (p.e == null || p.d == null) continue;
+		raw.push({
+			distanceKm: p.d / 1000,
+			elevationM: p.e,
+			lat: p.y,
+			lng: p.x,
+			sourceIndex: i,
+		});
+	}
 	return downsample(raw, maxPoints);
 }
 

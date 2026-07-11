@@ -3,8 +3,9 @@
 	"compilerOptions": {
 		"rootDir": "src",
 		"noEmit": true,
-		"jsx": "react-jsx"
+		"jsx": "react-jsx",
+		"types": ["bun-types"]
 	},
 	"include": ["src/**/*.ts", "src/**/*.tsx"],
-	"exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+	"exclude": []
 }

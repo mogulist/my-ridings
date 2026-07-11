@@ -5,8 +5,10 @@ import {
 	formatAbsoluteTimeAxis,
 	formatAbsoluteTimeTooltip,
 	formatDistanceAxis,
+	formatElevationAxisTick,
 	formatRelativeTimeAxis,
 	fromStravaStreams,
+	computeElevationYDomain,
 	GradientStrip,
 	MarkerOverlay,
 	nearestProfilePoint,
@@ -199,9 +201,7 @@ export function RidingProfile({
 		return (pts.length > 0 ? pts : profileData).map((p) => p.elevationM);
 	}, [profileData, zoomDomain]);
 
-	const minAlt = Math.max(0, Math.min(...visibleElevations) - 20);
-	const peakAlt = Math.max(...visibleElevations);
-	const maxAlt = peakAlt + Math.max((peakAlt - minAlt) * 0.08, 10);
+	const { minAlt, maxAlt } = computeElevationYDomain(visibleElevations);
 
 	// X축 도메인
 	const xDomain = useMemo<[number | string, number | string]>(() => {
@@ -353,9 +353,11 @@ export function RidingProfile({
 							tickCount={6}
 						/>
 						<YAxis
+							dataKey="elevationM"
+							type="number"
 							domain={[minAlt, maxAlt]}
 							allowDataOverflow
-							tickFormatter={(v: number) => `${v}m`}
+							tickFormatter={formatElevationAxisTick}
 							tick={{ fill: "#9ca3af", fontSize: 10 }}
 							tickLine={false}
 							axisLine={false}

@@ -188,6 +188,17 @@ describe("fromTrackPoints", () => {
 		expect(result[0].elevationM).toBe(120);
 	});
 
+	it("preserves original source array index", () => {
+		const pts = [
+			{ x: 0, y: 0 },
+			{ x: 127.0, y: 37.0, e: 500, d: 0 },
+			{ x: 127.1, y: 37.1, e: 600, d: 5000 },
+		];
+		const result = fromTrackPoints(pts);
+		expect(result[0].sourceIndex).toBe(1);
+		expect(result[1].sourceIndex).toBe(2);
+	});
+
 	it("equivalence: same data as buildChartData (basic fields)", () => {
 		// Verify that fromTrackPoints produces equivalent elevation/distance to
 		// what plan-my-route's buildChartData does (without stage-specific fields).

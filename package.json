@@ -17,5 +17,8 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4",
 		"turbo": "^2.8.17"
+	},
+	"overrides": {
+		"recharts": "3.9.2"
 	}
 }
