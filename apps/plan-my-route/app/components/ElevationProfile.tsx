@@ -1,6 +1,6 @@
 "use client";
 
-import { GradientStrip } from "@my-ridings/elevation-profile";
+import { formatDistanceAxis, GradientStrip } from "@my-ridings/elevation-profile";
 import { cn, ToggleGroup, ToggleGroupItem } from "@my-ridings/ui";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -23,19 +23,14 @@ import {
 	getGradientColor,
 	lookupGradientAtKm,
 } from "@my-ridings/plan-geometry";
-import type { ClimbProfile, ClimbStartMode } from "@my-ridings/plan-geometry";
+import type { ClimbProfile, ClimbStartMode, TrackPoint } from "@my-ridings/plan-geometry";
 import type { PendingStageEdit } from "../hooks/usePlanStages";
 import type { Stage } from "../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../types/plan";
 import { summitMarkerKey } from "@/lib/rwgps-plan-markers";
 
 // ── 타입 ─────────────────────────────────────────────────────────
-export interface TrackPoint {
-	x: number; // 경도
-	y: number; // 위도
-	e?: number; // 고도 (m)
-	d?: number; // 누적 거리 (m)
-}
+export type { TrackPoint } from "@my-ridings/plan-geometry";
 
 type TrackPointWithElevation = TrackPoint & { e: number; d: number };
 
@@ -2303,10 +2298,9 @@ export function ElevationProfile({
 									? [visibleStart, visibleEnd]
 									: ["dataMin", "dataMax"]
 							}
-							tickFormatter={(v: number) => {
-								const rounded = Math.round(v * 10) / 10;
-								return Number.isInteger(rounded) ? `${rounded} km` : `${rounded.toFixed(1)} km`;
-							}}
+							tickFormatter={(v: number) =>
+								formatDistanceAxis(Math.round(v * 10) / 10)
+							}
 							fontSize={10}
 							tick={{ fill: "#9ca3af" }}
 							tickLine={false}
