@@ -56,7 +56,7 @@ type CourseBriefingCanvasProps = {
 
 export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanvasProps) {
 	const clipWidth = geometry.chartWidth * progress;
-	const gainLabel = `누적 상승 : ${geometry.elevationGainM.toLocaleString("ko-KR")} m`;
+	const gainLabel = `획득 고도 : ${geometry.elevationGainM.toLocaleString("ko-KR")} m`;
 	const distanceKm = Math.round(geometry.totalDistanceKm);
 	const axisEndX = geometry.chartLeft + geometry.chartWidth;
 	const distanceLabelY = geometry.chartTop + geometry.chartHeight + 48;
