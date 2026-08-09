@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { ClimbCard } from "./climb-card";
+import { CourseBriefingModal } from "./course-briefing";
 import { DayStagePillChips, ElevationProfileHeader } from "./day-chips";
 import { ElevationAreaChart } from "./elevation-area-chart";
 import { ElevationProfileEmpty } from "./elevation-profile-empty";
@@ -16,6 +18,7 @@ import { useElevationProfileState } from "./use-elevation-profile-state";
 
 export function ElevationProfile(props: ElevationProfileProps) {
 	const state = useElevationProfileState(props);
+	const [courseBriefingOpen, setCourseBriefingOpen] = useState(false);
 
 	if (state.isEmpty) {
 		return (
@@ -54,6 +57,7 @@ export function ElevationProfile(props: ElevationProfileProps) {
 					selectedDayNumber={state.selectedDayNumber}
 					activeStageId={state.activeStageId}
 					onSelectedDayChange={state.onSelectedDayChange}
+					onPlayCourseBriefing={() => setCourseBriefingOpen(true)}
 				/>
 			)}
 
@@ -195,6 +199,17 @@ export function ElevationProfile(props: ElevationProfileProps) {
 					/>
 				) : null}
 			</div>
+
+			<CourseBriefingModal
+				open={courseBriefingOpen}
+				onClose={() => setCourseBriefingOpen(false)}
+				trackPoints={state.trackPoints}
+				summitMarkers={props.summitMarkers ?? []}
+				stages={props.stages ?? []}
+				selectedDayNumber={state.selectedDayNumber}
+				totalKm={state.totalKm}
+				elevationCalibratedThreshold={props.elevationCalibratedThreshold}
+			/>
 		</div>
 	);
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Play } from "lucide-react";
 import { getStageColor } from "@/app/types/plan";
 import type { Stage } from "@/app/types/plan";
 
@@ -56,6 +57,7 @@ type ElevationProfileHeaderProps = {
 	selectedDayNumber: number | null;
 	activeStageId?: string | null;
 	onSelectedDayChange?: (day: number | null) => void;
+	onPlayCourseBriefing?: () => void;
 };
 
 export function ElevationProfileHeader({
@@ -64,6 +66,7 @@ export function ElevationProfileHeader({
 	selectedDayNumber,
 	activeStageId,
 	onSelectedDayChange,
+	onPlayCourseBriefing,
 }: ElevationProfileHeaderProps) {
 	return (
 		<div className="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
@@ -98,6 +101,17 @@ export function ElevationProfileHeader({
 					</div>
 				)}
 			</div>
+			{onPlayCourseBriefing ? (
+				<button
+					type="button"
+					onClick={onPlayCourseBriefing}
+					className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+					aria-label="코스 브리핑 재생"
+				>
+					<Play className="h-3.5 w-3.5 fill-current" />
+					<span className="font-medium">Play</span>
+				</button>
+			) : null}
 		</div>
 	);
 }
