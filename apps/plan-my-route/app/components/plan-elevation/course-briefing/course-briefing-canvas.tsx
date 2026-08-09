@@ -11,6 +11,39 @@ const SUMMIT_LABEL_BASE_OFFSET = 52;
 const START_FINISH_LABEL_OFFSET = 280;
 /** X축 끝: 숫자(왼쪽) · 단위(오른쪽) 사이 여백 */
 const DISTANCE_LABEL_AXIS_GAP = 8;
+/** 세로 가이드선 — 라벨 하단·고점과 선 사이 동일 여백 */
+const LEADER_SYMMETRIC_GAP = 12;
+const LEADER_MIN_LINE_LENGTH = 10;
+/** 고도 텍스트 baseline 아래 글자 descent (과대 추정하면 선 위 여백만 커짐) */
+const ELEVATION_LABEL_DESCENT_RATIO = 0.32;
+const SUMMIT_NAME_FONT_SIZE = 28;
+const SUMMIT_ELEVATION_FONT_SIZE = 22;
+const SUMMIT_ELEVATION_OFFSET = 32;
+const START_FINISH_NAME_FONT_SIZE = 52;
+const START_FINISH_ELEVATION_OFFSET = 52;
+const START_FINISH_ELEVATION_FONT_SIZE = 36;
+
+function computeEqualGapLeaderLineYs(
+	labelBottomY: number,
+	peakY: number,
+): { startY: number; endY: number } | null {
+	const span = peakY - labelBottomY;
+	if (span < LEADER_MIN_LINE_LENGTH + 4) return null;
+
+	const startY = labelBottomY + LEADER_SYMMETRIC_GAP;
+	const endY = peakY - LEADER_SYMMETRIC_GAP;
+
+	if (endY - startY < LEADER_MIN_LINE_LENGTH) {
+		const centeredGap = (span - LEADER_MIN_LINE_LENGTH) / 2;
+		if (centeredGap < 2) return null;
+		return {
+			startY: labelBottomY + centeredGap,
+			endY: peakY - centeredGap,
+		};
+	}
+
+	return { startY, endY };
+}
 
 type CourseBriefingCanvasProps = {
 	geometry: BriefingGeometry;
@@ -61,7 +94,12 @@ export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanva
 			/>
 
 			{geometry.summits.map((summit) => (
-				<SummitLabel key={summit.key} summit={summit} chartTop={geometry.chartTop} />
+				<SummitLabel
+					key={summit.key}
+					summit={summit}
+					chartTop={geometry.chartTop}
+					labelUpliftPx={geometry.summitLabelUpliftPx}
+				/>
 			))}
 
 			<path d={geometry.areaPath} fill={GREY_FILL} />
@@ -147,24 +185,30 @@ function StartFinishLabel({ side, name, elevation, x, y, chartTop }: StartFinish
 	const labelY = chartTop - START_FINISH_LABEL_OFFSET;
 	const textAnchor = side === "finish" ? "end" : "start";
 	const labelX = side === "finish" ? x + 40 : x - 40;
-	const leaderStartY = labelY + 96;
+	const labelBottomY =
+		labelY +
+		START_FINISH_ELEVATION_OFFSET +
+		START_FINISH_ELEVATION_FONT_SIZE * ELEVATION_LABEL_DESCENT_RATIO;
+	const leader = computeEqualGapLeaderLineYs(labelBottomY, y);
 
 	return (
 		<g>
-			<line
-				x1={x}
-				y1={leaderStartY}
-				x2={x}
-				y2={y}
-				stroke="rgba(255,255,255,0.55)"
-				strokeWidth={2}
-				strokeDasharray="6 6"
-			/>
+			{leader ? (
+				<line
+					x1={x}
+					y1={leader.startY}
+					x2={x}
+					y2={leader.endY}
+					stroke="rgba(255,255,255,0.55)"
+					strokeWidth={2}
+					strokeDasharray="6 6"
+				/>
+			) : null}
 			<text
 				x={labelX}
 				y={labelY}
 				fill="white"
-				fontSize={52}
+				fontSize={START_FINISH_NAME_FONT_SIZE}
 				fontWeight={800}
 				textAnchor={textAnchor}
 				fontFamily="system-ui, sans-serif"
@@ -173,9 +217,9 @@ function StartFinishLabel({ side, name, elevation, x, y, chartTop }: StartFinish
 			</text>
 			<text
 				x={labelX}
-				y={labelY + 52}
+				y={labelY + START_FINISH_ELEVATION_OFFSET}
 				fill="rgba(255,255,255,0.9)"
-				fontSize={36}
+				fontSize={START_FINISH_ELEVATION_FONT_SIZE}
 				fontWeight={600}
 				textAnchor={textAnchor}
 				fontFamily="system-ui, sans-serif"
@@ -189,28 +233,39 @@ function StartFinishLabel({ side, name, elevation, x, y, chartTop }: StartFinish
 type SummitLabelProps = {
 	summit: BriefingGeometry["summits"][number];
 	chartTop: number;
+	labelUpliftPx: number;
 };
 
-function SummitLabel({ summit, chartTop }: SummitLabelProps) {
+function SummitLabel({ summit, chartTop, labelUpliftPx }: SummitLabelProps) {
 	const labelY =
-		chartTop - SUMMIT_LABEL_BASE_OFFSET - summit.labelRow * SUMMIT_LABEL_ROW_OFFSET;
+		chartTop -
+		SUMMIT_LABEL_BASE_OFFSET -
+		summit.labelRow * SUMMIT_LABEL_ROW_OFFSET -
+		labelUpliftPx;
 	const elevationText = `${Math.round(summit.elevation).toLocaleString("ko-KR")} m`;
+	const labelBottomY =
+		labelY +
+		SUMMIT_ELEVATION_OFFSET +
+		SUMMIT_ELEVATION_FONT_SIZE * ELEVATION_LABEL_DESCENT_RATIO;
+	const leader = computeEqualGapLeaderLineYs(labelBottomY, summit.y);
 
 	return (
 		<g>
-			<line
-				x1={summit.x}
-				y1={labelY + 28}
-				x2={summit.x}
-				y2={summit.y}
-				stroke="rgba(255,255,255,0.45)"
-				strokeWidth={2}
-			/>
+			{leader ? (
+				<line
+					x1={summit.x}
+					y1={leader.startY}
+					x2={summit.x}
+					y2={leader.endY}
+					stroke="rgba(255,255,255,0.45)"
+					strokeWidth={2}
+				/>
+			) : null}
 			<text
 				x={summit.x}
 				y={labelY}
 				fill="white"
-				fontSize={28}
+				fontSize={SUMMIT_NAME_FONT_SIZE}
 				fontWeight={700}
 				textAnchor="middle"
 				fontFamily="system-ui, sans-serif"
@@ -219,9 +274,9 @@ function SummitLabel({ summit, chartTop }: SummitLabelProps) {
 			</text>
 			<text
 				x={summit.x}
-				y={labelY + 32}
+				y={labelY + SUMMIT_ELEVATION_OFFSET}
 				fill="rgba(255,255,255,0.85)"
-				fontSize={22}
+				fontSize={SUMMIT_ELEVATION_FONT_SIZE}
 				fontWeight={500}
 				textAnchor="middle"
 				fontFamily="system-ui, sans-serif"

@@ -14,6 +14,14 @@ const CHART_BOTTOM = 900;
 const CHART_WIDTH = CHART_RIGHT - CHART_LEFT;
 const CHART_HEIGHT = CHART_BOTTOM - CHART_TOP;
 
+/** 브리핑 전용: 최고봉 위·라벨 밴드 여유 (라벨·가이드선 간격 확보) */
+const BRIEFING_ELE_PADDING_TOP_RATIO = 0.22;
+const BRIEFING_SUMMIT_LABEL_BASE_OFFSET = 52;
+const BRIEFING_SUMMIT_ELEVATION_OFFSET = 32;
+const BRIEFING_ELEVATION_DESCENT_PX = 22 * 0.32;
+const BRIEFING_LEADER_GAP_PX = 12;
+const BRIEFING_LEADER_MIN_LINE_PX = 10;
+
 type TrackPointWithElevation = TrackPoint & { e: number; d: number };
 
 export type BriefingSummitPoint = {
@@ -46,6 +54,8 @@ export type BriefingGeometry = {
 	totalDistanceKm: number;
 	elevationGainM: number;
 	summits: BriefingSummitPoint[];
+	/** 최고 서밋이 라벨에 너무 가까울 때 라벨 밴드를 위로 올리는 px */
+	summitLabelUpliftPx: number;
 };
 
 export type BriefingRange = {
@@ -140,7 +150,7 @@ function kmToChartX(km: number, startKm: number, endKm: number): number {
 function eleToChartY(ele: number, minEle: number, maxEle: number): number {
 	const span = maxEle - minEle;
 	const paddedMin = minEle - span * 0.08;
-	const paddedMax = maxEle + span * 0.12;
+	const paddedMax = maxEle + span * BRIEFING_ELE_PADDING_TOP_RATIO;
 	const paddedSpan = paddedMax - paddedMin;
 	if (paddedSpan <= 0) return CHART_TOP + CHART_HEIGHT / 2;
 	const ratio = (ele - paddedMin) / paddedSpan;
@@ -263,6 +273,22 @@ export function buildBriefingGeometry(params: {
 		};
 	});
 
+	const row0LabelBottomY =
+		CHART_TOP -
+		BRIEFING_SUMMIT_LABEL_BASE_OFFSET +
+		BRIEFING_SUMMIT_ELEVATION_OFFSET +
+		BRIEFING_ELEVATION_DESCENT_PX;
+	const leaderClearancePx =
+		BRIEFING_LEADER_GAP_PX * 2 + BRIEFING_LEADER_MIN_LINE_PX;
+	let summitLabelUpliftPx = 0;
+	if (summits.length > 0) {
+		const minSummitY = Math.min(...summits.map((s) => s.y));
+		const neededPeakY = row0LabelBottomY + leaderClearancePx;
+		if (minSummitY < neededPeakY) {
+			summitLabelUpliftPx = neededPeakY - minSummitY;
+		}
+	}
+
 	return {
 		viewWidth: BRIEFING_VIEW_WIDTH,
 		viewHeight: BRIEFING_VIEW_HEIGHT,
@@ -288,5 +314,6 @@ export function buildBriefingGeometry(params: {
 			elevationCalibratedThreshold,
 		),
 		summits,
+		summitLabelUpliftPx,
 	};
 }
