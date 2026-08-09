@@ -52,6 +52,7 @@ type RouteSummary = {
 
 type PlanListPaneProps = {
   routeSummary?: RouteSummary | null;
+  onEditOfficialSpecs?: () => void;
   plans: PlanItem[];
   activePlanId: string | null;
   isReorderingPlans?: boolean;
@@ -262,6 +263,7 @@ function SortablePlanRow({
 
 export function PlanListPane({
   routeSummary,
+  onEditOfficialSpecs,
   plans,
   activePlanId,
   isReorderingPlans = false,
@@ -392,13 +394,26 @@ export function PlanListPane({
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
         {routeSummary && (
-          <RouteSummaryBlock
-            name={routeSummary.name}
-            rwgpsUrl={routeSummary.rwgpsUrl}
-            distanceMeters={routeSummary.distanceKm * 1000}
-            elevationGain={routeSummary.elevationGain}
-            elevationLoss={routeSummary.elevationLoss}
-          />
+          <div className="mb-3 space-y-1 border-b border-zinc-200 pb-3 dark:border-zinc-700">
+            <RouteSummaryBlock
+              name={routeSummary.name}
+              rwgpsUrl={routeSummary.rwgpsUrl}
+              distanceMeters={routeSummary.distanceKm * 1000}
+              elevationGain={routeSummary.elevationGain}
+              elevationLoss={routeSummary.elevationLoss}
+              className="mb-0 border-0 pb-0"
+            />
+            {onEditOfficialSpecs ? (
+              <button
+                type="button"
+                onClick={onEditOfficialSpecs}
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+              >
+                <PencilIcon className="h-3 w-3" />
+                공식 코스 스펙
+              </button>
+            ) : null}
+          </div>
         )}
         <div className="relative">
           {isReorderingPlans && (

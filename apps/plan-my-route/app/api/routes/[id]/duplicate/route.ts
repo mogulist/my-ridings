@@ -28,6 +28,10 @@ type RouteWithPlans = {
 	total_distance: number | null;
 	elevation_gain: number | null;
 	elevation_loss: number | null;
+	official_distance_km: number | null;
+	official_elevation_m: number | null;
+	official_start_name: string | null;
+	official_finish_name: string | null;
 	smoothing_param: number | null;
 	start_date: string | null;
 	plans?: DbPlan[];
@@ -89,6 +93,10 @@ export async function POST(
 				total_distance: sourceRoute.total_distance,
 				elevation_gain: sourceRoute.elevation_gain,
 				elevation_loss: sourceRoute.elevation_loss,
+				official_distance_km: sourceRoute.official_distance_km,
+				official_elevation_m: sourceRoute.official_elevation_m,
+				official_start_name: sourceRoute.official_start_name,
+				official_finish_name: sourceRoute.official_finish_name,
 				smoothing_param: sourceRoute.smoothing_param,
 				start_date: sourceRoute.start_date,
 			})

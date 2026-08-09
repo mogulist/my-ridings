@@ -41,6 +41,11 @@ import {
   upsertScheduleMarkerMemo,
 } from "../types/scheduleMarkerMemos";
 import type { SummitCatalogRow } from "../types/summitCatalog";
+import {
+  RouteOfficialSpecsDialog,
+  type RouteOfficialSpecsSavePayload,
+} from "./RouteOfficialSpecsDialog";
+import { parseRouteOfficialSpecs } from "@/lib/route-official-specs";
 
 export { computeCPsOnRoute, computeSummitsOnRoute };
 
@@ -156,6 +161,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
   const [isStagesPending, startStagesTransition] = useTransition();
   const [planPois, setPlanPois] = useState<PlanPoiRow[]>([]);
   const [officialSummits, setOfficialSummits] = useState<SummitCatalogRow[]>([]);
+  const [officialSpecsOpen, setOfficialSpecsOpen] = useState(false);
   /** guest: loadFromGuest가 planPois를 반영하기 전 빈 배열로 persist하면 LS의 POI가 지워지므로, 하이드 완료 후에만 POI persist 허용 */
   const [guestPlanPoiPersistReady, setGuestPlanPoiPersistReady] = useState(false);
 
@@ -218,6 +224,14 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
           sourceRoute.total_distance ?? sourceRoute.distance ?? baseRoute.total_distance,
         elevation_gain: sourceRoute.elevation_gain ?? baseRoute.elevation_gain,
         elevation_loss: sourceRoute.elevation_loss ?? baseRoute.elevation_loss,
+        official_distance_km:
+          sourceRoute.official_distance_km ?? baseRoute.official_distance_km,
+        official_elevation_m:
+          sourceRoute.official_elevation_m ?? baseRoute.official_elevation_m,
+        official_start_name:
+          sourceRoute.official_start_name ?? baseRoute.official_start_name,
+        official_finish_name:
+          sourceRoute.official_finish_name ?? baseRoute.official_finish_name,
         start_date: sourceRoute.start_date ?? baseRoute.start_date,
         plans: nextPlans,
         plan_pois_by_plan_id: nextPlanPoisByPlanId,
@@ -771,6 +785,54 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
       elevationLoss: route.elevation_loss,
     };
   }, [route, dbRoute]);
+
+  const routeOfficialSpecs = parseRouteOfficialSpecs(dbRoute);
+
+  const handleSaveOfficialSpecs = async (payload: RouteOfficialSpecsSavePayload) => {
+    if (!dbRoute) return;
+
+    const nextDbRoute = {
+      ...dbRoute,
+      official_distance_km: payload.official_distance_km,
+      official_elevation_m: payload.official_elevation_m,
+      official_start_name: payload.official_start_name,
+      official_finish_name: payload.official_finish_name,
+    };
+
+    if (isGuestMode) {
+      setDbRoute(nextDbRoute);
+      persistGuestRoute({ nextDbRoute });
+      return;
+    }
+
+    const res = await fetch(`/api/routes/${routeId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: dbRoute.name,
+        rwgps_url: dbRoute.rwgps_url,
+        total_distance: dbRoute.total_distance,
+        elevation_gain: dbRoute.elevation_gain,
+        elevation_loss: dbRoute.elevation_loss,
+        smoothing_param: dbRoute.smoothing_param,
+        start_date: dbRoute.start_date,
+        official_distance_km: payload.official_distance_km,
+        official_elevation_m: payload.official_elevation_m,
+        official_start_name: payload.official_start_name,
+        official_finish_name: payload.official_finish_name,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "공식 스펙 저장에 실패했습니다.");
+    }
+
+    const saved = await res.json();
+    setDbRoute((prev: DbRouteSnapshot | null) =>
+      prev ? { ...prev, ...saved } : saved,
+    );
+  };
 
   const activePlanName =
     dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)?.name ??
@@ -1373,6 +1435,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
           <>
             <PlanListPane
               routeSummary={routeSummary ?? undefined}
+              onEditOfficialSpecs={() => setOfficialSpecsOpen(true)}
               plans={dbRoute?.plans ?? []}
               activePlanId={activePlanId}
               isReorderingPlans={isReorderingPlans}
@@ -1559,6 +1622,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
             onPin={handlePin}
             onUnpin={handleUnpin}
             elevationCalibratedThreshold={calibratedThreshold}
+            routeOfficialSpecs={routeOfficialSpecs}
             cpMarkers={cpMarkers}
             summitMarkers={summitMarkers}
             labelLayout="stagger"
@@ -1608,6 +1672,19 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
           if (!panelStage) return;
           await persistStageMeta(panelStage.id, payload);
         }}
+      />
+
+      <RouteOfficialSpecsDialog
+        open={officialSpecsOpen}
+        onOpenChange={setOfficialSpecsOpen}
+        initialSpecs={routeOfficialSpecs}
+        rwgpsDistanceKm={
+          route != null ? route.distance / 1000 : dbRoute?.total_distance
+        }
+        rwgpsElevationGainM={
+          route?.elevation_gain ?? dbRoute?.elevation_gain ?? null
+        }
+        onSave={handleSaveOfficialSpecs}
       />
 
       <PoiEditDialog
