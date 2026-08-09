@@ -9,6 +9,8 @@ const GREY_LINE = "rgba(255, 255, 255, 0.35)";
 const SUMMIT_LABEL_ROW_OFFSET = 64;
 const SUMMIT_LABEL_BASE_OFFSET = 52;
 const START_FINISH_LABEL_OFFSET = 280;
+/** X축 끝: 숫자(왼쪽) · 단위(오른쪽) 사이 여백 */
+const DISTANCE_LABEL_AXIS_GAP = 8;
 
 type CourseBriefingCanvasProps = {
 	geometry: BriefingGeometry;
@@ -18,7 +20,9 @@ type CourseBriefingCanvasProps = {
 export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanvasProps) {
 	const clipWidth = geometry.chartWidth * progress;
 	const gainLabel = `누적 상승 : ${geometry.elevationGainM.toLocaleString("ko-KR")} m`;
-	const distanceLabel = `${Math.round(geometry.totalDistanceKm)} km`;
+	const distanceKm = Math.round(geometry.totalDistanceKm);
+	const axisEndX = geometry.chartLeft + geometry.chartWidth;
+	const distanceLabelY = geometry.chartTop + geometry.chartHeight + 48;
 
 	return (
 		<svg
@@ -94,19 +98,30 @@ export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanva
 				0
 			</text>
 			<text
-				x={geometry.chartLeft + geometry.chartWidth}
-				y={geometry.chartTop + geometry.chartHeight + 48}
+				x={axisEndX - DISTANCE_LABEL_AXIS_GAP}
+				y={distanceLabelY}
 				fill="white"
 				fontSize={48}
 				fontWeight={800}
 				textAnchor="end"
 				fontFamily="system-ui, sans-serif"
 			>
-				{distanceLabel}
+				{distanceKm.toLocaleString("ko-KR")}
+			</text>
+			<text
+				x={axisEndX + DISTANCE_LABEL_AXIS_GAP}
+				y={distanceLabelY}
+				fill="white"
+				fontSize={48}
+				fontWeight={800}
+				textAnchor="start"
+				fontFamily="system-ui, sans-serif"
+			>
+				km
 			</text>
 			<text
 				x={geometry.chartLeft + geometry.chartWidth / 2}
-				y={geometry.chartTop + geometry.chartHeight + 48}
+				y={distanceLabelY}
 				fill="white"
 				fontSize={32}
 				fontWeight={600}
