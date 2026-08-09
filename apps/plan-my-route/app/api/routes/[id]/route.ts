@@ -67,6 +67,10 @@ export async function PUT(
 			elevation_loss,
 			smoothing_param,
 			start_date,
+			official_distance_km,
+			official_elevation_m,
+			official_start_name,
+			official_finish_name,
 		} = json;
 
 		const updatePayload: Record<string, any> = {
@@ -80,6 +84,31 @@ export async function PUT(
 		};
 		if (start_date !== undefined) {
 			updatePayload.start_date = start_date === null || start_date === "" ? null : start_date;
+		}
+		if (Object.prototype.hasOwnProperty.call(json, "official_distance_km")) {
+			updatePayload.official_distance_km =
+				official_distance_km == null || official_distance_km === ""
+					? null
+					: Number(official_distance_km);
+		}
+		if (Object.prototype.hasOwnProperty.call(json, "official_elevation_m")) {
+			const v =
+				official_elevation_m == null || official_elevation_m === ""
+					? null
+					: Number(official_elevation_m);
+			updatePayload.official_elevation_m = v == null ? null : Math.round(v);
+		}
+		if (Object.prototype.hasOwnProperty.call(json, "official_start_name")) {
+			updatePayload.official_start_name =
+				typeof official_start_name === "string" && official_start_name.trim()
+					? official_start_name.trim()
+					: null;
+		}
+		if (Object.prototype.hasOwnProperty.call(json, "official_finish_name")) {
+			updatePayload.official_finish_name =
+				typeof official_finish_name === "string" && official_finish_name.trim()
+					? official_finish_name.trim()
+					: null;
 		}
 
 		const { data, error } = await supabaseAdmin

@@ -36,6 +36,10 @@ export type GuestRoute = {
   total_distance: number | null;
   elevation_gain: number | null;
   elevation_loss: number | null;
+  official_distance_km?: number | null;
+  official_elevation_m?: number | null;
+  official_start_name?: string | null;
+  official_finish_name?: string | null;
   start_date: string | null;
   created_at: string;
   updated_at: string;

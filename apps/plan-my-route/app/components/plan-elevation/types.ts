@@ -1,6 +1,7 @@
 import type { TrackPoint } from "@my-ridings/plan-geometry";
 import type { PendingStageEdit } from "@/app/hooks/usePlanStages";
 import type { Stage } from "@/app/types/plan";
+import type { RouteOfficialSpecs } from "@/app/types/route";
 
 export type { TrackPoint };
 
@@ -53,6 +54,7 @@ export type ElevationProfileProps = {
 	onPin?: (index: number) => void;
 	onUnpin?: () => void;
 	elevationCalibratedThreshold?: number;
+	routeOfficialSpecs?: RouteOfficialSpecs | null;
 	cpMarkers?: CPOnRoute[];
 	summitMarkers?: SummitOnRoute[];
 	alwaysShowChips?: boolean;

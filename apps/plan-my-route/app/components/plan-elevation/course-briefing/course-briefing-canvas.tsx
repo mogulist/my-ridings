@@ -19,7 +19,10 @@ const ELEVATION_LABEL_DESCENT_RATIO = 0.32;
 const SUMMIT_NAME_FONT_SIZE = 28;
 const SUMMIT_ELEVATION_FONT_SIZE = 22;
 const SUMMIT_ELEVATION_OFFSET = 32;
-const START_FINISH_NAME_FONT_SIZE = 52;
+/** Start/Finish 지명 · X축 거리(0, km 숫자·단위) 공통 크기 */
+const MAJOR_LABEL_FONT_SIZE = 36;
+const START_FINISH_NAME_FONT_SIZE = MAJOR_LABEL_FONT_SIZE;
+const AXIS_DISTANCE_FONT_SIZE = MAJOR_LABEL_FONT_SIZE;
 const START_FINISH_ELEVATION_OFFSET = 52;
 const START_FINISH_ELEVATION_FONT_SIZE = 36;
 
@@ -129,7 +132,7 @@ export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanva
 				x={geometry.chartLeft}
 				y={geometry.chartTop + geometry.chartHeight + 48}
 				fill="white"
-				fontSize={36}
+				fontSize={AXIS_DISTANCE_FONT_SIZE}
 				fontWeight={700}
 				fontFamily="system-ui, sans-serif"
 			>
@@ -139,7 +142,7 @@ export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanva
 				x={axisEndX - DISTANCE_LABEL_AXIS_GAP}
 				y={distanceLabelY}
 				fill="white"
-				fontSize={48}
+				fontSize={AXIS_DISTANCE_FONT_SIZE}
 				fontWeight={800}
 				textAnchor="end"
 				fontFamily="system-ui, sans-serif"
@@ -150,7 +153,7 @@ export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanva
 				x={axisEndX + DISTANCE_LABEL_AXIS_GAP}
 				y={distanceLabelY}
 				fill="white"
-				fontSize={48}
+				fontSize={AXIS_DISTANCE_FONT_SIZE}
 				fontWeight={800}
 				textAnchor="start"
 				fontFamily="system-ui, sans-serif"

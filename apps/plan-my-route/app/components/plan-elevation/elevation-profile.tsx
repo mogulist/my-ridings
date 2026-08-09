@@ -209,6 +209,7 @@ export function ElevationProfile(props: ElevationProfileProps) {
 				selectedDayNumber={state.selectedDayNumber}
 				totalKm={state.totalKm}
 				elevationCalibratedThreshold={props.elevationCalibratedThreshold}
+				routeOfficialSpecs={props.routeOfficialSpecs}
 			/>
 		</div>
 	);
