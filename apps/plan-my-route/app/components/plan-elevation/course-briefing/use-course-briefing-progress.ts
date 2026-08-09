@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export const COURSE_BRIEFING_DURATION_MS = 7000;
 
@@ -6,10 +6,10 @@ export function useCourseBriefingProgress(isActive: boolean) {
 	const [progress, setProgress] = useState(0);
 	const [runId, setRunId] = useState(0);
 
-	const replay = useCallback(() => {
+	const replay = () => {
 		setProgress(0);
 		setRunId((id) => id + 1);
-	}, []);
+	};
 
 	useEffect(() => {
 		if (!isActive) {

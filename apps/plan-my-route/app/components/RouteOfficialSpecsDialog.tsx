@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { RouteOfficialSpecs } from "@/app/types/route";
 
 export type RouteOfficialSpecsSavePayload = {
@@ -46,21 +46,21 @@ export function RouteOfficialSpecsDialog({
 		setFinishName(initialSpecs.officialFinishName ?? "");
 	}, [open, initialSpecs]);
 
-	const handleClose = useCallback(() => {
+	const handleClose = () => {
 		if (isSaving) return;
 		onOpenChange(false);
-	}, [isSaving, onOpenChange]);
+	};
 
 	useEffect(() => {
 		if (!open) return;
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") handleClose();
+			if (event.key === "Escape" && !isSaving) onOpenChange(false);
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [open, handleClose]);
+	}, [open, isSaving, onOpenChange]);
 
-	const handleSave = useCallback(async () => {
+	const handleSave = async () => {
 		if (isSaving) return;
 		setIsSaving(true);
 		try {
@@ -76,15 +76,7 @@ export function RouteOfficialSpecsDialog({
 		} finally {
 			setIsSaving(false);
 		}
-	}, [
-		isSaving,
-		distanceKm,
-		elevationM,
-		startName,
-		finishName,
-		onSave,
-		onOpenChange,
-	]);
+	};
 
 	if (!open) return null;
 

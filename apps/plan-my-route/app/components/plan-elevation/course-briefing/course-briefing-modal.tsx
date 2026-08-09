@@ -114,15 +114,15 @@ export function CourseBriefingModal({
 		isFullRoute,
 	);
 
-	const displayGeometry = useMemo(() => {
-		if (!baseGeometry) return null;
-		return applyBriefingDisplayOverrides(
-			baseGeometry,
-			routeOfficialSpecs,
-			elevationSource,
-			isFullRoute,
-		);
-	}, [baseGeometry, routeOfficialSpecs, elevationSource, isFullRoute]);
+	const displayGeometry =
+		baseGeometry == null
+			? null
+			: applyBriefingDisplayOverrides(
+					baseGeometry,
+					routeOfficialSpecs,
+					elevationSource,
+					isFullRoute,
+				);
 
 	useEffect(() => {
 		if (!open) return;

@@ -786,59 +786,53 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
     };
   }, [route, dbRoute]);
 
-  const routeOfficialSpecs = useMemo(
-    () => parseRouteOfficialSpecs(dbRoute),
-    [dbRoute],
-  );
+  const routeOfficialSpecs = parseRouteOfficialSpecs(dbRoute);
 
-  const handleSaveOfficialSpecs = useCallback(
-    async (payload: RouteOfficialSpecsSavePayload) => {
-      if (!dbRoute) return;
+  const handleSaveOfficialSpecs = async (payload: RouteOfficialSpecsSavePayload) => {
+    if (!dbRoute) return;
 
-      const nextDbRoute = {
-        ...dbRoute,
+    const nextDbRoute = {
+      ...dbRoute,
+      official_distance_km: payload.official_distance_km,
+      official_elevation_m: payload.official_elevation_m,
+      official_start_name: payload.official_start_name,
+      official_finish_name: payload.official_finish_name,
+    };
+
+    if (isGuestMode) {
+      setDbRoute(nextDbRoute);
+      persistGuestRoute({ nextDbRoute });
+      return;
+    }
+
+    const res = await fetch(`/api/routes/${routeId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: dbRoute.name,
+        rwgps_url: dbRoute.rwgps_url,
+        total_distance: dbRoute.total_distance,
+        elevation_gain: dbRoute.elevation_gain,
+        elevation_loss: dbRoute.elevation_loss,
+        smoothing_param: dbRoute.smoothing_param,
+        start_date: dbRoute.start_date,
         official_distance_km: payload.official_distance_km,
         official_elevation_m: payload.official_elevation_m,
         official_start_name: payload.official_start_name,
         official_finish_name: payload.official_finish_name,
-      };
+      }),
+    });
 
-      if (isGuestMode) {
-        setDbRoute(nextDbRoute);
-        persistGuestRoute({ nextDbRoute });
-        return;
-      }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "공식 스펙 저장에 실패했습니다.");
+    }
 
-      const res = await fetch(`/api/routes/${routeId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: dbRoute.name,
-          rwgps_url: dbRoute.rwgps_url,
-          total_distance: dbRoute.total_distance,
-          elevation_gain: dbRoute.elevation_gain,
-          elevation_loss: dbRoute.elevation_loss,
-          smoothing_param: dbRoute.smoothing_param,
-          start_date: dbRoute.start_date,
-          official_distance_km: payload.official_distance_km,
-          official_elevation_m: payload.official_elevation_m,
-          official_start_name: payload.official_start_name,
-          official_finish_name: payload.official_finish_name,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "공식 스펙 저장에 실패했습니다.");
-      }
-
-      const saved = await res.json();
-      setDbRoute((prev: DbRouteSnapshot | null) =>
-        prev ? { ...prev, ...saved } : saved,
-      );
-    },
-    [dbRoute, isGuestMode, persistGuestRoute, routeId],
-  );
+    const saved = await res.json();
+    setDbRoute((prev: DbRouteSnapshot | null) =>
+      prev ? { ...prev, ...saved } : saved,
+    );
+  };
 
   const activePlanName =
     dbRoute?.plans?.find((p: { id: string }) => p.id === activePlanId)?.name ??
