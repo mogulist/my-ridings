@@ -3,7 +3,8 @@
 import type { BriefingGeometry } from "./build-briefing-geometry";
 import { BRIEFING_BACKGROUND } from "./build-briefing-geometry";
 
-const YELLOW_FILL = "#F5D000";
+/** K-Fondo 브랜드 emerald-500 — 프로필 fill/line */
+const PROFILE_FILL = "#10b981";
 const GREY_FILL = "rgba(255, 255, 255, 0.14)";
 const GREY_LINE = "rgba(255, 255, 255, 0.35)";
 const SUMMIT_LABEL_ROW_OFFSET = 64;
@@ -109,11 +110,11 @@ export function CourseBriefingCanvas({ geometry, progress }: CourseBriefingCanva
 			<path d={geometry.linePath} fill="none" stroke={GREY_LINE} strokeWidth={3} />
 
 			<g clipPath="url(#course-briefing-progress-clip)">
-				<path d={geometry.areaPath} fill={YELLOW_FILL} />
+				<path d={geometry.areaPath} fill={PROFILE_FILL} />
 				<path
 					d={geometry.linePath}
 					fill="none"
-					stroke={YELLOW_FILL}
+					stroke={PROFILE_FILL}
 					strokeWidth={3}
 					strokeLinejoin="round"
 				/>
