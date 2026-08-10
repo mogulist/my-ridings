@@ -91,6 +91,7 @@ export function MobileSharedPlanMapTab({
               activePlanId={activePlanId}
               readOnly
               suspendPlanMapElevationSync
+              selectedDayNumber={effectiveSelectedDay}
             />
           </div>
           <div className="flex min-h-0 basis-[35%] grow flex-col overflow-hidden border-t border-border bg-background">

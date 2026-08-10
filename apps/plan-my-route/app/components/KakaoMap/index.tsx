@@ -1,8 +1,12 @@
 "use client";
 
-import { Expand, Locate } from "lucide-react";
+import { Expand, Locate, Play, RotateCcw } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	resolveBriefingRange,
+	useCourseBriefingProgress,
+} from "@/app/components/plan-elevation/course-briefing";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
 import type { PlanPoiRow } from "@/app/types/planPoi";
 import type { SummitCatalogRow } from "@/app/types/summitCatalog";
@@ -11,6 +15,7 @@ import {
 	type PlaceReviewRow,
 	type ReviewState,
 } from "@/app/types/placeReview";
+import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
 import { PlanPoiDialog } from "./PlanPoiDialog";
@@ -657,6 +662,9 @@ function unlockPlaceReviewTooltip(root: HTMLElement, closeSnap: PlaceReviewClose
 // ── Props ─────────────────────────────────────────────────────────
 const HIGHLIGHT_MARKER_SIZE = 16;
 const HIGHLIGHT_MARKER_COLOR = "#f97316";
+/** 코스 브리핑 인플레이스 마커 (고도 브리핑 emerald-500과 동일) */
+const COURSE_BRIEFING_MARKER_SIZE = 18;
+const COURSE_BRIEFING_MARKER_COLOR = "#10b981";
 /** 하이라이트 CustomOverlay(zIndex 10) 위에 두어 클릭이 장소 마커로 가도록 함 */
 const PLACE_MARKER_Z_INDEX = 50;
 /** RWGPS·플랜 POI — 주변/선호(북마크) 원형 마커보다 위 */
@@ -675,12 +683,13 @@ function highlightCircleMarkerHtml(
 	size: number,
 	clickable: boolean,
 	elevationLabel: string | null = null,
+	color: string = HIGHLIGHT_MARKER_COLOR,
 ): string {
 	const cursor = clickable ? "cursor:pointer;" : "";
 	const badge = elevationLabel
 		? `<div style="position:absolute;left:50%;transform:translateX(-50%);bottom:${size + 8}px;padding:2px 6px;border-radius:9999px;background:rgba(17,24,39,0.92);color:#fff;font-size:11px;font-weight:600;line-height:1.2;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.25);">${elevationLabel}</div>`
 		: "";
-	return `<div style="position:relative;">${badge}<div class="highlight-marker-circle" style="width:${size}px;height:${size}px;border-radius:50%;background:${HIGHLIGHT_MARKER_COLOR};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);${cursor}"></div></div>`;
+	return `<div style="position:relative;">${badge}<div class="highlight-marker-circle" style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);${cursor}"></div></div>`;
 }
 
 interface KakaoMapProps {
@@ -735,6 +744,8 @@ interface KakaoMapProps {
 	boundaryPreviewEndKm?: number | null;
 	/** true면 지도 mousemove·클릭으로 고도 프로필 위치/핀을 바꾸지 않음 */
 	suspendPlanMapElevationSync?: boolean;
+	/** 고도/일별 칩과 동일한 코스 브리핑 구간 (null = 전체) */
+	selectedDayNumber?: number | null;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -790,6 +801,7 @@ export default function KakaoMap({
 	onMapCenterOnRouteKmConsumed,
 	boundaryPreviewEndKm = null,
 	suspendPlanMapElevationSync = false,
+	selectedDayNumber = null,
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
@@ -798,6 +810,7 @@ export default function KakaoMap({
 	const lastRouteIdRef = useRef<number | null>(null);
 	const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const boundaryPreviewOverlayRef = useRef<KakaoCustomOverlay | null>(null);
+	const courseBriefingOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const onPositionChangeRef = useRef(onPositionChange);
 	const isPinnedRef = useRef(isPinned);
 	const onPinRef = useRef(onPin);
@@ -809,6 +822,9 @@ export default function KakaoMap({
 	trackPointsRef.current = trackPoints;
 	const [mapReady, setMapReady] = useState(false);
 	const [zoomLevel, setZoomLevel] = useState<number | null>(null);
+	const [isCourseBriefingActive, setIsCourseBriefingActive] = useState(false);
+	const { progress: courseBriefingProgress, replay: replayCourseBriefing, isComplete: isCourseBriefingComplete } =
+		useCourseBriefingProgress(isCourseBriefingActive);
 	const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
 	const [loadingCategory, setLoadingCategory] = useState<NearbyCategoryId | null>(null);
 	const [activeCategory, setActiveCategory] = useState<NearbyCategoryId | null>(null);
@@ -2100,7 +2116,7 @@ export default function KakaoMap({
 		if (!map || !maps) return;
 
 		const overlay = highlightOverlayRef.current;
-		if (!highlightPosition) {
+		if (!highlightPosition || isCourseBriefingActive) {
 			overlay?.setVisible(false);
 			return;
 		}
@@ -2156,7 +2172,7 @@ export default function KakaoMap({
 				}
 			});
 		}
-	}, [highlightPosition, summitModeHighlightElevationLabel]);
+	}, [highlightPosition, summitModeHighlightElevationLabel, isCourseBriefingActive]);
 
 	useEffect(() => {
 		const map = mapInstanceRef.current as { getDiv?: () => HTMLElement } | null;
@@ -2202,6 +2218,87 @@ export default function KakaoMap({
 		boundaryPreviewOverlayRef.current = newOverlay;
 	}, [boundaryPreviewEndKm, trackPoints, mapReady]);
 
+	useEffect(() => {
+		setIsCourseBriefingActive(false);
+	}, [route?.id, selectedDayNumber]);
+
+	useEffect(() => {
+		function hideCourseBriefingMarker() {
+			courseBriefingOverlayRef.current?.setVisible(false);
+		}
+
+		function placeOrMoveCourseBriefingMarker(
+			map: { getDiv?: () => HTMLElement },
+			maps: KakaoMapsAPI,
+			position: unknown,
+		) {
+			const content = highlightCircleMarkerHtml(
+				COURSE_BRIEFING_MARKER_SIZE,
+				false,
+				null,
+				COURSE_BRIEFING_MARKER_COLOR,
+			);
+			const overlay = courseBriefingOverlayRef.current;
+			if (overlay) {
+				const overlayWithContent = overlay as KakaoCustomOverlay & {
+					setContent?: (content: string) => void;
+				};
+				overlay.setMap(map);
+				overlay.setPosition(position);
+				overlayWithContent.setContent?.(content);
+				overlay.setVisible(true);
+				return;
+			}
+
+			courseBriefingOverlayRef.current = new maps.CustomOverlay({
+				map: map as never,
+				position,
+				content,
+				yAnchor: 0.5,
+				xAnchor: 0.5,
+				zIndex: 14,
+				clickable: false,
+			}) as KakaoCustomOverlay;
+		}
+
+		/** progress(0~1)에 맞춰 코스 위 원형 마커만 이동. 줌/센터는 건드리지 않음. */
+		function syncCourseBriefingMarkerToProgress() {
+			const map = mapInstanceRef.current as { getDiv?: () => HTMLElement } | null;
+			const maps = window.kakao?.maps;
+			if (!map || !maps) return;
+
+			if (!isCourseBriefingActive) {
+				hideCourseBriefingMarker();
+				return;
+			}
+
+			const lastPoint = trackPoints[trackPoints.length - 1];
+			const totalKm = lastPoint?.d != null ? lastPoint.d / 1000 : 0;
+			const range = resolveBriefingRange(stages, selectedDayNumber, totalKm);
+			const pt = pointAtRouteProgress(
+				trackPoints,
+				range.startKm,
+				range.endKm,
+				courseBriefingProgress,
+			);
+			if (!pt) {
+				hideCourseBriefingMarker();
+				return;
+			}
+
+			placeOrMoveCourseBriefingMarker(map, maps, new maps.LatLng(pt.lat, pt.lng));
+		}
+
+		syncCourseBriefingMarkerToProgress();
+	}, [
+		isCourseBriefingActive,
+		courseBriefingProgress,
+		trackPoints,
+		stages,
+		selectedDayNumber,
+		mapReady,
+	]);
+
 	const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 	if (!appKey) {
 		return (
@@ -2220,6 +2317,21 @@ export default function KakaoMap({
 		"inline-flex h-8 shrink-0 items-center gap-0.5 rounded border px-2 text-xs font-medium shadow-sm";
 	const toggleBtnOn = `${toggleBtnBase} border-blue-500 bg-blue-500 text-white font-semibold hover:bg-blue-600`;
 	const toggleBtnOff = `${toggleBtnBase} border-gray-200 bg-white text-gray-600 hover:bg-gray-50`;
+
+	const lastTrackPoint = trackPoints[trackPoints.length - 1];
+	const courseTotalKm = lastTrackPoint?.d != null ? lastTrackPoint.d / 1000 : 0;
+	const courseBriefingRange = resolveBriefingRange(stages, selectedDayNumber, courseTotalKm);
+	const canPlayCourse = trackPoints.length > 0 && courseBriefingRange.endKm > courseBriefingRange.startKm;
+	const showSummitButton = !readOnly && Boolean(onCreateOfficialSummit);
+
+	const handlePlayCourseBriefing = () => {
+		if (isCourseBriefingActive) {
+			replayCourseBriefing();
+			return;
+		}
+		onUnpinRef.current?.();
+		setIsCourseBriefingActive(true);
+	};
 
 	return (
 		<div className="relative h-full w-full overflow-hidden">
@@ -2392,25 +2504,61 @@ export default function KakaoMap({
 					</button>
 				</div>
 			)}
-			{mapReady && !readOnly && onCreateOfficialSummit && (
-				<div className="pointer-events-auto absolute bottom-4 left-4 z-10">
-					<button
-						type="button"
-						onClick={() => {
-						setIsSummitAddMode((prev) => {
-							if (!prev) onUnpinRef.current?.();
-							return !prev;
-						});
-					}}
-						className={isSummitAddMode ? toggleBtnOn : toggleBtnOff}
-						title={
-							isSummitAddMode
-								? "지도에서 Summit 위치를 클릭해 추가할 수 있습니다"
-								: "Summit 찍기 모드 시작"
-						}
-					>
-						{isSummitAddMode ? "Summit 찍는 중..." : "Summit 추가"}
-					</button>
+			{mapReady && (canPlayCourse || showSummitButton) && (
+				<div className="pointer-events-auto absolute bottom-4 left-4 z-10 flex items-center gap-2">
+					{canPlayCourse && (
+						<button
+							type="button"
+							onClick={handlePlayCourseBriefing}
+							className={
+								isCourseBriefingActive && !isCourseBriefingComplete
+									? toggleBtnOn
+									: toggleBtnOff
+							}
+							title={
+								isCourseBriefingComplete
+									? "코스 브리핑 다시 재생"
+									: isCourseBriefingActive
+										? "코스 브리핑 다시 시작"
+										: "코스 따라가기 (7초)"
+							}
+							aria-label={
+								isCourseBriefingComplete ? "코스 브리핑 다시 재생" : "코스 따라가기"
+							}
+						>
+							{isCourseBriefingComplete ? (
+								<RotateCcw className="size-3.5" aria-hidden />
+							) : (
+								<Play className="size-3.5 fill-current" aria-hidden />
+							)}
+							<span>
+								{isCourseBriefingComplete
+									? "다시"
+									: isCourseBriefingActive
+										? "재생 중"
+										: "Play"}
+							</span>
+						</button>
+					)}
+					{showSummitButton && (
+						<button
+							type="button"
+							onClick={() => {
+								setIsSummitAddMode((prev) => {
+									if (!prev) onUnpinRef.current?.();
+									return !prev;
+								});
+							}}
+							className={isSummitAddMode ? toggleBtnOn : toggleBtnOff}
+							title={
+								isSummitAddMode
+									? "지도에서 Summit 위치를 클릭해 추가할 수 있습니다"
+									: "Summit 찍기 모드 시작"
+							}
+						>
+							{isSummitAddMode ? "Summit 찍는 중..." : "Summit 추가"}
+						</button>
+					)}
 				</div>
 			)}
 			{mapReady && zoomLevel != null && (
