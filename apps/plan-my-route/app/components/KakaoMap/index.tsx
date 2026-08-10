@@ -1,6 +1,6 @@
 "use client";
 
-import { Expand, Locate, Play, RotateCcw } from "lucide-react";
+import { Expand, Loader2, Locate, Play } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -2323,8 +2323,10 @@ export default function KakaoMap({
 	const courseBriefingRange = resolveBriefingRange(stages, selectedDayNumber, courseTotalKm);
 	const canPlayCourse = trackPoints.length > 0 && courseBriefingRange.endKm > courseBriefingRange.startKm;
 	const showSummitButton = !readOnly && Boolean(onCreateOfficialSummit);
+	const isCourseBriefingPlaying = isCourseBriefingActive && !isCourseBriefingComplete;
 
 	const handlePlayCourseBriefing = () => {
+		if (isCourseBriefingPlaying) return;
 		if (isCourseBriefingActive) {
 			replayCourseBriefing();
 			return;
@@ -2510,34 +2512,25 @@ export default function KakaoMap({
 						<button
 							type="button"
 							onClick={handlePlayCourseBriefing}
-							className={
-								isCourseBriefingActive && !isCourseBriefingComplete
-									? toggleBtnOn
-									: toggleBtnOff
-							}
+							disabled={isCourseBriefingPlaying}
+							className={`${
+								isCourseBriefingPlaying ? toggleBtnOn : toggleBtnOff
+							} justify-center px-2 disabled:cursor-not-allowed disabled:opacity-90`}
 							title={
-								isCourseBriefingComplete
-									? "코스 브리핑 다시 재생"
-									: isCourseBriefingActive
-										? "코스 브리핑 다시 시작"
-										: "코스 따라가기 (7초)"
+								isCourseBriefingPlaying
+									? "코스 따라가는 중…"
+									: "코스 따라가기 (7초)"
 							}
 							aria-label={
-								isCourseBriefingComplete ? "코스 브리핑 다시 재생" : "코스 따라가기"
+								isCourseBriefingPlaying ? "코스 따라가는 중" : "코스 따라가기"
 							}
+							aria-busy={isCourseBriefingPlaying}
 						>
-							{isCourseBriefingComplete ? (
-								<RotateCcw className="size-3.5" aria-hidden />
+							{isCourseBriefingPlaying ? (
+								<Loader2 className="size-3.5 animate-spin" aria-hidden />
 							) : (
 								<Play className="size-3.5 fill-current" aria-hidden />
 							)}
-							<span>
-								{isCourseBriefingComplete
-									? "다시"
-									: isCourseBriefingActive
-										? "재생 중"
-										: "Play"}
-							</span>
 						</button>
 					)}
 					{showSummitButton && (

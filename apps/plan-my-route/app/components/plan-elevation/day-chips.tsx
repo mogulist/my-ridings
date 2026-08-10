@@ -105,11 +105,10 @@ export function ElevationProfileHeader({
 				<button
 					type="button"
 					onClick={onPlayCourseBriefing}
-					className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+					className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
 					aria-label="코스 브리핑 재생"
 				>
 					<Play className="h-3.5 w-3.5 fill-current" />
-					<span className="font-medium">Play</span>
 				</button>
 			) : null}
 		</div>
