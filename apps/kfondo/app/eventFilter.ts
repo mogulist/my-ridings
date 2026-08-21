@@ -44,7 +44,6 @@ export const mapToEventData = (event: Event): EventData => {
 };
 
 const SPLIT_THRESHOLD = 6;
-const MIN_GROUP_SIZE = 3;
 const RECENT_WITH_RECORD_DAYS = 14;
 const UPCOMING_WITHOUT_RECORD_DAYS = 7;
 
@@ -55,10 +54,22 @@ function getMonthKey(dateStr: string): number {
   return dayjs(normalized).month();
 }
 
-function formatMonthLabel(months: number[]): string {
-  if (months.length === 1) return `${months[0] + 1}월`;
-  if (months.length === 2) return `${months[0] + 1}~${months[1] + 1}월`;
-  return `${months[0] + 1}월 이후`;
+function getDayOfMonth(dateStr: string): number {
+  const normalized = dateStr.replace(/\./g, '-');
+  return dayjs(normalized).date();
+}
+
+function formatMonthLabel(month: number): string {
+  return `${month + 1}월`;
+}
+
+// 같은 달 안에서 이벤트가 몰려 쪼갠 구간의 제목 (예: "10월 1~9일")
+function formatMonthDayRangeLabel(month: number, monthEvents: EventData[]): string {
+  const days = monthEvents.map((e) => getDayOfMonth(e.date));
+  const minDay = Math.min(...days);
+  const maxDay = Math.max(...days);
+  const dayRange = minDay === maxDay ? `${minDay}일` : `${minDay}~${maxDay}일`;
+  return `${formatMonthLabel(month)} ${dayRange}`;
 }
 
 export function splitUpcomingCarousels(events: EventData[]): UpcomingCarousel[] {
@@ -67,7 +78,8 @@ export function splitUpcomingCarousels(events: EventData[]): UpcomingCarousel[] 
     return [{ title: "다가오는 대회", events }];
   }
 
-  // 1. 월 단위 그룹 (month: 0=1월, 1=2월, ...)
+  // 월 단위로만 그룹을 나눈다 (month: 0=1월, 1=2월, ...).
+  // 인접한 달끼리 섞지 않아, 각 캐로셀이 항상 정확히 하나의 달(또는 그 달의 일부)만 나타낸다.
   const monthMap = new Map<number, EventData[]>();
   for (const event of events) {
     const month = getMonthKey(event.date);
@@ -77,35 +89,32 @@ export function splitUpcomingCarousels(events: EventData[]): UpcomingCarousel[] 
   }
 
   const sortedMonths = [...monthMap.keys()].sort((a, b) => a - b);
-  const groups: { months: number[]; events: EventData[] }[] = [];
+  const carousels: UpcomingCarousel[] = [];
 
   for (const month of sortedMonths) {
     const monthEvents = monthMap.get(month)!;
-    if (groups.length === 0) {
-      groups.push({ months: [month], events: monthEvents });
+
+    if (monthEvents.length <= SPLIT_THRESHOLD) {
+      carousels.push({
+        title: `다가오는 대회 (${formatMonthLabel(month)})`,
+        events: monthEvents,
+      });
       continue;
     }
 
-    const last = groups[groups.length - 1];
-    if (last.events.length < MIN_GROUP_SIZE) {
-      last.months.push(month);
-      last.events.push(...monthEvents);
-    } else {
-      groups.push({ months: [month], events: monthEvents });
+    // 한 달에 이벤트가 너무 많으면 날짜 순으로 균등하게 나눠 초순/하순 캐로셀로 분산한다.
+    const chunkCount = Math.ceil(monthEvents.length / SPLIT_THRESHOLD);
+    const chunkSize = Math.ceil(monthEvents.length / chunkCount);
+    for (let i = 0; i < monthEvents.length; i += chunkSize) {
+      const chunkEvents = monthEvents.slice(i, i + chunkSize);
+      carousels.push({
+        title: `다가오는 대회 (${formatMonthDayRangeLabel(month, chunkEvents)})`,
+        events: chunkEvents,
+      });
     }
   }
 
-  // 마지막 그룹이 MIN 미만이면 직전 그룹에 흡수
-  if (groups.length > 1 && groups[groups.length - 1].events.length < MIN_GROUP_SIZE) {
-    const last = groups.pop()!;
-    groups[groups.length - 1].months.push(...last.months);
-    groups[groups.length - 1].events.push(...last.events);
-  }
-
-  return groups.map((g) => ({
-    title: `다가오는 대회 (${formatMonthLabel(g.months)})`,
-    events: g.events,
-  }));
+  return carousels;
 }
 
 // Server-side event filtering logic (no search - client filters)
