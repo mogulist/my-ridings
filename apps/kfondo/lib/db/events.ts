@@ -140,11 +140,22 @@ export async function getEventById(
     .single();
 
   if (error) {
+    // PGRST116: .single()이 0개(또는 2개 이상) row를 찾은 경우 -> 정말로 존재하지 않는 이벤트 (정상 404)
+    if (error.code === "PGRST116") {
+      console.warn(`[events] "${eventSlug}" 이벤트를 찾을 수 없습니다 (PGRST116).`);
+      return undefined;
+    }
+
+    // 그 외 에러(네트워크/DB/인증 장애 등)는 일시적 장애일 수 있으므로 404로 처리하지 않고 throw 한다.
+    // 이 페이지는 30일 ISR 캐시가 걸려 있어, 여기서 undefined를 반환하면 일시적 장애가
+    // notFound()로 이어져 최대 30일간 캐시된 404로 굳어버릴 수 있다.
     console.error(
-      `[events] "${eventSlug}" 조회 실패:`,
+      `[events] "${eventSlug}" 조회 실패 (일시적 장애 가능성, 404로 처리하지 않음):`,
       error.message
     );
-    return undefined;
+    throw new Error(
+      `[events] "${eventSlug}" Supabase 조회 실패: ${error.message}`
+    );
   }
 
   if (!data) {
