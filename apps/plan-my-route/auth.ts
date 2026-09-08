@@ -6,6 +6,7 @@ import { SupabaseAdapter } from "@auth/supabase-adapter";
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	providers: [
 		GitHub({
+			issuer: "https://github.com/login/oauth",
 			profile(profile) {
 				return {
 					id: profile.id?.toString() ?? "unknown-id",
