@@ -1,9 +1,7 @@
-import { SupabaseAdapter } from "@auth/supabase-adapter";
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
-import { supabaseAdmin } from "@/lib/supabase";
-import { createSupabaseAuthAdapter } from "@/lib/supabase-auth-adapter";
+import { SupabaseAdapter } from "@auth/supabase-adapter";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	providers: [
@@ -28,18 +26,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			},
 		}),
 	],
-	adapter: {
-		...SupabaseAdapter({
-			url: process.env.SUPABASE_URL!,
-			secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-		}),
-		...createSupabaseAuthAdapter(supabaseAdmin),
-	},
-	callbacks: {
-		session({ session, user }) {
-			if (user) session.user.id = user.id;
-			return session;
-		},
-	},
+	adapter: SupabaseAdapter({
+		url: process.env.SUPABASE_URL!,
+		secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+	}),
 	trustHost: true,
 });
