@@ -24,6 +24,12 @@ export const normalizeCallbackPath = (raw: string | null): string => {
 	return raw;
 };
 
+export const buildOAuthCallbackUrl = (origin: string, callbackPath: string): string => {
+	const callbackUrl = new URL("/auth/callback", origin);
+	callbackUrl.searchParams.set("next", callbackPath);
+	return callbackUrl.toString();
+};
+
 export const toAuthenticatedUser = (user: User): AuthenticatedUser => ({
 	id: user.id,
 	email: user.email ?? null,

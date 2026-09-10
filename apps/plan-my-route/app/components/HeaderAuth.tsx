@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { InfoIcon, PencilIcon, UserRoundIcon } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 type Props = {
@@ -26,6 +26,7 @@ type Props = {
 
 export default function HeaderAuth({ signInLinkClassName }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
@@ -125,6 +126,8 @@ export default function HeaderAuth({ signInLinkClassName }: Props) {
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    router.replace("/");
+    router.refresh();
   };
 
   if (status === "loading") {

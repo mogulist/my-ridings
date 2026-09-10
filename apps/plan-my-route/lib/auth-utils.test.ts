@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeCallbackPath, parseBearerToken, toAuthenticatedUser } from "./auth-utils";
+import {
+	buildOAuthCallbackUrl,
+	normalizeCallbackPath,
+	parseBearerToken,
+	toAuthenticatedUser,
+} from "./auth-utils";
 
 describe("normalizeCallbackPath", () => {
 	test("기본값은 /", () => {
@@ -14,6 +19,14 @@ describe("normalizeCallbackPath", () => {
 		expect(normalizeCallbackPath("https://evil.example")).toBe("/");
 		expect(normalizeCallbackPath("//evil.example")).toBe("/");
 		expect(normalizeCallbackPath("/\\evil.example")).toBe("/");
+	});
+});
+
+describe("buildOAuthCallbackUrl", () => {
+	test("현재 브라우저 origin으로 callback URL을 만든다", () => {
+		expect(buildOAuthCallbackUrl("https://preview.example", "/routes/abc")).toBe(
+			"https://preview.example/auth/callback?next=%2Froutes%2Fabc",
+		);
 	});
 });
 

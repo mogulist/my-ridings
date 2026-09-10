@@ -47,7 +47,6 @@
 - Create: `apps/plan-my-route/lib/auth-utils.ts`
 - Test: `apps/plan-my-route/lib/auth-utils.test.ts`
 - Create: `apps/plan-my-route/app/auth/callback/route.ts`
-- Create: `apps/plan-my-route/app/auth/signout/route.ts`
 - Modify: `apps/plan-my-route/app/signin/SignInPageClient.tsx`
 - Modify: `apps/plan-my-route/app/components/HeaderAuth.tsx`
 - Modify: `apps/plan-my-route/lib/get-authenticated-user.ts`
@@ -63,7 +62,7 @@
 - [ ] Confirm tests fail against the pre-migration implementation.
 - [ ] Implement GitHub `signInWithOAuth` and PKCE callback exchange.
 - [ ] Replace NextAuth session consumers with Supabase verified users.
-- [ ] Implement POST sign-out and preserve existing profile/menu behavior.
+- [ ] Implement client sign-out, refresh the server-rendered tree, and preserve existing profile/menu behavior.
 - [ ] Run unit tests and typecheck.
 
 ### Task 3: Expo Supabase Auth 전환

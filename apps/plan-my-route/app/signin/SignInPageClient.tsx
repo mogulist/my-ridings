@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { normalizeCallbackPath } from "@/lib/auth-utils";
+import { buildOAuthCallbackUrl, normalizeCallbackPath } from "@/lib/auth-utils";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPageClient() {
@@ -33,11 +33,7 @@ export default function SignInPageClient() {
 		setErrorMessage(null);
 
 		const supabase = createClient();
-		const baseUrl =
-			typeof window !== "undefined"
-				? process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-				: process.env.NEXT_PUBLIC_APP_URL || "";
-		const redirectTo = `${baseUrl.replace(/\/$/, "")}/auth/callback?next=${encodeURIComponent(callbackPath)}`;
+		const redirectTo = buildOAuthCallbackUrl(window.location.origin, callbackPath);
 		const { error } = await supabase.auth.signInWithOAuth({
 			provider: "github",
 			options: { redirectTo },
