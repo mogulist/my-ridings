@@ -1,7 +1,7 @@
 # Plan My Route App (Expo)
 
 `apps/plan-my-route-app`는 `plan-my-route` 웹 API와 연동되는 Expo 앱입니다.  
-Google/GitHub OAuth, 모바일 JWT 저장(`expo-secure-store`), 네이버 지도 연동을 포함합니다.
+Supabase GitHub Auth, 세션 저장(`expo-secure-store`), 네이버 지도 연동을 포함합니다.
 
 ## 요구사항
 
@@ -16,18 +16,16 @@ Google/GitHub OAuth, 모바일 JWT 저장(`expo-secure-store`), 네이버 지도
 
 ```bash
 EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN=https://plan-my-route.vercel.app
-EXPO_PUBLIC_GITHUB_CLIENT_ID=...
-EXPO_PUBLIC_GITHUB_OAUTH_REDIRECT_URI=https://plan-my-route.vercel.app/api/mobile/oauth/github/callback
-EXPO_PUBLIC_GOOGLE_CLIENT_ID=...
-EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI=https://plan-my-route.vercel.app/api/mobile/oauth/google/callback
+EXPO_PUBLIC_SUPABASE_URL=https://frcpzyokxrztvlemzmhk.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID=...
 ```
 
 중요:
 
-- `EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI` / `EXPO_PUBLIC_GITHUB_OAUTH_REDIRECT_URI`는 반드시 `http(s)://...` 전체 URL이어야 합니다.
-- GitHub OAuth App의 **Authorized callback URL**은 웹 NextAuth용 `.../api/auth/callback/github`이 아니라, 모바일 HTTPS 프록시인 `.../api/mobile/oauth/github/callback`을 등록합니다. (웹 로그인은 NextAuth 콜백을 별도로 등록.)
-- Google Cloud Console의 OAuth Web Client `Authorized redirect URIs`에 Google용 URL이 등록되어 있어야 합니다.
+- Supabase Auth의 Redirect URLs에 `planmyrouteapp://auth/callback`과 `planmyrouteapp-dev://auth/callback`을 등록합니다.
+- GitHub OAuth App의 Authorized callback URL은 Supabase가 안내하는 `https://frcpzyokxrztvlemzmhk.supabase.co/auth/v1/callback`을 사용합니다.
+- publishable key는 클라이언트 공개용 키이며 service role 또는 secret key를 앱에 넣으면 안 됩니다.
 - `.env.local` 수정 후에는 Metro/앱을 완전히 재시작해야 반영됩니다.
 
 ## 2) 의존성 설치
@@ -92,9 +90,10 @@ bun run build:debug:android:local
 
 ## 5) OAuth 동작 확인 체크리스트
 
-- 앱 홈에서 `Google Client ID: 설정됨` 표시 확인
-- `Google Redirect URI`가 `https://.../api/mobile/oauth/google/callback`로 표시되는지 확인
-- Google 로그인 성공 후 `상태: 토큰 저장됨`, `검증: 성공` 확인
+- 로그인 화면에서 GitHub 로그인을 시작합니다.
+- 인증 후 앱으로 돌아와 Home 화면이 표시되는지 확인합니다.
+- 앱을 재시작해도 로그인 상태가 유지되는지 확인합니다.
+- 설정 화면에서 로그아웃 후 로그인 화면으로 이동하는지 확인합니다.
 
 ## 스크립트
 

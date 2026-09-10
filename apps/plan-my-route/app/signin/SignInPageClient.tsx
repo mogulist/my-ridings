@@ -1,20 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { buildOAuthCallbackUrl, normalizeCallbackPath } from "@/lib/auth-utils";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPageClient() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const { status } = useSession();
+	const [isLoading, setIsLoading] = useState(false);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-	const callbackUrl = normalizeCallbackUrl(searchParams.get("callbackUrl"));
+	const callbackPath = normalizeCallbackPath(searchParams.get("callbackUrl"));
+	const oauthError = searchParams.get("error");
 
 	useEffect(() => {
-		if (status === "authenticated") router.replace(callbackUrl);
-	}, [status, router, callbackUrl]);
+		const supabase = createClient();
+		void supabase.auth.getUser().then(({ data }) => {
+			if (data.user) router.replace(callbackPath);
+		});
+	}, [router, callbackPath]);
+
+	useEffect(() => {
+		if (oauthError === "oauth") {
+			setErrorMessage("GitHub 로그인에 실패했습니다. 다시 시도해 주세요.");
+		}
+	}, [oauthError]);
+
+	const handleGithubLogin = async () => {
+		setIsLoading(true);
+		setErrorMessage(null);
+
+		const supabase = createClient();
+		const redirectTo = buildOAuthCallbackUrl(window.location.origin, callbackPath);
+		const { error } = await supabase.auth.signInWithOAuth({
+			provider: "github",
+			options: { redirectTo },
+		});
+
+		if (error) {
+			setErrorMessage("GitHub 로그인을 시작하지 못했습니다.");
+			setIsLoading(false);
+		}
+	};
 
 	const oauthButtonClass =
 		"flex w-full min-h-12 items-center justify-center gap-3 rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[15px] font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-[#3E3E3E] dark:bg-black dark:text-white dark:hover:bg-white/5";
@@ -26,12 +55,10 @@ export default function SignInPageClient() {
 					<div className="flex h-8 w-8 items-center justify-center rounded bg-zinc-200 dark:bg-zinc-800">
 						<span className="text-sm">🚴</span>
 					</div>
-					<span className="font-semibold text-zinc-900 dark:text-zinc-100">
-						Plan My Route
-					</span>
+					<span className="font-semibold text-zinc-900 dark:text-zinc-100">Plan My Route</span>
 				</div>
 				<Link
-					href={callbackUrl}
+					href={callbackPath}
 					className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-900 hover:bg-zinc-100 dark:border-[#3E3E3E] dark:text-white dark:hover:bg-white/5"
 				>
 					뒤로
@@ -40,31 +67,16 @@ export default function SignInPageClient() {
 
 			<main className="flex flex-1 items-center justify-center p-6">
 				<div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-black dark:shadow-none">
-					<h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-						로그인
-					</h1>
+					<h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">로그인</h1>
 					<p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-						원하는 계정을 선택해 로그인하세요.
+						GitHub 계정으로 로그인하세요.
 					</p>
 
 					<div className="mt-4 space-y-3">
 						<button
 							type="button"
-							onClick={() => signIn("google", { callbackUrl })}
-							className={oauthButtonClass}
-						>
-							<img
-								src="https://www.google.com/favicon.ico"
-								alt=""
-								width={18}
-								height={18}
-								className="shrink-0"
-							/>
-							Google로 로그인
-						</button>
-						<button
-							type="button"
-							onClick={() => signIn("github", { callbackUrl })}
+							onClick={() => void handleGithubLogin()}
+							disabled={isLoading}
 							className={oauthButtonClass}
 						>
 							<img
@@ -81,18 +93,15 @@ export default function SignInPageClient() {
 								height={18}
 								className="hidden shrink-0 dark:block"
 							/>
-							GitHub로 로그인
+							{isLoading ? "연결 중..." : "GitHub로 로그인"}
 						</button>
 					</div>
+
+					{errorMessage ? (
+						<p className="mt-3 text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+					) : null}
 				</div>
 			</main>
 		</div>
 	);
-}
-
-function normalizeCallbackUrl(raw: string | null): string {
-	if (!raw) return "/";
-	if (!raw.startsWith("/")) return "/";
-	if (raw.startsWith("//")) return "/";
-	return raw;
 }
