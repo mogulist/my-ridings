@@ -12,25 +12,46 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@my-ridings/ui";
+import { toAuthenticatedUser } from "@/lib/auth-utils";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { InfoIcon, PencilIcon, UserRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Props = {
   signInLinkClassName?: string;
 };
 
 export default function HeaderAuth({ signInLinkClassName }: Props) {
-  const { data: session, status } = useSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [user, setUser] = useState<User | null>(null);
+  const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
   const [savedNickname, setSavedNickname] = useState("");
   const [nicknameEditDraft, setNicknameEditDraft] = useState("");
   const [isNicknameEditing, setIsNicknameEditing] = useState(false);
   const [nicknameLoading, setNicknameLoading] = useState(false);
   const [nicknameMessage, setNicknameMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    void supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      setStatus(data.user ? "authenticated" : "unauthenticated");
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setStatus(session?.user ? "authenticated" : "unauthenticated");
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const query = searchParams.toString();
   const callbackUrl = query ? `${pathname}?${query}` : pathname;
@@ -101,6 +122,11 @@ export default function HeaderAuth({ signInLinkClassName }: Props) {
     }
   }, [nicknameEditDraft]);
 
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+  };
+
   if (status === "loading") {
     return (
       <span className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
@@ -109,9 +135,10 @@ export default function HeaderAuth({ signInLinkClassName }: Props) {
     );
   }
 
-  if (session?.user) {
-    const email = session.user.email ?? session.user.name ?? "로그인됨";
-    const imageUrl = session.user.image;
+  if (user) {
+    const authUser = toAuthenticatedUser(user);
+    const email = authUser.email ?? authUser.name ?? "로그인됨";
+    const imageUrl = authUser.image;
 
     return (
       <DropdownMenu
@@ -259,7 +286,7 @@ export default function HeaderAuth({ signInLinkClassName }: Props) {
           <div className="p-1">
             <DropdownMenuItem
               className="cursor-pointer"
-              onClick={() => signOut()}
+              onClick={() => void handleSignOut()}
             >
               로그아웃
             </DropdownMenuItem>

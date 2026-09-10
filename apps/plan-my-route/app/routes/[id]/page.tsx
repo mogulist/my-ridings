@@ -1,14 +1,17 @@
 import HeaderAuth from "@/app/components/HeaderAuth";
 import RouteViewer from "@/app/components/RouteViewer";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { auth } from "@/auth";
 
 export default async function RouteDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { id } = await params;
 
   // Note: Authentication is enforced on the API layer, but we can also handle it here.
@@ -25,7 +28,7 @@ export default async function RouteDetailPage({
             <span className="text-sm">←</span>
           </Link>
           <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-            Plan My Route {session ? "" : "- 보기 전용"}
+            Plan My Route {user ? "" : "- 보기 전용"}
           </span>
         </div>
         <div className="flex items-center gap-2">

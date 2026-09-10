@@ -29,6 +29,7 @@ export default function TabLayout() {
 				<Stack screenOptions={{ headerShown: false }}>
 					<Stack.Screen name="(tabs)" />
 					<Stack.Screen name="login" />
+					<Stack.Screen name="auth/callback" />
 					<Stack.Screen name="routes/[routeId]/plans" />
 				</Stack>
 			</ThemeProvider>

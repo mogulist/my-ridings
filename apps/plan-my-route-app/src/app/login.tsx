@@ -1,8 +1,8 @@
-import * as AuthSession from "expo-auth-session";
+import * as Linking from "expo-linking";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -10,27 +10,15 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { fetchRoutes } from "@/features/api/plan-my-route";
-import {
-	GITHUB_AUTH_PATH,
-	GITHUB_REDIRECT_URI_FALLBACK,
-	GOOGLE_AUTH_PATH,
-	GOOGLE_REDIRECT_URI_FALLBACK,
-	getApiOrigin,
-	getGithubRedirectUri,
-	getGoogleRedirectUri,
-	getStoredAccessToken,
-	setStoredAccessToken,
-} from "@/features/auth/session";
+import { createSessionFromUrl } from "@/features/auth/oauth";
+import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
+import { supabase } from "@/features/auth/supabase-client";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type MobileAuthResponse = {
-	accessToken: string;
-};
-
-const GOOGLE_ICON_URI = "https://www.google.com/favicon.ico";
 const GITHUB_ICON_URI_LIGHT = "https://github.githubassets.com/favicons/favicon.png";
 const GITHUB_ICON_URI_DARK = "https://cdn.simpleicons.org/github/ffffff";
+const redirectTo = Linking.createURL("auth/callback");
 
 export default function LoginScreen() {
 	const router = useRouter();
@@ -39,38 +27,12 @@ export default function LoginScreen() {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [isBusy, setIsBusy] = useState(false);
 
-	const apiOrigin = useMemo(getApiOrigin, []);
-	const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID ?? "";
-	const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-	const githubRedirectFromEnv = useMemo(getGithubRedirectUri, []);
-	const hasValidGithubRedirectUri =
-		githubRedirectFromEnv.startsWith("https://") || githubRedirectFromEnv.startsWith("http://");
-	const githubRedirectUri = hasValidGithubRedirectUri
-		? githubRedirectFromEnv
-		: GITHUB_REDIRECT_URI_FALLBACK;
-	const googleRedirectUri = useMemo(getGoogleRedirectUri, []);
-	const hasValidGoogleRedirectUri =
-		googleRedirectUri.startsWith("https://") || googleRedirectUri.startsWith("http://");
-	const isGoogleOauthConfigValid = Boolean(googleClientId && hasValidGoogleRedirectUri);
-	const isGithubOauthConfigValid = Boolean(githubClientId && githubRedirectUri);
-
-	const [githubRequest, githubResponse, promptGithubAsync] = AuthSession.useAuthRequest(
-		{
-			clientId: githubClientId,
-			redirectUri: githubRedirectUri,
-			scopes: ["read:user", "user:email"],
-			usePKCE: true,
-		},
-		{ authorizationEndpoint: "https://github.com/login/oauth/authorize" },
-	);
-	const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
-		{
-			clientId: googleClientId || "missing-google-client-id",
-			redirectUri: hasValidGoogleRedirectUri ? googleRedirectUri : GOOGLE_REDIRECT_URI_FALLBACK,
-			scopes: ["openid", "profile", "email"],
-			usePKCE: true,
-		},
-		{ authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth" },
+	const apiOrigin = getApiOrigin();
+	const isConfigValid = Boolean(
+		process.env.EXPO_PUBLIC_SUPABASE_URL &&
+			(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+				process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY) &&
+			apiOrigin,
 	);
 
 	useEffect(() => {
@@ -81,45 +43,41 @@ export default function LoginScreen() {
 		})();
 	}, [router]);
 
-	useEffect(() => {
-		if (googleResponse?.type !== "success") return;
-		const code = googleResponse.params.code;
-		const codeVerifier = googleRequest?.codeVerifier;
-		if (!code || !codeVerifier) {
-			setErrorMessage("Google 인증 코드가 유효하지 않습니다.");
+	const handleGithubLogin = async () => {
+		if (!isConfigValid) {
+			setErrorMessage("Supabase 및 API 환경변수가 필요합니다.");
 			return;
 		}
-		void exchangeAndVerify({
-			authPath: GOOGLE_AUTH_PATH,
-			apiOrigin,
-			code,
-			codeVerifier,
-			redirectUri: googleRedirectUri,
-			onBusyChange: setIsBusy,
-			onErrorChange: setErrorMessage,
-			onSuccess: () => router.replace("/"),
-		});
-	}, [apiOrigin, googleRedirectUri, googleRequest?.codeVerifier, googleResponse, router]);
 
-	useEffect(() => {
-		if (githubResponse?.type !== "success") return;
-		const code = githubResponse.params.code;
-		const codeVerifier = githubRequest?.codeVerifier;
-		if (!code || !codeVerifier) {
-			setErrorMessage("GitHub 인증 코드가 유효하지 않습니다.");
-			return;
+		setIsBusy(true);
+		setErrorMessage(null);
+
+		try {
+			const { data, error } = await supabase.auth.signInWithOAuth({
+				provider: "github",
+				options: {
+					redirectTo,
+					skipBrowserRedirect: true,
+				},
+			});
+			if (error) throw error;
+			if (!data.url) throw new Error("OAuth URL을 받지 못했습니다.");
+
+			const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+			if (result.type !== "success") return;
+
+			await createSessionFromUrl(result.url);
+			const accessToken = await getStoredAccessToken();
+			if (!accessToken) throw new Error("세션을 만들지 못했습니다.");
+
+			await fetchRoutes(apiOrigin, accessToken);
+			router.replace("/");
+		} catch (error: unknown) {
+			setErrorMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
+		} finally {
+			setIsBusy(false);
 		}
-		void exchangeAndVerify({
-			authPath: GITHUB_AUTH_PATH,
-			apiOrigin,
-			code,
-			codeVerifier,
-			redirectUri: githubRedirectUri,
-			onBusyChange: setIsBusy,
-			onErrorChange: setErrorMessage,
-			onSuccess: () => router.replace("/"),
-		});
-	}, [apiOrigin, githubRedirectUri, githubRequest?.codeVerifier, githubResponse, router]);
+	};
 
 	return (
 		<ThemedView style={styles.container}>
@@ -129,41 +87,17 @@ export default function LoginScreen() {
 						Plan My Route
 					</ThemedText>
 					<ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-						로그인 후 Home에서 내 라우트와 플랜을 확인하세요.
+						GitHub로 로그인 후 Home에서 내 라우트와 플랜을 확인하세요.
 					</ThemedText>
 
 					<Pressable
-						onPress={() => {
-							setErrorMessage(null);
-							void promptGoogleAsync();
-						}}
-						disabled={!googleRequest || isBusy || !isGoogleOauthConfigValid || !apiOrigin}
+						onPress={() => void handleGithubLogin()}
+						disabled={isBusy || !isConfigValid}
 						style={({ pressed }) => [
 							styles.oauthButton,
 							isDark ? styles.oauthButtonDark : styles.oauthButtonLight,
 							pressed && styles.pressed,
-							(!googleRequest || isBusy || !isGoogleOauthConfigValid || !apiOrigin) &&
-								styles.buttonDisabled,
-						]}
-					>
-						<Image source={{ uri: GOOGLE_ICON_URI }} style={styles.logo} contentFit="contain" />
-						<Text style={isDark ? styles.oauthLabelDark : styles.oauthLabelLight}>
-							{isBusy ? "처리 중..." : "Google로 로그인"}
-						</Text>
-					</Pressable>
-
-					<Pressable
-						onPress={() => {
-							setErrorMessage(null);
-							void promptGithubAsync();
-						}}
-						disabled={!githubRequest || isBusy || !isGithubOauthConfigValid || !apiOrigin}
-						style={({ pressed }) => [
-							styles.oauthButton,
-							isDark ? styles.oauthButtonDark : styles.oauthButtonLight,
-							pressed && styles.pressed,
-							(!githubRequest || isBusy || !isGithubOauthConfigValid || !apiOrigin) &&
-								styles.buttonDisabled,
+							(isBusy || !isConfigValid) && styles.buttonDisabled,
 						]}
 					>
 						<Image
@@ -186,56 +120,6 @@ export default function LoginScreen() {
 		</ThemedView>
 	);
 }
-
-const exchangeAndVerify = async ({
-	authPath,
-	apiOrigin,
-	code,
-	codeVerifier,
-	redirectUri,
-	onBusyChange,
-	onErrorChange,
-	onSuccess,
-}: {
-	authPath: "/api/mobile/auth/github" | "/api/mobile/auth/google";
-	apiOrigin: string;
-	code: string;
-	codeVerifier: string;
-	redirectUri: string;
-	onBusyChange: (next: boolean) => void;
-	onErrorChange: (next: string | null) => void;
-	onSuccess: () => void;
-}) => {
-	if (!apiOrigin) {
-		onErrorChange("EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.");
-		return;
-	}
-
-	onBusyChange(true);
-	onErrorChange(null);
-
-	try {
-		const authResponse = await fetch(`${apiOrigin}${authPath}`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ code, codeVerifier, redirectUri }),
-		});
-		if (!authResponse.ok) {
-			throw new Error(`인증에 실패했습니다. (${authResponse.status})`);
-		}
-
-		const authJson = (await authResponse.json()) as MobileAuthResponse;
-		if (!authJson.accessToken) throw new Error("토큰이 응답에 없습니다.");
-
-		await setStoredAccessToken(authJson.accessToken);
-		await fetchRoutes(apiOrigin, authJson.accessToken);
-		onSuccess();
-	} catch (error: unknown) {
-		onErrorChange(error instanceof Error ? error.message : "로그인에 실패했습니다.");
-	} finally {
-		onBusyChange(false);
-	}
-};
 
 const styles = StyleSheet.create({
 	container: {
