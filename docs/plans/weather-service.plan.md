@@ -408,7 +408,7 @@ apps/
 | **W4** | 완료 | `GET /api/cron/ingest-short-term` — `CRON_SECRET` 검증, `tracked_grids` 기준 수집, `?shard=&total=` 샤딩, `ingest_runs`·`weather_short_term` upsert |
 | **W5** | 완료 | `GET /api/v1/forecast/point` — `INTERNAL_API_KEY`, zod 쿼리, 캐시 헤더·ETag |
 | **W6** | 완료 | `POST /api/v1/forecast/along` — polyline 구간·ETA, 격자별 DB 조회, `tracked_grids` 자동 upsert |
-| **W7** | 부분 | `apps/weather/vercel.json` 크론 등록됨. **실제 Vercel 프로젝트 생성·Root Directory·환경변수·프로덕션 배포**는 저장소 밖 작업으로 미완 |
+| **W7** | 보류 | 소스와 로컬 개발 환경은 유지하되, `apps/weather/vercel.json`의 `git.deploymentEnabled: false`로 **Vercel Git 자동 배포를 중지**함 |
 | **W8** | 부분 | `GET /api/cron/ingest-mid-term`, `GET /api/v1/forecast/daily` 구현됨. **`weather_grid_meta.mid_region_land` / `mid_region_temp` 는 시드 시 null**이라 중기 수집·일별 API는 코드 경로만 있고, 지역코드 매핑 전에는 실질 데이터가 비어 있을 수 있음. 플랜의 W8-c 수준 **통합 테스트·발표회차 후 검증**은 미작성/미실행 |
 
 추가로 구현된 것: `POST /api/internal/tracked-grids` (플랜 §4-4 보조).
@@ -418,7 +418,7 @@ apps/
 1. **DB**: `cd apps/weather && bun run db:migrate` 또는 `bun run db:push` 로 `weather` 스키마 적용.
 2. **시드**: 동 디렉터리에서 `bun run db:seed` 로 격자 메타 적재.
 3. **중기 구역**: `bun run db:seed-mid` 로 격자별 `mid_region_land` / `mid_region_temp` 를 최근접 광역 대표점으로 채움(코드는 `lib/mid-region-centroids.ts` — 공공데이터 가이드와 교차검증 권장).
-4. **Vercel**: 프로젝트 Root `apps/weather`, 환경변수에 `DATABASE_URL`, `KMA_API_KEY`, `CRON_SECRET`, `INTERNAL_API_KEY` 등록 후 배포; Cron 동작 로그 확인.
+4. **Vercel (재개할 때만)**: `apps/weather/vercel.json`의 `git.deploymentEnabled`를 다시 활성화한 뒤, 프로젝트 Root `apps/weather`와 `DATABASE_URL`, `KMA_API_KEY`, `CRON_SECRET`, `INTERNAL_API_KEY` 환경변수를 확인하고 배포.
 5. **(보안·나중에)** 채팅 등에 노출된 적이 있는 키·DB 비밀번호는 순차 rotate.
 
 ### 10-3. 남은 개발 작업 (플랜 기준)
@@ -477,6 +477,6 @@ apps/
 
 ### 11-4. 다음 (W-review-3 / W9)
 
-- Vercel 프로덕션 배포 + GitHub Actions 첫 회차 실행 후 `ingest_runs` 증분 확인(W7-d).
+- Weather 배포를 재개한다면 Vercel 프로덕션 배포 + GitHub Actions 첫 회차 실행 후 `ingest_runs` 증분 확인(W7-d).
 - `plan-my-route-app` 에서 `fetchAlongForecast` 및 일정 카드·브리핑(W9).
 - 선택: `/api/health`, 통합 테스트(W5-d/W6-e/W8-c), `mid-region-centroids` 와 공공데이터 코드표 정합성 점검.
