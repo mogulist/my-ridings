@@ -1582,6 +1582,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
               planPois={planPois}
               officialSummits={officialSummits}
               onCreateOfficialSummit={handleCreateOfficialSummit}
+              selectedDayNumber={effectiveSelectedDay}
               onDeleteOfficialSummit={handleDeleteOfficialSummit}
               onCreatePlanPoi={handleCreatePlanPoi}
               onUpdatePlanPoi={handleUpdatePlanPoi}

@@ -547,6 +547,7 @@ export function PublicPlanViewer({ token }: PublicPlanViewerProps) {
             readOnly
             focusPlanPoiRequest={focusPlanPoiRequest}
             onFocusPlanPoiConsumed={handleFocusPlanPoiConsumed}
+            selectedDayNumber={effectiveSelectedDay}
           />
         </section>
 

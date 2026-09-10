@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 export const COURSE_BRIEFING_DURATION_MS = 7000;
+/** Play 직후 애니메이션 시작까지 대기 (맵·고도 브리핑 공통) */
+export const COURSE_BRIEFING_START_DELAY_MS = 1000;
 
 export function useCourseBriefingProgress(isActive: boolean) {
 	const [progress, setProgress] = useState(0);
@@ -19,6 +21,7 @@ export function useCourseBriefingProgress(isActive: boolean) {
 
 		let startTime: number | null = null;
 		let rafId = 0;
+		let delayTimeoutId = 0;
 
 		const tick = (now: number) => {
 			if (startTime === null) startTime = now;
@@ -31,9 +34,14 @@ export function useCourseBriefingProgress(isActive: boolean) {
 		};
 
 		setProgress(0);
-		rafId = requestAnimationFrame(tick);
+		delayTimeoutId = window.setTimeout(() => {
+			rafId = requestAnimationFrame(tick);
+		}, COURSE_BRIEFING_START_DELAY_MS);
 
-		return () => cancelAnimationFrame(rafId);
+		return () => {
+			window.clearTimeout(delayTimeoutId);
+			cancelAnimationFrame(rafId);
+		};
 	}, [isActive, runId]);
 
 	return {
