@@ -6,10 +6,12 @@
 -- 3. 아래 SELECT 결과에서 old_id와 new_id가 모두 채워졌는지 확인
 --
 -- 검증 (실행 전):
--- SELECT na.id AS old_id, na.email, au.id AS new_id
+-- SELECT na.id AS old_id, na.email, na_acc."providerAccountId", ai.user_id AS new_id
 -- FROM next_auth.accounts na_acc
 -- JOIN next_auth.users na ON na.id = na_acc."userId"
--- LEFT JOIN auth.users au ON lower(au.email) = lower(na.email)
+-- LEFT JOIN auth.identities ai
+--   ON ai.provider = 'github'
+--   AND ai.provider_id = na_acc."providerAccountId"
 -- WHERE na_acc.provider = 'github';
 
 BEGIN;
@@ -23,24 +25,28 @@ BEGIN
     SELECT na.id
     FROM next_auth.accounts na_acc
     JOIN next_auth.users na ON na.id = na_acc."userId"
-    LEFT JOIN auth.users au ON lower(au.email) = lower(na.email)
+    LEFT JOIN auth.identities ai
+      ON ai.provider = 'github'
+      AND ai.provider_id = na_acc."providerAccountId"
     WHERE na_acc.provider = 'github'
     GROUP BY na.id
-    HAVING count(au.id) <> 1
+    HAVING count(DISTINCT ai.user_id) <> 1
   ) invalid_mappings;
 
   IF invalid_mapping_count > 0 THEN
-    RAISE EXCEPTION 'GitHub 사용자 중 auth.users와 정확히 하나로 매핑되지 않는 사용자가 %명 있습니다.', invalid_mapping_count;
+    RAISE EXCEPTION 'GitHub provider ID로 정확히 하나의 auth.users에 매핑되지 않는 사용자가 %명 있습니다.', invalid_mapping_count;
   END IF;
 END $$;
 
 CREATE TEMP TABLE auth_user_migration_map ON COMMIT DROP AS
 SELECT DISTINCT
   na.id AS old_user_id,
-  au.id AS new_user_id
+  ai.user_id AS new_user_id
 FROM next_auth.accounts na_acc
 JOIN next_auth.users na ON na.id = na_acc."userId"
-JOIN auth.users au ON lower(au.email) = lower(na.email)
+JOIN auth.identities ai
+  ON ai.provider = 'github'
+  AND ai.provider_id = na_acc."providerAccountId"
 WHERE na_acc.provider = 'github';
 
 ALTER TABLE auth_user_migration_map

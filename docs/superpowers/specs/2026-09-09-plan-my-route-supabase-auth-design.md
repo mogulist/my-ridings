@@ -29,7 +29,8 @@ Google 로그인과 Google 계정 데이터는 이전하지 않는다.
 
 - `@supabase/supabase-js` client 하나가 OAuth와 세션을 관리한다.
 - `signInWithOAuth`의 URL을 `WebBrowser.openAuthSessionAsync`로 연다.
-- `planmyrouteapp://auth/callback` deep link에서 access/refresh token을 받아 Supabase session을 설정한다.
+- PKCE를 사용하고 `planmyrouteapp://auth/callback` deep link의 code를 Supabase session으로 교환한다.
+- 암호화 키는 SecureStore, 암호화된 session 값은 AsyncStorage에 저장한다.
 - 기존 API 호출 구조를 유지하기 위해 `getStoredAccessToken()`은 Supabase session의 access token을 반환한다.
 - 로그아웃은 `supabase.auth.signOut()`을 호출한다.
 - Google OAuth UI와 환경변수, 모바일 GitHub/Google 교환 API, 자체 JWT를 제거한다.
@@ -46,7 +47,7 @@ Google 로그인과 Google 계정 데이터는 이전하지 않는다.
 SQL은 트랜잭션 안에서 다음을 수행한다.
 
 1. `next_auth.accounts.provider = 'github'`인 기존 사용자를 찾는다.
-2. 기존 사용자와 이메일이 같은 `auth.users`가 정확히 한 명인지 검증한다.
+2. `providerAccountId`와 `auth.identities.provider_id`가 같은 GitHub 사용자가 정확히 한 명인지 검증한다.
 3. 사용자 외래키를 일시적으로 제거한다.
 4. 아래 컬럼의 기존 UUID를 새 `auth.users.id`로 변경한다.
    - `public.route.user_id`
