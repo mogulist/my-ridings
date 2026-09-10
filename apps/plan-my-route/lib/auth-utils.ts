@@ -32,6 +32,5 @@ export const toAuthenticatedUser = (user: User): AuthenticatedUser => ({
 		(typeof user.user_metadata?.name === "string" && user.user_metadata.name) ||
 		null,
 	image:
-		(typeof user.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url) ||
-		null,
+		(typeof user.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url) || null,
 });

@@ -1,10 +1,9 @@
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { createSessionFromUrl } from "@/features/auth/oauth";
-import * as Linking from "expo-linking";
 
 export default function AuthCallbackScreen() {
 	const router = useRouter();

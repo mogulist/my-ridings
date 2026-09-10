@@ -1,16 +1,10 @@
-import {
-	parseBearerToken,
-	toAuthenticatedUser,
-	type AuthenticatedUser,
-} from "@/lib/auth-utils";
+import { type AuthenticatedUser, parseBearerToken, toAuthenticatedUser } from "@/lib/auth-utils";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
 export type { AuthenticatedUser };
 
-export const getAuthenticatedUser = async (
-	request: Request,
-): Promise<AuthenticatedUser | null> => {
+export const getAuthenticatedUser = async (request: Request): Promise<AuthenticatedUser | null> => {
 	const supabase = await createClient();
 	const {
 		data: { user },

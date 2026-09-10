@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	normalizeCallbackPath,
-	parseBearerToken,
-	toAuthenticatedUser,
-} from "./auth-utils";
+import { normalizeCallbackPath, parseBearerToken, toAuthenticatedUser } from "./auth-utils";
 
 describe("normalizeCallbackPath", () => {
 	test("기본값은 /", () => {

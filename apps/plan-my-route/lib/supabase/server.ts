@@ -12,9 +12,9 @@ export const createClient = async () => {
 			},
 			setAll(cookiesToSet) {
 				try {
-					cookiesToSet.forEach(({ name, value, options }) =>
-						cookieStore.set(name, value, options),
-					);
+					cookiesToSet.forEach(({ name, value, options }) => {
+						cookieStore.set(name, value, options);
+					});
 				} catch {
 					// Server Component에서 호출된 경우 무시
 				}

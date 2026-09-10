@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { normalizeCallbackPath } from "@/lib/auth-utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -59,9 +59,7 @@ export default function SignInPageClient() {
 					<div className="flex h-8 w-8 items-center justify-center rounded bg-zinc-200 dark:bg-zinc-800">
 						<span className="text-sm">🚴</span>
 					</div>
-					<span className="font-semibold text-zinc-900 dark:text-zinc-100">
-						Plan My Route
-					</span>
+					<span className="font-semibold text-zinc-900 dark:text-zinc-100">Plan My Route</span>
 				</div>
 				<Link
 					href={callbackPath}
@@ -73,9 +71,7 @@ export default function SignInPageClient() {
 
 			<main className="flex flex-1 items-center justify-center p-6">
 				<div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-black dark:shadow-none">
-					<h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-						로그인
-					</h1>
+					<h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">로그인</h1>
 					<p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
 						GitHub 계정으로 로그인하세요.
 					</p>

@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
-import { AppState } from "react-native";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey =
@@ -21,13 +20,4 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 		persistSession: true,
 		detectSessionInUrl: false,
 	},
-});
-
-AppState.addEventListener("change", (state) => {
-	if (state === "active") {
-		supabase.auth.startAutoRefresh();
-		return;
-	}
-
-	supabase.auth.stopAutoRefresh();
 });

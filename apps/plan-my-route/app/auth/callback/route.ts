@@ -1,6 +1,6 @@
+import { NextResponse } from "next/server";
 import { normalizeCallbackPath } from "@/lib/auth-utils";
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
 
 const getRedirectBaseUrl = (request: Request): string => {
 	const isLocalEnv = process.env.NODE_ENV === "development";

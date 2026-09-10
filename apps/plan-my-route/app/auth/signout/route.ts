@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 const getRedirectBaseUrl = (request: Request): string => {
 	const isLocalEnv = process.env.NODE_ENV === "development";
