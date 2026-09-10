@@ -1,6 +1,6 @@
 "use client";
 
-import { Expand, Loader2, Locate, Play } from "lucide-react";
+import { Expand, Locate, Play } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -665,6 +665,8 @@ const HIGHLIGHT_MARKER_COLOR = "#f97316";
 /** 코스 브리핑 인플레이스 마커 (고도 브리핑 emerald-500과 동일) */
 const COURSE_BRIEFING_MARKER_SIZE = 18;
 const COURSE_BRIEFING_MARKER_COLOR = "#10b981";
+/** Play 종료 후 맵 컨트롤을 다시 보이기까지 대기 */
+const COURSE_BRIEFING_CONTROLS_REVEAL_DELAY_MS = 1000;
 /** 하이라이트 CustomOverlay(zIndex 10) 위에 두어 클릭이 장소 마커로 가도록 함 */
 const PLACE_MARKER_Z_INDEX = 50;
 /** RWGPS·플랜 POI — 주변/선호(북마크) 원형 마커보다 위 */
@@ -825,6 +827,8 @@ export default function KakaoMap({
 	const [isCourseBriefingActive, setIsCourseBriefingActive] = useState(false);
 	const { progress: courseBriefingProgress, replay: replayCourseBriefing, isComplete: isCourseBriefingComplete } =
 		useCourseBriefingProgress(isCourseBriefingActive);
+	const isCourseBriefingPlaying = isCourseBriefingActive && !isCourseBriefingComplete;
+	const [showMapControls, setShowMapControls] = useState(true);
 	const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
 	const [loadingCategory, setLoadingCategory] = useState<NearbyCategoryId | null>(null);
 	const [activeCategory, setActiveCategory] = useState<NearbyCategoryId | null>(null);
@@ -2299,6 +2303,24 @@ export default function KakaoMap({
 		mapReady,
 	]);
 
+	useEffect(() => {
+		if (isCourseBriefingPlaying) {
+			setShowMapControls(false);
+			return;
+		}
+
+		if (!isCourseBriefingActive || !isCourseBriefingComplete) {
+			setShowMapControls(true);
+			return;
+		}
+
+		const revealTimeoutId = window.setTimeout(() => {
+			setShowMapControls(true);
+		}, COURSE_BRIEFING_CONTROLS_REVEAL_DELAY_MS);
+
+		return () => window.clearTimeout(revealTimeoutId);
+	}, [isCourseBriefingPlaying, isCourseBriefingActive, isCourseBriefingComplete]);
+
 	const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 	if (!appKey) {
 		return (
@@ -2323,10 +2345,10 @@ export default function KakaoMap({
 	const courseBriefingRange = resolveBriefingRange(stages, selectedDayNumber, courseTotalKm);
 	const canPlayCourse = trackPoints.length > 0 && courseBriefingRange.endKm > courseBriefingRange.startKm;
 	const showSummitButton = !readOnly && Boolean(onCreateOfficialSummit);
-	const isCourseBriefingPlaying = isCourseBriefingActive && !isCourseBriefingComplete;
 
 	const handlePlayCourseBriefing = () => {
-		if (isCourseBriefingPlaying) return;
+		if (isCourseBriefingPlaying || !showMapControls) return;
+		setShowSearchPopover(false);
 		if (isCourseBriefingActive) {
 			replayCourseBriefing();
 			return;
@@ -2343,7 +2365,7 @@ export default function KakaoMap({
 				strategy="afterInteractive"
 			/>
 			<div ref={containerCallbackRef} className="h-full w-full" />
-			{mapReady && (
+			{mapReady && showMapControls && (
 				<div className="pointer-events-none absolute inset-0 z-10">
 					<div className="pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-2rem)] flex-nowrap items-center gap-1">
 						<button
@@ -2478,7 +2500,7 @@ export default function KakaoMap({
 					)}
 				</div>
 			)}
-			{mapReady && (
+			{mapReady && showMapControls && (
 				<div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1">
 					<button type="button" onClick={handleZoomIn} className={btnClass} aria-label="줌 인">
 						<span className="text-lg font-medium leading-none">+</span>
@@ -2506,31 +2528,17 @@ export default function KakaoMap({
 					</button>
 				</div>
 			)}
-			{mapReady && (canPlayCourse || showSummitButton) && (
+			{mapReady && showMapControls && (canPlayCourse || showSummitButton) && (
 				<div className="pointer-events-auto absolute bottom-4 left-4 z-10 flex items-center gap-2">
 					{canPlayCourse && (
 						<button
 							type="button"
 							onClick={handlePlayCourseBriefing}
-							disabled={isCourseBriefingPlaying}
-							className={`${
-								isCourseBriefingPlaying ? toggleBtnOn : toggleBtnOff
-							} justify-center px-2 disabled:cursor-not-allowed disabled:opacity-90`}
-							title={
-								isCourseBriefingPlaying
-									? "코스 따라가는 중…"
-									: "코스 따라가기 (7초)"
-							}
-							aria-label={
-								isCourseBriefingPlaying ? "코스 따라가는 중" : "코스 따라가기"
-							}
-							aria-busy={isCourseBriefingPlaying}
+							className={`${toggleBtnOff} justify-center px-2`}
+							title="코스 따라가기 (7초)"
+							aria-label="코스 따라가기"
 						>
-							{isCourseBriefingPlaying ? (
-								<Loader2 className="size-3.5 animate-spin" aria-hidden />
-							) : (
-								<Play className="size-3.5 fill-current" aria-hidden />
-							)}
+							<Play className="size-3.5 fill-current" aria-hidden />
 						</button>
 					)}
 					{showSummitButton && (
@@ -2554,7 +2562,7 @@ export default function KakaoMap({
 					)}
 				</div>
 			)}
-			{mapReady && zoomLevel != null && (
+			{mapReady && showMapControls && zoomLevel != null && (
 				<div className="absolute bottom-4 right-4 z-10 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 shadow dark:bg-zinc-800/90 dark:text-zinc-300">
 					줌 레벨 {zoomLevel}
 				</div>
