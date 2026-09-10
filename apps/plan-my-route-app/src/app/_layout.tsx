@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { AppState, type AppStateStatus, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import { supabase } from "@/features/auth/supabase-client";
+import { SUPABASE } from "@/features/auth/supabase-client";
 import { assertPlanGeometryPackageLinked } from "@/features/plan/workspace-package-check";
 
 assertPlanGeometryPackageLinked();
@@ -26,11 +26,11 @@ export default function TabLayout() {
 	useEffect(() => {
 		const handleAppStateChange = (state: AppStateStatus) => {
 			if (state === "active") {
-				supabase.auth.startAutoRefresh();
+				SUPABASE.auth.startAutoRefresh();
 				return;
 			}
 
-			supabase.auth.stopAutoRefresh();
+			SUPABASE.auth.stopAutoRefresh();
 		};
 
 		handleAppStateChange(AppState.currentState);
@@ -38,7 +38,7 @@ export default function TabLayout() {
 
 		return () => {
 			subscription.remove();
-			supabase.auth.stopAutoRefresh();
+			SUPABASE.auth.stopAutoRefresh();
 		};
 	}, []);
 

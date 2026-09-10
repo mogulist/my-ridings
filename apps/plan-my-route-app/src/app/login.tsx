@@ -12,7 +12,7 @@ import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { fetchRoutes } from "@/features/api/plan-my-route";
 import { createSessionFromUrl } from "@/features/auth/oauth";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
-import { supabase } from "@/features/auth/supabase-client";
+import { SUPABASE } from "@/features/auth/supabase-client";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -53,7 +53,7 @@ export default function LoginScreen() {
 		setErrorMessage(null);
 
 		try {
-			const { data, error } = await supabase.auth.signInWithOAuth({
+			const { data, error } = await SUPABASE.auth.signInWithOAuth({
 				provider: "github",
 				options: {
 					redirectTo,

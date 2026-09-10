@@ -1,4 +1,4 @@
-import { supabase } from "./supabase-client";
+import { SUPABASE } from "./supabase-client";
 
 export const getApiOrigin = () => {
 	const raw = process.env.EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN ?? "";
@@ -6,10 +6,10 @@ export const getApiOrigin = () => {
 };
 
 export const getStoredAccessToken = async () => {
-	const { data } = await supabase.auth.getSession();
+	const { data } = await SUPABASE.auth.getSession();
 	return data.session?.access_token ?? null;
 };
 
 export const clearStoredAccessToken = async () => {
-	await supabase.auth.signOut();
+	await SUPABASE.auth.signOut();
 };

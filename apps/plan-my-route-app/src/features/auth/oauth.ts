@@ -25,15 +25,15 @@ export const parseOAuthCallback = (url: string): OAuthCallback => {
 
 export const createSessionFromUrl = async (url: string) => {
 	const callback = parseOAuthCallback(url);
-	const { supabase } = await import("./supabase-client");
+	const { SUPABASE } = await import("./supabase-client");
 
 	if (callback.type === "code") {
-		const { error } = await supabase.auth.exchangeCodeForSession(callback.code);
+		const { error } = await SUPABASE.auth.exchangeCodeForSession(callback.code);
 		if (error) throw error;
 		return;
 	}
 
-	const { error } = await supabase.auth.setSession({
+	const { error } = await SUPABASE.auth.setSession({
 		access_token: callback.accessToken,
 		refresh_token: callback.refreshToken,
 	});
