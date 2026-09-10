@@ -14,6 +14,8 @@ export {
 export { stageDayLabel } from "./stage-day-label";
 export type { SnapLatLngToTrackResult } from "./snap-lat-lng-to-track";
 export { snapLatLngToTrack } from "./snap-lat-lng-to-track";
+export type { RouteDetour } from "./route-detour";
+export { computeRouteDetour } from "./route-detour";
 export type { GradientSegment, ClimbProfile, ClimbStartMode } from "./gradient";
 export {
 	DOWNHILL_COLOR,

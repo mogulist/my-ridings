@@ -2,6 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const KAKAO_KEYWORD_API = "https://dapi.kakao.com/v2/local/search/keyword.json";
 const PAGE_SIZE = 15;
+/** 카카오 로컬은 total_count가 얼마든 pageable_count를 45로 제한한다. */
+const KAKAO_MAX_PAGEABLE = 45;
+const MAX_PAGES = Math.ceil(KAKAO_MAX_PAGEABLE / PAGE_SIZE);
 
 export type KakaoKeywordPlaceDocument = {
 	id: string;
@@ -26,11 +29,15 @@ export type KakaoKeywordResponse = {
 export async function GET(request: NextRequest) {
 	const { searchParams } = new URL(request.url);
 	const rect = searchParams.get("rect");
+	const x = searchParams.get("x");
+	const y = searchParams.get("y");
+	const radius = searchParams.get("radius");
 	const query = searchParams.get("query")?.trim();
 
-	if (!rect) {
+	const isRadiusSearch = Boolean(x && y && radius);
+	if (!rect && !isRadiusSearch) {
 		return NextResponse.json(
-			{ error: "rect is required (swLng,swLat,neLng,neLat)" },
+			{ error: "rect (swLng,swLat,neLng,neLat) or x/y/radius is required" },
 			{ status: 400 },
 		);
 	}
@@ -46,15 +53,23 @@ export async function GET(request: NextRequest) {
 	const allDocuments: KakaoKeywordPlaceDocument[] = [];
 	let page = 1;
 	let isEnd = false;
-	const MAX_PAGES = 45;
+	let totalCount = 0;
 
 	while (!isEnd && page <= MAX_PAGES) {
 		const params = new URLSearchParams({
 			query,
-			rect,
 			page: String(page),
 			size: String(PAGE_SIZE),
 		});
+		if (isRadiusSearch) {
+			// 거리순 정렬이면 45개 캡에 걸려도 가까운 곳부터 남는다.
+			params.set("x", x as string);
+			params.set("y", y as string);
+			params.set("radius", radius as string);
+			params.set("sort", "distance");
+		} else {
+			params.set("rect", rect as string);
+		}
 
 		const res = await fetch(`${KAKAO_KEYWORD_API}?${params}`, {
 			headers: {
@@ -70,13 +85,18 @@ export async function GET(request: NextRequest) {
 		}
 
 		const data = (await res.json()) as KakaoKeywordResponse;
+		if (page === 1) totalCount = data.meta.total_count;
 		allDocuments.push(...data.documents);
 		isEnd = data.meta.is_end;
 		page += 1;
 	}
 
 	return NextResponse.json({
-		meta: { total_count: allDocuments.length },
+		meta: {
+			total_count: totalCount,
+			fetched_count: allDocuments.length,
+			is_truncated: totalCount > allDocuments.length,
+		},
 		documents: allDocuments,
 	});
 }

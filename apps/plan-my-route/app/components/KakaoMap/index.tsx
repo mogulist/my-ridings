@@ -1,6 +1,7 @@
 "use client";
 
-import { Expand, Locate, Play } from "lucide-react";
+import { computeRouteDetour } from "@my-ridings/plan-geometry";
+import { Expand, Locate, Play, RefreshCw } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -273,8 +274,27 @@ type RectBounds = {
 	neLat: number;
 };
 
-function toRectString(bounds: RectBounds): string {
-	return `${bounds.swLng},${bounds.swLat},${bounds.neLng},${bounds.neLat}`;
+/** 카카오 로컬 반경 검색 상한 */
+const KAKAO_MAX_RADIUS_M = 20000;
+const METERS_PER_DEGREE_LAT = 110574;
+const METERS_PER_DEGREE_LNG_AT_EQUATOR = 111320;
+
+/**
+ * 지도 화면을 감싸는 원으로 반경 검색 쿼리를 만든다.
+ * rect 검색과 달리 거리순 정렬이 가능해서, 45개 캡에 걸려도 화면 중앙에서 가까운 곳이 남는다.
+ */
+function buildViewportRadiusParams(bounds: RectBounds): string {
+	const centerLat = (bounds.swLat + bounds.neLat) / 2;
+	const centerLng = (bounds.swLng + bounds.neLng) / 2;
+	const metersPerDegreeLng =
+		METERS_PER_DEGREE_LNG_AT_EQUATOR * Math.cos((centerLat * Math.PI) / 180);
+	const halfHeightM = ((bounds.neLat - bounds.swLat) / 2) * METERS_PER_DEGREE_LAT;
+	const halfWidthM = ((bounds.neLng - bounds.swLng) / 2) * metersPerDegreeLng;
+	const radius = Math.min(
+		KAKAO_MAX_RADIUS_M,
+		Math.max(1, Math.round(Math.hypot(halfWidthM, halfHeightM))),
+	);
+	return `x=${centerLng}&y=${centerLat}&radius=${radius}`;
 }
 
 // ── 숙박업소 타입 ──────────────────────────────────────────────────
@@ -285,6 +305,12 @@ type KakaoPlaceDoc = {
 	address_name?: string;
 	x: string;
 	y: string;
+};
+
+type NearbySearchMeta = {
+	total_count: number;
+	fetched_count: number;
+	is_truncated: boolean;
 };
 
 type AccommodationCategory = "motel" | "hotel" | "inn" | "pension" | "camping" | "other";
@@ -547,11 +573,23 @@ function buildOfficialSummitInfoWindowHtml(
 	return `<div class="official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
 }
 
+/** "경로 132km 지점 · 이탈 2.3km" 처럼 코스 대비 위치를 한 줄로 요약한다. */
+function buildRouteDetourLabel(trackPoints: TrackPoint[], lat: number, lng: number): string | null {
+	const detour = computeRouteDetour(trackPoints, lat, lng);
+	if (!detour) return null;
+	const detourText =
+		detour.detourM < 1000
+			? `이탈 ${Math.round(detour.detourM)}m`
+			: `이탈 ${(detour.detourM / 1000).toFixed(1)}km`;
+	if (detour.routeDistanceM == null) return detourText;
+	return `경로 ${(detour.routeDistanceM / 1000).toFixed(0)}km 지점 · ${detourText}`;
+}
+
 function buildAccommodationTooltipHtml(
 	doc: KakaoPlaceDoc,
 	review: PlaceReviewRow | null,
 	tooltipMeta?: { placeKind: string; notePlaceholder: string },
-	options?: { showAddPoiButton?: boolean },
+	options?: { showAddPoiButton?: boolean; routeDetourLabel?: string | null },
 ): string {
 	const placeKind = tooltipMeta?.placeKind ?? "accommodation";
 	const notePlaceholder = tooltipMeta?.notePlaceholder ?? "숙박비, 소감 등";
@@ -575,8 +613,12 @@ function buildAccommodationTooltipHtml(
 		options?.showAddPoiButton === true
 			? `<div style="margin-bottom:8px;"><button type="button" class="plan-poi-open-dialog-btn" style="width:100%;padding:8px 10px;background:#ea580c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">POI로 추가</button></div>`
 			: "";
+	const detourBlock = options?.routeDetourLabel
+		? `<div style="margin-bottom:6px;font-size:11px;font-weight:500;color:#6b7280;">🚲 ${esc(options.routeDetourLabel)}</div>`
+		: "";
 	return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
+  ${detourBlock}
   ${linksBlock}
   ${addPoiBlock}
   <div style="margin-bottom:6px;font-size:11px;color:#6b7280;">평가</div>
@@ -761,19 +803,49 @@ const NEARBY_CATEGORY_IDS: NearbyCategoryId[] = [
 	"accommodation",
 ];
 
+/** route = 경로 주변, viewport = 현재 지도 화면 */
+type NearbySearchMode = "route" | "viewport";
+
+const NEARBY_SEARCH_MODE_OPTIONS: { mode: NearbySearchMode; label: string }[] = [
+	{ mode: "route", label: "경로 주변" },
+	{ mode: "viewport", label: "이 지도 범위" },
+];
+
+/** 받침 유무에 따라 주격 조사를 붙인다. "카페가" / "편의점이" */
+function withSubjectJosa(word: string): string {
+	const lastCode = word.charCodeAt(word.length - 1);
+	const isHangulSyllable = lastCode >= 0xac00 && lastCode <= 0xd7a3;
+	const hasFinalConsonant = isHangulSyllable && (lastCode - 0xac00) % 28 !== 0;
+	return `${word}${hasFinalConsonant ? "이" : "가"}`;
+}
+
 type NearbyCategoryCacheMeta = {
 	fetchedAt: number | null;
 	isInvalidated: boolean;
+	/** 카카오가 보고한 실제 검색 결과 수 (45개 캡 이전) */
+	totalCount: number;
+	/** 45개 캡에 걸려 일부만 받아왔는지 */
+	isTruncated: boolean;
+	/** 이 결과를 만들어낸 검색 방식 */
+	mode: NearbySearchMode;
 };
 
 type NearbyCacheMetaState = Record<NearbyCategoryId, NearbyCategoryCacheMeta>;
 
+const EMPTY_NEARBY_CATEGORY_CACHE_META: NearbyCategoryCacheMeta = {
+	fetchedAt: null,
+	isInvalidated: true,
+	totalCount: 0,
+	isTruncated: false,
+	mode: "route",
+};
+
 const EMPTY_NEARBY_CACHE_META = (): NearbyCacheMetaState => ({
-	restaurant: { fetchedAt: null, isInvalidated: true },
-	cafe: { fetchedAt: null, isInvalidated: true },
-	convenience: { fetchedAt: null, isInvalidated: true },
-	mart: { fetchedAt: null, isInvalidated: true },
-	accommodation: { fetchedAt: null, isInvalidated: true },
+	restaurant: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	cafe: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	convenience: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	mart: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	accommodation: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
 });
 
 export default function KakaoMap({
@@ -839,6 +911,9 @@ export default function KakaoMap({
 		DEFAULT_ACCOMMODATION_FILTERS,
 	);
 	const [nearbyDocs, setNearbyDocs] = useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
+	const [hasMapMovedSinceSearch, setHasMapMovedSinceSearch] = useState(false);
+	/** 카테고리를 바꿔도 유지되는 사용자 의도. 일회성 인자로 두면 칩을 누를 때마다 경로 모드로 되돌아간다. */
+	const [nearbySearchMode, setNearbySearchMode] = useState<NearbySearchMode>("route");
 	const [nearbyCacheMeta, setNearbyCacheMeta] =
 		useState<NearbyCacheMetaState>(EMPTY_NEARBY_CACHE_META);
 	const [placeReviewsMap, setPlaceReviewsMap] = useState<Record<string, PlaceReviewRow>>({});
@@ -1155,6 +1230,7 @@ export default function KakaoMap({
 			}
 			kakaoMaps.event.addListener(map, "idle", () => {
 				invalidateAllNearbyCache();
+				setHasMapMovedSinceSearch(true);
 			});
 		},
 		[
@@ -1396,11 +1472,20 @@ export default function KakaoMap({
 				openInfoWindowRef.current = null;
 			}
 			clearAccommodationMarkers();
+			const routeTrackPoints = route?.track_points ?? [];
 			const nextMarkers: KakaoMarker[] = [];
 			for (const doc of docs) {
 				const state = normalizeReviewState(
 					reviewsMap[doc.id]?.review_state ?? "neutral",
 				);
+				const docTooltipOptions = {
+					...tooltipAddPoiOptions,
+					routeDetourLabel: buildRouteDetourLabel(
+						routeTrackPoints,
+						Number(doc.y),
+						Number(doc.x),
+					),
+				};
 				const marker = new maps.Marker({
 					map: map as never,
 					position: new maps.LatLng(Number(doc.y), Number(doc.x)),
@@ -1415,7 +1500,7 @@ export default function KakaoMap({
 						doc,
 						reviewsMap[doc.id] ?? null,
 						tooltipMeta,
-						tooltipAddPoiOptions,
+						docTooltipOptions,
 					),
 					removable: true,
 					zIndex: INFO_WINDOW_Z_INDEX,
@@ -1428,7 +1513,7 @@ export default function KakaoMap({
 							doc,
 							reviewsMap[doc.id] ?? null,
 							tooltipMeta,
-							tooltipAddPoiOptions,
+							docTooltipOptions,
 						),
 					);
 					infoWindow.open(map, marker);
@@ -1439,8 +1524,19 @@ export default function KakaoMap({
 			}
 			accommodationOverlaysRef.current = nextMarkers;
 		},
-		[clearAccommodationMarkers, tooltipAddPoiOptions],
+		[clearAccommodationMarkers, tooltipAddPoiOptions, route?.track_points],
 	);
+
+	const activeCategoryCacheMeta = activeCategory ? nearbyCacheMeta[activeCategory] : null;
+	const activeCategoryLabel = activeCategory
+		? (NEARBY_CATEGORIES.find((c) => c.id === activeCategory)?.label ?? "장소")
+		: "장소";
+	/** 경로 주변 검색이 실제로 0건을 돌려준 경우에만 지도 범위 검색을 권한다. */
+	const isActiveCategoryEmptyOnRoute =
+		activeCategory != null &&
+		activeCategoryCacheMeta?.fetchedAt != null &&
+		activeCategoryCacheMeta.mode === "route" &&
+		nearbyDocs[activeCategory].length === 0;
 
 	const accommodationCategoryCounts = useMemo(
 		() => buildAccommodationCategoryCounts(nearbyDocs.accommodation),
@@ -1480,7 +1576,7 @@ export default function KakaoMap({
 	);
 
 	const handleReloadNearby = useCallback(
-		async (categoryId: NearbyCategoryId) => {
+		async (categoryId: NearbyCategoryId, mode: NearbySearchMode) => {
 			const map = mapInstanceRef.current as KakaoMapInstance | null;
 			if (!map) return;
 
@@ -1501,23 +1597,35 @@ export default function KakaoMap({
 					point.y >= viewportRectBounds.swLat &&
 					point.y <= viewportRectBounds.neLat,
 			);
-			const routeRect = buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM);
-			const rect = routeRect ?? toRectString(viewportRectBounds);
+			const routeRect =
+				mode === "route"
+					? buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM)
+					: null;
+			// 경로 모드인데 화면에 경로가 없으면 검색할 대상이 없으므로 지도 화면으로 대신한다.
+			const effectiveMode: NearbySearchMode = routeRect ? "route" : "viewport";
+			const searchParams = routeRect
+				? `rect=${encodeURIComponent(routeRect)}`
+				: buildViewportRadiusParams(viewportRectBounds);
 			const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
 
 			setLoadingCategory(categoryId);
+			let totalCount = 0;
+			let isTruncated = false;
 			try {
 				if (cfg?.keywordQueries?.length) {
 					const seen = new Set<string>();
 					const merged: KakaoPlaceDoc[] = [];
 					for (const q of cfg.keywordQueries) {
 						const res = await fetch(
-							`/api/kakao/local/keyword?rect=${encodeURIComponent(rect)}&query=${encodeURIComponent(q)}`,
+							`/api/kakao/local/keyword?${searchParams}&query=${encodeURIComponent(q)}`,
 						);
 						if (!res.ok) throw new Error("Failed to fetch");
-						const { documents } = (await res.json()) as {
+						const { documents, meta } = (await res.json()) as {
 							documents: KakaoPlaceDoc[];
+							meta: NearbySearchMeta;
 						};
+						totalCount += meta.total_count;
+						isTruncated = isTruncated || meta.is_truncated;
 						for (const d of documents) {
 							if (seen.has(d.id)) continue;
 							seen.add(d.id);
@@ -1535,12 +1643,15 @@ export default function KakaoMap({
 				} else {
 					const code = cfg?.categoryGroupCode ?? "AD5";
 					const res = await fetch(
-						`/api/kakao/local/category?rect=${encodeURIComponent(rect)}&category_group_code=${encodeURIComponent(code)}`,
+						`/api/kakao/local/category?${searchParams}&category_group_code=${encodeURIComponent(code)}`,
 					);
 					if (!res.ok) throw new Error("Failed to fetch");
-					const { documents } = (await res.json()) as {
+					const { documents, meta } = (await res.json()) as {
 						documents: KakaoPlaceDoc[];
+						meta: NearbySearchMeta;
 					};
+					totalCount = meta.total_count;
+					isTruncated = meta.is_truncated;
 					if (categoryId === "accommodation") {
 						setNearbyDocs((prev) => ({
 							...prev,
@@ -1552,8 +1663,15 @@ export default function KakaoMap({
 				}
 				setNearbyCacheMeta((prev) => ({
 					...prev,
-					[categoryId]: { fetchedAt: Date.now(), isInvalidated: false },
+					[categoryId]: {
+						fetchedAt: Date.now(),
+						isInvalidated: false,
+						totalCount,
+						isTruncated,
+						mode: effectiveMode,
+					},
 				}));
+				setHasMapMovedSinceSearch(false);
 				if (!readOnly) await fetchPlaceReviews();
 				setShowNearbyPlaces(true);
 			} catch {
@@ -1564,7 +1682,7 @@ export default function KakaoMap({
 				}
 				setNearbyCacheMeta((prev) => ({
 					...prev,
-					[categoryId]: { fetchedAt: null, isInvalidated: true },
+					[categoryId]: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
 				}));
 			} finally {
 				setLoadingCategory(null);
@@ -2064,13 +2182,13 @@ export default function KakaoMap({
 			if (categoryId === activeCategory) {
 				setShowSearchPopover((prev) => !prev);
 				if (!showNearbyPlaces) setShowNearbyPlaces(true);
-				if (shouldReload) void handleReloadNearby(categoryId);
+				if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
 				return;
 			}
 			setActiveCategory(categoryId);
 			setShowSearchPopover(true);
 			if (!showNearbyPlaces) setShowNearbyPlaces(true);
-			if (shouldReload) void handleReloadNearby(categoryId);
+			if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
 		},
 		[
 			readOnly,
@@ -2079,7 +2197,16 @@ export default function KakaoMap({
 			activeCategory,
 			showNearbyPlaces,
 			handleReloadNearby,
+			nearbySearchMode,
 		],
+	);
+
+	const handleSearchModeChange = useCallback(
+		(mode: NearbySearchMode) => {
+			setNearbySearchMode(mode);
+			if (activeCategory) void handleReloadNearby(activeCategory, mode);
+		},
+		[activeCategory, handleReloadNearby],
 	);
 
 	const handleAccommodationFilterChange = useCallback((category: AccommodationCategory) => {
@@ -2387,6 +2514,25 @@ export default function KakaoMap({
 							</button>
 						)}
 					</div>
+					{!readOnly &&
+						showNearbyPlaces &&
+						activeCategory != null &&
+						hasMapMovedSinceSearch &&
+						!isNearbySearchDisabled && (
+							<div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
+								<button
+									type="button"
+									onClick={() => void handleReloadNearby(activeCategory, nearbySearchMode)}
+									disabled={loadingCategory != null}
+									className="inline-flex h-9 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-700 shadow-md hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+								>
+									<RefreshCw
+										className={loadingCategory != null ? "size-3.5 animate-spin" : "size-3.5"}
+									/>
+									이 지역 다시 검색
+								</button>
+							</div>
+						)}
 					{!readOnly && (
 						<div
 							ref={searchPopoverRef}
@@ -2450,7 +2596,49 @@ export default function KakaoMap({
 											</button>
 										</div>
 									</div>
-									<p className="mb-2 text-xs text-gray-500">현재 지도 범위 내 결과</p>
+									<div className="mb-2 flex rounded border border-gray-200 p-0.5">
+										{NEARBY_SEARCH_MODE_OPTIONS.map((option) => (
+											<button
+												key={option.mode}
+												type="button"
+												onClick={() => handleSearchModeChange(option.mode)}
+												disabled={loadingCategory != null}
+												aria-pressed={nearbySearchMode === option.mode}
+												className={
+													nearbySearchMode === option.mode
+														? "flex-1 rounded bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60"
+														: "flex-1 rounded px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+												}
+											>
+												{option.label}
+											</button>
+										))}
+									</div>
+									{nearbySearchMode === "route" &&
+										activeCategoryCacheMeta?.mode === "viewport" && (
+											<p className="mb-2 text-[11px] leading-snug text-gray-500">
+												화면에 경로가 없어서 지도 범위로 검색했어요.
+											</p>
+										)}
+									{activeCategoryCacheMeta?.isTruncated && (
+										<div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
+											이 범위에 {activeCategoryCacheMeta.totalCount}개가 있지만 카카오 검색은 45개까지만
+											돌려줍니다. 지도를 확대한 뒤 다시 검색하면 빠진 곳을 볼 수 있어요.
+										</div>
+									)}
+									{isActiveCategoryEmptyOnRoute && (
+										<div className="mb-2 rounded border border-gray-200 bg-gray-50 px-2 py-2 text-[11px] leading-snug text-gray-600">
+											이 화면엔 경로 주변 {withSubjectJosa(activeCategoryLabel)} 없어요.
+											<button
+												type="button"
+												onClick={() => handleSearchModeChange("viewport")}
+												disabled={loadingCategory != null}
+												className="mt-1.5 w-full rounded bg-blue-500 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
+											>
+												이 지도 범위에서 찾기
+											</button>
+										</div>
+									)}
 									{activeCategory === "accommodation" ? (
 										<>
 											<div className="grid grid-cols-2 gap-2">
