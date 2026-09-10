@@ -150,6 +150,9 @@ export function CourseBriefingModal({
 	return (
 		<div
 			className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
+			role="dialog"
+			aria-modal="true"
+			aria-label="코스 브리핑"
 			onClick={onClose}
 		>
 			<div

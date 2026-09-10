@@ -33,6 +33,10 @@ import {
 	resolveLabelStaggerMaxRow,
 	type LabelRow,
 } from "./marker-labels";
+import {
+	hasOpenDialogElement,
+	shouldUnpinElevationTooltipOnEscape,
+} from "./should-unpin-on-escape";
 import type { CPOnRoute, ElevationProfileProps, SummitOnRoute } from "./types";
 
 type TooltipState = {
@@ -466,7 +470,10 @@ export function useElevationProfileState({
 	}, [stageEndBoundaryUiResetKey, endBoundaryWindowDrag]);
 
 	useEffect(() => {
-		if (stageEndBoundaryMenuAnchor == null && !stageEndBoundaryChartEditMode) return;
+		const isBoundaryMenuOpen = stageEndBoundaryMenuAnchor != null;
+		const shouldListenForEscape =
+			isBoundaryMenuOpen || stageEndBoundaryChartEditMode || (isPinned && onUnpin != null);
+		if (!shouldListenForEscape) return;
 		const onPointerDown = (e: PointerEvent) => {
 			if (stageEndBoundaryMenuAnchor == null) return;
 			const t = e.target as Node;
@@ -480,12 +487,27 @@ export function useElevationProfileState({
 				setStageEndBoundaryMenuAnchor(null);
 				return;
 			}
-			if (stageEndBoundaryChartEditMode) onExitStageEndBoundaryChartEditMode?.();
+			if (stageEndBoundaryChartEditMode) {
+				onExitStageEndBoundaryChartEditMode?.();
+				return;
+			}
+			if (
+				!shouldUnpinElevationTooltipOnEscape({
+					key: e.key,
+					isPinned,
+					isStageEndBoundaryOverlayActive: false,
+					hasOpenDialog: hasOpenDialogElement(),
+				})
+			)
+				return;
+			onUnpin?.();
 		};
-		if (stageEndBoundaryMenuAnchor != null) {
+		if (isBoundaryMenuOpen) {
 			document.addEventListener("pointerdown", onPointerDown);
 		}
-		document.addEventListener("keydown", onKeyDown);
+		if (shouldListenForEscape) {
+			document.addEventListener("keydown", onKeyDown);
+		}
 		return () => {
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("keydown", onKeyDown);
@@ -494,6 +516,8 @@ export function useElevationProfileState({
 		stageEndBoundaryMenuAnchor,
 		stageEndBoundaryChartEditMode,
 		onExitStageEndBoundaryChartEditMode,
+		isPinned,
+		onUnpin,
 	]);
 
 	useEffect(() => {
