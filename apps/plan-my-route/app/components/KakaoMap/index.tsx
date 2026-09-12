@@ -1588,161 +1588,159 @@ export default function KakaoMap({
 		return docs;
 	}, [placeReviewsMap]);
 
-	const isNearbyCacheUsable = useCallback(
-		(categoryId: NearbyCategoryId) => {
-			const cacheMeta = nearbyCacheMeta[categoryId];
-			if (cacheMeta.isInvalidated || cacheMeta.fetchedAt == null) return false;
-			return Date.now() - cacheMeta.fetchedAt <= NEARBY_CACHE_TTL_MS;
-		},
-		[nearbyCacheMeta],
-	);
+	const isNearbyCacheUsable = (categoryId: NearbyCategoryId) => {
+		const cacheMeta = nearbyCacheMeta[categoryId];
+		if (cacheMeta.isInvalidated || cacheMeta.fetchedAt == null) return false;
+		return Date.now() - cacheMeta.fetchedAt <= NEARBY_CACHE_TTL_MS;
+	};
 
-	const handleReloadNearby = useCallback(
-		async (categoryId: NearbyCategoryId, mode: NearbySearchMode, maxDetourOverrideM?: number) => {
-			const map = mapInstanceRef.current as KakaoMapInstance | null;
-			if (!map) return;
+	const handleReloadNearby = async (
+		categoryId: NearbyCategoryId,
+		mode: NearbySearchMode,
+		maxDetourOverrideM?: number,
+	) => {
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		if (!map) return;
 
-			const bounds = map.getBounds?.();
-			if (!bounds) return;
-			const sw = bounds.getSouthWest();
-			const ne = bounds.getNorthEast();
-			const viewportRectBounds: RectBounds = {
-				swLng: sw.getLng(),
-				swLat: sw.getLat(),
-				neLng: ne.getLng(),
-				neLat: ne.getLat(),
-			};
-			const visibleRoutePoints = (route?.track_points ?? []).filter(
-				(point) =>
-					point.x >= viewportRectBounds.swLng &&
-					point.x <= viewportRectBounds.neLng &&
-					point.y >= viewportRectBounds.swLat &&
-					point.y <= viewportRectBounds.neLat,
-			);
-			const routeRect =
-				mode === "route"
-					? buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM)
-					: null;
-			// 경로 모드인데 화면에 경로가 없으면 검색할 대상이 없으므로 지도 화면으로 대신한다.
-			const effectiveMode: NearbySearchMode = routeRect ? "route" : "viewport";
-			const searchParams = routeRect
-				? `rect=${encodeURIComponent(routeRect)}`
-				: buildViewportRadiusParams(viewportRectBounds);
-			const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
-			// 경로 모드는 DB 격자 캐시를 거쳐 카카오 호출을 아낀다. 캐시 API는 로그인이 필요하므로
-			// 읽기 전용 화면이나 라우트 ID가 없을 때는 예전처럼 카카오를 직접 부른다.
-			const routeCacheId = effectiveMode === "route" && !readOnly ? reviewContext.routeId : "";
+		const bounds = map.getBounds?.();
+		if (!bounds) return;
+		const sw = bounds.getSouthWest();
+		const ne = bounds.getNorthEast();
+		const viewportRectBounds: RectBounds = {
+			swLng: sw.getLng(),
+			swLat: sw.getLat(),
+			neLng: ne.getLng(),
+			neLat: ne.getLat(),
+		};
+		const visibleRoutePoints = (route?.track_points ?? []).filter(
+			(point) =>
+				point.x >= viewportRectBounds.swLng &&
+				point.x <= viewportRectBounds.neLng &&
+				point.y >= viewportRectBounds.swLat &&
+				point.y <= viewportRectBounds.neLat,
+		);
+		const routeRect =
+			mode === "route"
+				? buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM)
+				: null;
+		// 경로 모드인데 화면에 경로가 없으면 검색할 대상이 없으므로 지도 화면으로 대신한다.
+		const effectiveMode: NearbySearchMode = routeRect ? "route" : "viewport";
+		const searchParams = routeRect
+			? `rect=${encodeURIComponent(routeRect)}`
+			: buildViewportRadiusParams(viewportRectBounds);
+		const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
+		// 경로 모드는 DB 격자 캐시를 거쳐 카카오 호출을 아낀다. 캐시 API는 로그인이 필요하므로
+		// 읽기 전용 화면이나 라우트 ID가 없을 때는 예전처럼 카카오를 직접 부른다.
+		const routeCacheId = effectiveMode === "route" && !readOnly ? reviewContext.routeId : "";
 
-			const applyNearbyDocs = (documents: KakaoPlaceDoc[]) => {
-				if (categoryId === "accommodation") {
-					setNearbyDocs((prev) => ({
-						...prev,
-						accommodation: classifyAccommodationDocuments(documents),
-					}));
-				} else {
-					setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
-				}
-			};
+		const applyNearbyDocs = (documents: KakaoPlaceDoc[]) => {
+			if (categoryId === "accommodation") {
+				setNearbyDocs((prev) => ({
+					...prev,
+					accommodation: classifyAccommodationDocuments(documents),
+				}));
+			} else {
+				setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+			}
+		};
 
-			setLoadingCategory(categoryId);
-			let totalCount = 0;
-			let fetchedCount = 0;
-			let isTruncated = false;
-			try {
-				if (routeCacheId) {
-					const params = new URLSearchParams({
-						category: categoryId,
-						swLng: String(viewportRectBounds.swLng),
-						swLat: String(viewportRectBounds.swLat),
-						neLng: String(viewportRectBounds.neLng),
-						neLat: String(viewportRectBounds.neLat),
-						maxDetourM: String(maxDetourOverrideM ?? nearbyMaxDetourM),
-					});
-					const res = await fetch(`/api/routes/${routeCacheId}/nearby?${params}`);
-					if (!res.ok) throw new Error("Failed to fetch");
-					const { documents, meta } = (await res.json()) as {
-						documents: KakaoPlaceDoc[];
-						meta: NearbyCacheMeta;
-					};
-					// 캐시 응답에는 카카오의 total_count가 없다. 캡에 걸렸는지만 알 수 있다.
-					totalCount = documents.length;
-					fetchedCount = documents.length;
-					isTruncated = meta.is_truncated;
-					applyNearbyDocs(documents);
-				} else if (cfg?.keywordQueries?.length) {
-					const seen = new Set<string>();
-					const merged: KakaoPlaceDoc[] = [];
-					for (const q of cfg.keywordQueries) {
-						const res = await fetch(
-							`/api/kakao/local/keyword?${searchParams}&query=${encodeURIComponent(q)}`,
-						);
-						if (!res.ok) throw new Error("Failed to fetch");
-						const { documents, meta } = (await res.json()) as {
-							documents: KakaoPlaceDoc[];
-							meta: NearbySearchMeta;
-						};
-						totalCount += meta.total_count;
-						fetchedCount += meta.fetched_count;
-						isTruncated = isTruncated || meta.is_truncated;
-						for (const d of documents) {
-							if (seen.has(d.id)) continue;
-							seen.add(d.id);
-							merged.push({
-								id: d.id,
-								place_name: d.place_name,
-								place_url: d.place_url ?? "",
-								address_name: d.address_name,
-								x: d.x,
-								y: d.y,
-							});
-						}
-					}
-					setNearbyDocs((prev) => ({ ...prev, [categoryId]: merged }));
-				} else {
-					const code = cfg?.categoryGroupCode ?? "AD5";
+		setLoadingCategory(categoryId);
+		let totalCount = 0;
+		let fetchedCount = 0;
+		let isTruncated = false;
+		try {
+			if (routeCacheId) {
+				const params = new URLSearchParams({
+					category: categoryId,
+					swLng: String(viewportRectBounds.swLng),
+					swLat: String(viewportRectBounds.swLat),
+					neLng: String(viewportRectBounds.neLng),
+					neLat: String(viewportRectBounds.neLat),
+					maxDetourM: String(maxDetourOverrideM ?? nearbyMaxDetourM),
+				});
+				const res = await fetch(`/api/routes/${routeCacheId}/nearby?${params}`);
+				if (!res.ok) throw new Error("Failed to fetch");
+				const { documents, meta } = (await res.json()) as {
+					documents: KakaoPlaceDoc[];
+					meta: NearbyCacheMeta;
+				};
+				// 캐시 응답에는 카카오의 total_count가 없다. 캡에 걸렸는지만 알 수 있다.
+				totalCount = documents.length;
+				fetchedCount = documents.length;
+				isTruncated = meta.is_truncated;
+				applyNearbyDocs(documents);
+			} else if (cfg?.keywordQueries?.length) {
+				const seen = new Set<string>();
+				const merged: KakaoPlaceDoc[] = [];
+				for (const q of cfg.keywordQueries) {
 					const res = await fetch(
-						`/api/kakao/local/category?${searchParams}&category_group_code=${encodeURIComponent(code)}`,
+						`/api/kakao/local/keyword?${searchParams}&query=${encodeURIComponent(q)}`,
 					);
 					if (!res.ok) throw new Error("Failed to fetch");
 					const { documents, meta } = (await res.json()) as {
 						documents: KakaoPlaceDoc[];
 						meta: NearbySearchMeta;
 					};
-					totalCount = meta.total_count;
-					fetchedCount = meta.fetched_count;
-					isTruncated = meta.is_truncated;
-					applyNearbyDocs(documents);
+					totalCount += meta.total_count;
+					fetchedCount += meta.fetched_count;
+					isTruncated = isTruncated || meta.is_truncated;
+					for (const d of documents) {
+						if (seen.has(d.id)) continue;
+						seen.add(d.id);
+						merged.push({
+							id: d.id,
+							place_name: d.place_name,
+							place_url: d.place_url ?? "",
+							address_name: d.address_name,
+							x: d.x,
+							y: d.y,
+						});
+					}
 				}
-				setNearbyCacheMeta((prev) => ({
-					...prev,
-					[categoryId]: {
-						fetchedAt: Date.now(),
-						isInvalidated: false,
-						totalCount,
-						fetchedCount,
-						isTruncated,
-						mode: effectiveMode,
-					},
-				}));
-				setHasMapMovedSinceSearch(false);
-				if (!readOnly) await fetchPlaceReviews();
-				setShowNearbyPlaces(true);
-			} catch {
-				if (categoryId === "accommodation") {
-					setNearbyDocs((prev) => ({ ...prev, accommodation: [] }));
-				} else {
-					setNearbyDocs((prev) => ({ ...prev, [categoryId]: [] }));
-				}
-				setNearbyCacheMeta((prev) => ({
-					...prev,
-					[categoryId]: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
-				}));
-			} finally {
-				setLoadingCategory(null);
+				setNearbyDocs((prev) => ({ ...prev, [categoryId]: merged }));
+			} else {
+				const code = cfg?.categoryGroupCode ?? "AD5";
+				const res = await fetch(
+					`/api/kakao/local/category?${searchParams}&category_group_code=${encodeURIComponent(code)}`,
+				);
+				if (!res.ok) throw new Error("Failed to fetch");
+				const { documents, meta } = (await res.json()) as {
+					documents: KakaoPlaceDoc[];
+					meta: NearbySearchMeta;
+				};
+				totalCount = meta.total_count;
+				fetchedCount = meta.fetched_count;
+				isTruncated = meta.is_truncated;
+				applyNearbyDocs(documents);
 			}
-		},
-		[fetchPlaceReviews, route?.track_points, readOnly, reviewContext.routeId, nearbyMaxDetourM],
-	);
+			setNearbyCacheMeta((prev) => ({
+				...prev,
+				[categoryId]: {
+					fetchedAt: Date.now(),
+					isInvalidated: false,
+					totalCount,
+					fetchedCount,
+					isTruncated,
+					mode: effectiveMode,
+				},
+			}));
+			setHasMapMovedSinceSearch(false);
+			if (!readOnly) await fetchPlaceReviews();
+			setShowNearbyPlaces(true);
+		} catch {
+			if (categoryId === "accommodation") {
+				setNearbyDocs((prev) => ({ ...prev, accommodation: [] }));
+			} else {
+				setNearbyDocs((prev) => ({ ...prev, [categoryId]: [] }));
+			}
+			setNearbyCacheMeta((prev) => ({
+				...prev,
+				[categoryId]: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+			}));
+		} finally {
+			setLoadingCategory(null);
+		}
+	};
 
 	const handleNearbyVisibilityToggle = useCallback(() => {
 		if (showNearbyPlaces) {
@@ -2227,32 +2225,21 @@ export default function KakaoMap({
 		}
 	}, [isZoomRestricted, invalidateAllNearbyCache]);
 
-	const handleNearbyCategoryClick = useCallback(
-		(categoryId: NearbyCategoryId) => {
-			if (readOnly) return;
-			if (isNearbySearchDisabled) return;
-			const shouldReload = !isNearbyCacheUsable(categoryId);
-			if (categoryId === activeCategory) {
-				setShowSearchPopover((prev) => !prev);
-				if (!showNearbyPlaces) setShowNearbyPlaces(true);
-				if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
-				return;
-			}
-			setActiveCategory(categoryId);
-			setShowSearchPopover(true);
+	const handleNearbyCategoryClick = (categoryId: NearbyCategoryId) => {
+		if (readOnly) return;
+		if (isNearbySearchDisabled) return;
+		const shouldReload = !isNearbyCacheUsable(categoryId);
+		if (categoryId === activeCategory) {
+			setShowSearchPopover((prev) => !prev);
 			if (!showNearbyPlaces) setShowNearbyPlaces(true);
 			if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
-		},
-		[
-			readOnly,
-			isNearbySearchDisabled,
-			isNearbyCacheUsable,
-			activeCategory,
-			showNearbyPlaces,
-			handleReloadNearby,
-			nearbySearchMode,
-		],
-	);
+			return;
+		}
+		setActiveCategory(categoryId);
+		setShowSearchPopover(true);
+		if (!showNearbyPlaces) setShowNearbyPlaces(true);
+		if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
+	};
 
 	const handleSearchModeChange = (mode: NearbySearchMode) => {
 		setNearbySearchMode(mode);
