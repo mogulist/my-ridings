@@ -307,6 +307,14 @@ type KakaoPlaceDoc = {
 	y: string;
 };
 
+/** /api/routes/[id]/nearby 응답 메타 */
+type NearbyCacheMeta = {
+	scanned_cells: number;
+	served_cells: number;
+	is_truncated: boolean;
+	kakao_requests: number;
+};
+
 type NearbySearchMeta = {
 	total_count: number;
 	fetched_count: number;
@@ -812,6 +820,14 @@ const NEARBY_SEARCH_MODE_OPTIONS: { mode: NearbySearchMode; label: string }[] = 
 	{ mode: "viewport", label: "이 지도 범위" },
 ];
 
+/** 경로 모드에서 보여줄 이탈 거리 상한 선택지 */
+const NEARBY_MAX_DETOUR_OPTIONS: { value: number; label: string }[] = [
+	{ value: 1000, label: "1km" },
+	{ value: 3000, label: "3km" },
+	{ value: 5000, label: "5km" },
+];
+const DEFAULT_NEARBY_MAX_DETOUR_M = 3000;
+
 /** 받침 유무에 따라 주격 조사를 붙인다. "카페가" / "편의점이" */
 function withSubjectJosa(word: string): string {
 	const lastCode = word.charCodeAt(word.length - 1);
@@ -916,6 +932,8 @@ export default function KakaoMap({
 	);
 	const [nearbyDocs, setNearbyDocs] = useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
 	const [hasMapMovedSinceSearch, setHasMapMovedSinceSearch] = useState(false);
+	/** 경로 모드에서 이 거리보다 멀리 벗어난 장소는 감춘다. */
+	const [nearbyMaxDetourM, setNearbyMaxDetourM] = useState(DEFAULT_NEARBY_MAX_DETOUR_M);
 	/** 카테고리를 바꿔도 유지되는 사용자 의도. 일회성 인자로 두면 칩을 누를 때마다 경로 모드로 되돌아간다. */
 	const [nearbySearchMode, setNearbySearchMode] = useState<NearbySearchMode>("route");
 	const [nearbyCacheMeta, setNearbyCacheMeta] =
@@ -1580,7 +1598,7 @@ export default function KakaoMap({
 	);
 
 	const handleReloadNearby = useCallback(
-		async (categoryId: NearbyCategoryId, mode: NearbySearchMode) => {
+		async (categoryId: NearbyCategoryId, mode: NearbySearchMode, maxDetourOverrideM?: number) => {
 			const map = mapInstanceRef.current as KakaoMapInstance | null;
 			if (!map) return;
 
@@ -1611,13 +1629,47 @@ export default function KakaoMap({
 				? `rect=${encodeURIComponent(routeRect)}`
 				: buildViewportRadiusParams(viewportRectBounds);
 			const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
+			// 경로 모드는 DB 격자 캐시를 거쳐 카카오 호출을 아낀다. 캐시 API는 로그인이 필요하므로
+			// 읽기 전용 화면이나 라우트 ID가 없을 때는 예전처럼 카카오를 직접 부른다.
+			const routeCacheId = effectiveMode === "route" && !readOnly ? reviewContext.routeId : "";
+
+			const applyNearbyDocs = (documents: KakaoPlaceDoc[]) => {
+				if (categoryId === "accommodation") {
+					setNearbyDocs((prev) => ({
+						...prev,
+						accommodation: classifyAccommodationDocuments(documents),
+					}));
+				} else {
+					setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+				}
+			};
 
 			setLoadingCategory(categoryId);
 			let totalCount = 0;
 			let fetchedCount = 0;
 			let isTruncated = false;
 			try {
-				if (cfg?.keywordQueries?.length) {
+				if (routeCacheId) {
+					const params = new URLSearchParams({
+						category: categoryId,
+						swLng: String(viewportRectBounds.swLng),
+						swLat: String(viewportRectBounds.swLat),
+						neLng: String(viewportRectBounds.neLng),
+						neLat: String(viewportRectBounds.neLat),
+						maxDetourM: String(maxDetourOverrideM ?? nearbyMaxDetourM),
+					});
+					const res = await fetch(`/api/routes/${routeCacheId}/nearby?${params}`);
+					if (!res.ok) throw new Error("Failed to fetch");
+					const { documents, meta } = (await res.json()) as {
+						documents: KakaoPlaceDoc[];
+						meta: NearbyCacheMeta;
+					};
+					// 캐시 응답에는 카카오의 total_count가 없다. 캡에 걸렸는지만 알 수 있다.
+					totalCount = documents.length;
+					fetchedCount = documents.length;
+					isTruncated = meta.is_truncated;
+					applyNearbyDocs(documents);
+				} else if (cfg?.keywordQueries?.length) {
 					const seen = new Set<string>();
 					const merged: KakaoPlaceDoc[] = [];
 					for (const q of cfg.keywordQueries) {
@@ -1659,14 +1711,7 @@ export default function KakaoMap({
 					totalCount = meta.total_count;
 					fetchedCount = meta.fetched_count;
 					isTruncated = meta.is_truncated;
-					if (categoryId === "accommodation") {
-						setNearbyDocs((prev) => ({
-							...prev,
-							accommodation: classifyAccommodationDocuments(documents),
-						}));
-					} else {
-						setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
-					}
+					applyNearbyDocs(documents);
 				}
 				setNearbyCacheMeta((prev) => ({
 					...prev,
@@ -1696,7 +1741,7 @@ export default function KakaoMap({
 				setLoadingCategory(null);
 			}
 		},
-		[fetchPlaceReviews, route?.track_points, readOnly],
+		[fetchPlaceReviews, route?.track_points, readOnly, reviewContext.routeId, nearbyMaxDetourM],
 	);
 
 	const handleNearbyVisibilityToggle = useCallback(() => {
@@ -2214,6 +2259,12 @@ export default function KakaoMap({
 		if (activeCategory) void handleReloadNearby(activeCategory, mode);
 	};
 
+	const handleMaxDetourChange = (maxDetourM: number) => {
+		setNearbyMaxDetourM(maxDetourM);
+		// 상태 반영을 기다리지 않도록 새 값을 직접 넘긴다.
+		if (activeCategory) void handleReloadNearby(activeCategory, nearbySearchMode, maxDetourM);
+	};
+
 	const handleAccommodationFilterChange = useCallback((category: AccommodationCategory) => {
 		setAccommodationFilters((prev) => ({
 			...prev,
@@ -2619,6 +2670,30 @@ export default function KakaoMap({
 											</button>
 										))}
 									</div>
+									{nearbySearchMode === "route" && (
+										<div className="mb-2 flex items-center gap-1.5">
+											<span className="text-[11px] text-gray-500">경로에서</span>
+											<div className="flex flex-1 rounded border border-gray-200 p-0.5">
+												{NEARBY_MAX_DETOUR_OPTIONS.map((option) => (
+													<button
+														key={option.value}
+														type="button"
+														onClick={() => handleMaxDetourChange(option.value)}
+														disabled={loadingCategory != null}
+														aria-pressed={nearbyMaxDetourM === option.value}
+														className={
+															nearbyMaxDetourM === option.value
+																? "flex-1 rounded bg-gray-700 px-1.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60"
+																: "flex-1 rounded px-1.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+														}
+													>
+														{option.label}
+													</button>
+												))}
+											</div>
+											<span className="text-[11px] text-gray-500">이내</span>
+										</div>
+									)}
 									{nearbySearchMode === "route" &&
 										activeCategoryCacheMeta?.mode === "viewport" && (
 											<p className="mb-2 text-[11px] leading-snug text-gray-500">
@@ -2627,9 +2702,18 @@ export default function KakaoMap({
 										)}
 									{activeCategoryCacheMeta?.isTruncated && (
 										<div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
-											이 범위에 {activeCategoryCacheMeta.totalCount}개가 있는데{" "}
-											{activeCategoryCacheMeta.fetchedCount}개만 찾았어요. 너무 밀집한 지역이라 지도를
-											확대한 뒤 다시 검색해야 나머지가 보입니다.
+											{activeCategoryCacheMeta.mode === "route" ? (
+												<>
+													장소가 너무 밀집한 구간이라 일부를 못 가져왔어요. 지도 범위 모드로
+													확대해서 찾으면 나머지가 보입니다.
+												</>
+											) : (
+												<>
+													이 범위에 {activeCategoryCacheMeta.totalCount}개가 있는데{" "}
+													{activeCategoryCacheMeta.fetchedCount}개만 찾았어요. 너무 밀집한 지역이라
+													지도를 확대한 뒤 다시 검색해야 나머지가 보입니다.
+												</>
+											)}
 										</div>
 									)}
 									{isActiveCategoryEmptyOnRoute && (
