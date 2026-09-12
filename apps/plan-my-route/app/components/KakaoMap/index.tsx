@@ -1,6 +1,7 @@
 "use client";
 
-import { Expand, Locate, Play } from "lucide-react";
+import { computeRouteDetour } from "@my-ridings/plan-geometry";
+import { Expand, Locate, Play, RefreshCw } from "lucide-react";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -273,8 +274,27 @@ type RectBounds = {
 	neLat: number;
 };
 
-function toRectString(bounds: RectBounds): string {
-	return `${bounds.swLng},${bounds.swLat},${bounds.neLng},${bounds.neLat}`;
+/** 카카오 로컬 반경 검색 상한 */
+const KAKAO_MAX_RADIUS_M = 20000;
+const METERS_PER_DEGREE_LAT = 110574;
+const METERS_PER_DEGREE_LNG_AT_EQUATOR = 111320;
+
+/**
+ * 지도 화면을 감싸는 원으로 반경 검색 쿼리를 만든다.
+ * rect 검색과 달리 거리순 정렬이 가능해서, 45개 캡에 걸려도 화면 중앙에서 가까운 곳이 남는다.
+ */
+function buildViewportRadiusParams(bounds: RectBounds): string {
+	const centerLat = (bounds.swLat + bounds.neLat) / 2;
+	const centerLng = (bounds.swLng + bounds.neLng) / 2;
+	const metersPerDegreeLng =
+		METERS_PER_DEGREE_LNG_AT_EQUATOR * Math.cos((centerLat * Math.PI) / 180);
+	const halfHeightM = ((bounds.neLat - bounds.swLat) / 2) * METERS_PER_DEGREE_LAT;
+	const halfWidthM = ((bounds.neLng - bounds.swLng) / 2) * metersPerDegreeLng;
+	const radius = Math.min(
+		KAKAO_MAX_RADIUS_M,
+		Math.max(1, Math.round(Math.hypot(halfWidthM, halfHeightM))),
+	);
+	return `x=${centerLng}&y=${centerLat}&radius=${radius}`;
 }
 
 // ── 숙박업소 타입 ──────────────────────────────────────────────────
@@ -285,6 +305,21 @@ type KakaoPlaceDoc = {
 	address_name?: string;
 	x: string;
 	y: string;
+};
+
+/** /api/routes/[id]/nearby 응답 메타 */
+type NearbyCacheMeta = {
+	scanned_cells: number;
+	served_cells: number;
+	is_truncated: boolean;
+	kakao_requests: number;
+};
+
+type NearbySearchMeta = {
+	total_count: number;
+	fetched_count: number;
+	is_truncated: boolean;
+	request_count: number;
 };
 
 type AccommodationCategory = "motel" | "hotel" | "inn" | "pension" | "camping" | "other";
@@ -547,11 +582,23 @@ function buildOfficialSummitInfoWindowHtml(
 	return `<div class="official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
 }
 
+/** "경로 132km 지점 · 이탈 2.3km" 처럼 코스 대비 위치를 한 줄로 요약한다. */
+function buildRouteDetourLabel(trackPoints: TrackPoint[], lat: number, lng: number): string | null {
+	const detour = computeRouteDetour(trackPoints, lat, lng);
+	if (!detour) return null;
+	const detourText =
+		detour.detourM < 1000
+			? `이탈 ${Math.round(detour.detourM)}m`
+			: `이탈 ${(detour.detourM / 1000).toFixed(1)}km`;
+	if (detour.routeDistanceM == null) return detourText;
+	return `경로 ${(detour.routeDistanceM / 1000).toFixed(0)}km 지점 · ${detourText}`;
+}
+
 function buildAccommodationTooltipHtml(
 	doc: KakaoPlaceDoc,
 	review: PlaceReviewRow | null,
 	tooltipMeta?: { placeKind: string; notePlaceholder: string },
-	options?: { showAddPoiButton?: boolean },
+	options?: { showAddPoiButton?: boolean; routeDetourLabel?: string | null },
 ): string {
 	const placeKind = tooltipMeta?.placeKind ?? "accommodation";
 	const notePlaceholder = tooltipMeta?.notePlaceholder ?? "숙박비, 소감 등";
@@ -575,8 +622,12 @@ function buildAccommodationTooltipHtml(
 		options?.showAddPoiButton === true
 			? `<div style="margin-bottom:8px;"><button type="button" class="plan-poi-open-dialog-btn" style="width:100%;padding:8px 10px;background:#ea580c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">POI로 추가</button></div>`
 			: "";
+	const detourBlock = options?.routeDetourLabel
+		? `<div style="margin-bottom:6px;font-size:11px;font-weight:500;color:#6b7280;">🚲 ${esc(options.routeDetourLabel)}</div>`
+		: "";
 	return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
+  ${detourBlock}
   ${linksBlock}
   ${addPoiBlock}
   <div style="margin-bottom:6px;font-size:11px;color:#6b7280;">평가</div>
@@ -761,19 +812,60 @@ const NEARBY_CATEGORY_IDS: NearbyCategoryId[] = [
 	"accommodation",
 ];
 
+/** route = 경로 주변, viewport = 현재 지도 화면 */
+type NearbySearchMode = "route" | "viewport";
+
+const NEARBY_SEARCH_MODE_OPTIONS: { mode: NearbySearchMode; label: string }[] = [
+	{ mode: "route", label: "경로 주변" },
+	{ mode: "viewport", label: "이 지도 범위" },
+];
+
+/** 경로 모드에서 보여줄 이탈 거리 상한 선택지 */
+const NEARBY_MAX_DETOUR_OPTIONS: { value: number; label: string }[] = [
+	{ value: 1000, label: "1km" },
+	{ value: 3000, label: "3km" },
+	{ value: 5000, label: "5km" },
+];
+const DEFAULT_NEARBY_MAX_DETOUR_M = 3000;
+
+/** 받침 유무에 따라 주격 조사를 붙인다. "카페가" / "편의점이" */
+function withSubjectJosa(word: string): string {
+	const lastCode = word.charCodeAt(word.length - 1);
+	const isHangulSyllable = lastCode >= 0xac00 && lastCode <= 0xd7a3;
+	const hasFinalConsonant = isHangulSyllable && (lastCode - 0xac00) % 28 !== 0;
+	return `${word}${hasFinalConsonant ? "이" : "가"}`;
+}
+
 type NearbyCategoryCacheMeta = {
 	fetchedAt: number | null;
 	isInvalidated: boolean;
+	/** 카카오가 보고한 실제 검색 결과 수 (45개 캡 이전) */
+	totalCount: number;
+	/** 실제로 받아온 수 */
+	fetchedCount: number;
+	/** 영역을 4분할해 다시 훑고도 여전히 캡에 걸렸는지 */
+	isTruncated: boolean;
+	/** 이 결과를 만들어낸 검색 방식 */
+	mode: NearbySearchMode;
 };
 
 type NearbyCacheMetaState = Record<NearbyCategoryId, NearbyCategoryCacheMeta>;
 
+const EMPTY_NEARBY_CATEGORY_CACHE_META: NearbyCategoryCacheMeta = {
+	fetchedAt: null,
+	isInvalidated: true,
+	totalCount: 0,
+	fetchedCount: 0,
+	isTruncated: false,
+	mode: "route",
+};
+
 const EMPTY_NEARBY_CACHE_META = (): NearbyCacheMetaState => ({
-	restaurant: { fetchedAt: null, isInvalidated: true },
-	cafe: { fetchedAt: null, isInvalidated: true },
-	convenience: { fetchedAt: null, isInvalidated: true },
-	mart: { fetchedAt: null, isInvalidated: true },
-	accommodation: { fetchedAt: null, isInvalidated: true },
+	restaurant: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	cafe: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	convenience: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	mart: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+	accommodation: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
 });
 
 export default function KakaoMap({
@@ -839,6 +931,11 @@ export default function KakaoMap({
 		DEFAULT_ACCOMMODATION_FILTERS,
 	);
 	const [nearbyDocs, setNearbyDocs] = useState<NearbyDocsState>(EMPTY_NEARBY_DOCS);
+	const [hasMapMovedSinceSearch, setHasMapMovedSinceSearch] = useState(false);
+	/** 경로 모드에서 이 거리보다 멀리 벗어난 장소는 감춘다. */
+	const [nearbyMaxDetourM, setNearbyMaxDetourM] = useState(DEFAULT_NEARBY_MAX_DETOUR_M);
+	/** 카테고리를 바꿔도 유지되는 사용자 의도. 일회성 인자로 두면 칩을 누를 때마다 경로 모드로 되돌아간다. */
+	const [nearbySearchMode, setNearbySearchMode] = useState<NearbySearchMode>("route");
 	const [nearbyCacheMeta, setNearbyCacheMeta] =
 		useState<NearbyCacheMetaState>(EMPTY_NEARBY_CACHE_META);
 	const [placeReviewsMap, setPlaceReviewsMap] = useState<Record<string, PlaceReviewRow>>({});
@@ -1155,6 +1252,7 @@ export default function KakaoMap({
 			}
 			kakaoMaps.event.addListener(map, "idle", () => {
 				invalidateAllNearbyCache();
+				setHasMapMovedSinceSearch(true);
 			});
 		},
 		[
@@ -1396,11 +1494,20 @@ export default function KakaoMap({
 				openInfoWindowRef.current = null;
 			}
 			clearAccommodationMarkers();
+			const routeTrackPoints = route?.track_points ?? [];
 			const nextMarkers: KakaoMarker[] = [];
 			for (const doc of docs) {
 				const state = normalizeReviewState(
 					reviewsMap[doc.id]?.review_state ?? "neutral",
 				);
+				const docTooltipOptions = {
+					...tooltipAddPoiOptions,
+					routeDetourLabel: buildRouteDetourLabel(
+						routeTrackPoints,
+						Number(doc.y),
+						Number(doc.x),
+					),
+				};
 				const marker = new maps.Marker({
 					map: map as never,
 					position: new maps.LatLng(Number(doc.y), Number(doc.x)),
@@ -1415,7 +1522,7 @@ export default function KakaoMap({
 						doc,
 						reviewsMap[doc.id] ?? null,
 						tooltipMeta,
-						tooltipAddPoiOptions,
+						docTooltipOptions,
 					),
 					removable: true,
 					zIndex: INFO_WINDOW_Z_INDEX,
@@ -1428,7 +1535,7 @@ export default function KakaoMap({
 							doc,
 							reviewsMap[doc.id] ?? null,
 							tooltipMeta,
-							tooltipAddPoiOptions,
+							docTooltipOptions,
 						),
 					);
 					infoWindow.open(map, marker);
@@ -1439,8 +1546,19 @@ export default function KakaoMap({
 			}
 			accommodationOverlaysRef.current = nextMarkers;
 		},
-		[clearAccommodationMarkers, tooltipAddPoiOptions],
+		[clearAccommodationMarkers, tooltipAddPoiOptions, route?.track_points],
 	);
+
+	const activeCategoryCacheMeta = activeCategory ? nearbyCacheMeta[activeCategory] : null;
+	const activeCategoryLabel = activeCategory
+		? (NEARBY_CATEGORIES.find((c) => c.id === activeCategory)?.label ?? "장소")
+		: "장소";
+	/** 경로 주변 검색이 실제로 0건을 돌려준 경우에만 지도 범위 검색을 권한다. */
+	const isActiveCategoryEmptyOnRoute =
+		activeCategory != null &&
+		activeCategoryCacheMeta?.fetchedAt != null &&
+		activeCategoryCacheMeta.mode === "route" &&
+		nearbyDocs[activeCategory].length === 0;
 
 	const accommodationCategoryCounts = useMemo(
 		() => buildAccommodationCategoryCounts(nearbyDocs.accommodation),
@@ -1470,108 +1588,159 @@ export default function KakaoMap({
 		return docs;
 	}, [placeReviewsMap]);
 
-	const isNearbyCacheUsable = useCallback(
-		(categoryId: NearbyCategoryId) => {
-			const cacheMeta = nearbyCacheMeta[categoryId];
-			if (cacheMeta.isInvalidated || cacheMeta.fetchedAt == null) return false;
-			return Date.now() - cacheMeta.fetchedAt <= NEARBY_CACHE_TTL_MS;
-		},
-		[nearbyCacheMeta],
-	);
+	const isNearbyCacheUsable = (categoryId: NearbyCategoryId) => {
+		const cacheMeta = nearbyCacheMeta[categoryId];
+		if (cacheMeta.isInvalidated || cacheMeta.fetchedAt == null) return false;
+		return Date.now() - cacheMeta.fetchedAt <= NEARBY_CACHE_TTL_MS;
+	};
 
-	const handleReloadNearby = useCallback(
-		async (categoryId: NearbyCategoryId) => {
-			const map = mapInstanceRef.current as KakaoMapInstance | null;
-			if (!map) return;
+	const handleReloadNearby = async (
+		categoryId: NearbyCategoryId,
+		mode: NearbySearchMode,
+		maxDetourOverrideM?: number,
+	) => {
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		if (!map) return;
 
-			const bounds = map.getBounds?.();
-			if (!bounds) return;
-			const sw = bounds.getSouthWest();
-			const ne = bounds.getNorthEast();
-			const viewportRectBounds: RectBounds = {
-				swLng: sw.getLng(),
-				swLat: sw.getLat(),
-				neLng: ne.getLng(),
-				neLat: ne.getLat(),
-			};
-			const visibleRoutePoints = (route?.track_points ?? []).filter(
-				(point) =>
-					point.x >= viewportRectBounds.swLng &&
-					point.x <= viewportRectBounds.neLng &&
-					point.y >= viewportRectBounds.swLat &&
-					point.y <= viewportRectBounds.neLat,
-			);
-			const routeRect = buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM);
-			const rect = routeRect ?? toRectString(viewportRectBounds);
-			const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
+		const bounds = map.getBounds?.();
+		if (!bounds) return;
+		const sw = bounds.getSouthWest();
+		const ne = bounds.getNorthEast();
+		const viewportRectBounds: RectBounds = {
+			swLng: sw.getLng(),
+			swLat: sw.getLat(),
+			neLng: ne.getLng(),
+			neLat: ne.getLat(),
+		};
+		const visibleRoutePoints = (route?.track_points ?? []).filter(
+			(point) =>
+				point.x >= viewportRectBounds.swLng &&
+				point.x <= viewportRectBounds.neLng &&
+				point.y >= viewportRectBounds.swLat &&
+				point.y <= viewportRectBounds.neLat,
+		);
+		const routeRect =
+			mode === "route"
+				? buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM)
+				: null;
+		// 경로 모드인데 화면에 경로가 없으면 검색할 대상이 없으므로 지도 화면으로 대신한다.
+		const effectiveMode: NearbySearchMode = routeRect ? "route" : "viewport";
+		const searchParams = routeRect
+			? `rect=${encodeURIComponent(routeRect)}`
+			: buildViewportRadiusParams(viewportRectBounds);
+		const cfg = NEARBY_CATEGORIES.find((c) => c.id === categoryId);
+		// 경로 모드는 DB 격자 캐시를 거쳐 카카오 호출을 아낀다. 캐시 API는 로그인이 필요하므로
+		// 읽기 전용 화면이나 라우트 ID가 없을 때는 예전처럼 카카오를 직접 부른다.
+		const routeCacheId = effectiveMode === "route" && !readOnly ? reviewContext.routeId : "";
 
-			setLoadingCategory(categoryId);
-			try {
-				if (cfg?.keywordQueries?.length) {
-					const seen = new Set<string>();
-					const merged: KakaoPlaceDoc[] = [];
-					for (const q of cfg.keywordQueries) {
-						const res = await fetch(
-							`/api/kakao/local/keyword?rect=${encodeURIComponent(rect)}&query=${encodeURIComponent(q)}`,
-						);
-						if (!res.ok) throw new Error("Failed to fetch");
-						const { documents } = (await res.json()) as {
-							documents: KakaoPlaceDoc[];
-						};
-						for (const d of documents) {
-							if (seen.has(d.id)) continue;
-							seen.add(d.id);
-							merged.push({
-								id: d.id,
-								place_name: d.place_name,
-								place_url: d.place_url ?? "",
-								address_name: d.address_name,
-								x: d.x,
-								y: d.y,
-							});
-						}
-					}
-					setNearbyDocs((prev) => ({ ...prev, [categoryId]: merged }));
-				} else {
-					const code = cfg?.categoryGroupCode ?? "AD5";
+		const applyNearbyDocs = (documents: KakaoPlaceDoc[]) => {
+			if (categoryId === "accommodation") {
+				setNearbyDocs((prev) => ({
+					...prev,
+					accommodation: classifyAccommodationDocuments(documents),
+				}));
+			} else {
+				setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+			}
+		};
+
+		setLoadingCategory(categoryId);
+		let totalCount = 0;
+		let fetchedCount = 0;
+		let isTruncated = false;
+		try {
+			if (routeCacheId) {
+				const params = new URLSearchParams({
+					category: categoryId,
+					swLng: String(viewportRectBounds.swLng),
+					swLat: String(viewportRectBounds.swLat),
+					neLng: String(viewportRectBounds.neLng),
+					neLat: String(viewportRectBounds.neLat),
+					maxDetourM: String(maxDetourOverrideM ?? nearbyMaxDetourM),
+				});
+				const res = await fetch(`/api/routes/${routeCacheId}/nearby?${params}`);
+				if (!res.ok) throw new Error("Failed to fetch");
+				const { documents, meta } = (await res.json()) as {
+					documents: KakaoPlaceDoc[];
+					meta: NearbyCacheMeta;
+				};
+				// 캐시 응답에는 카카오의 total_count가 없다. 캡에 걸렸는지만 알 수 있다.
+				totalCount = documents.length;
+				fetchedCount = documents.length;
+				isTruncated = meta.is_truncated;
+				applyNearbyDocs(documents);
+			} else if (cfg?.keywordQueries?.length) {
+				const seen = new Set<string>();
+				const merged: KakaoPlaceDoc[] = [];
+				for (const q of cfg.keywordQueries) {
 					const res = await fetch(
-						`/api/kakao/local/category?rect=${encodeURIComponent(rect)}&category_group_code=${encodeURIComponent(code)}`,
+						`/api/kakao/local/keyword?${searchParams}&query=${encodeURIComponent(q)}`,
 					);
 					if (!res.ok) throw new Error("Failed to fetch");
-					const { documents } = (await res.json()) as {
+					const { documents, meta } = (await res.json()) as {
 						documents: KakaoPlaceDoc[];
+						meta: NearbySearchMeta;
 					};
-					if (categoryId === "accommodation") {
-						setNearbyDocs((prev) => ({
-							...prev,
-							accommodation: classifyAccommodationDocuments(documents),
-						}));
-					} else {
-						setNearbyDocs((prev) => ({ ...prev, [categoryId]: documents }));
+					totalCount += meta.total_count;
+					fetchedCount += meta.fetched_count;
+					isTruncated = isTruncated || meta.is_truncated;
+					for (const d of documents) {
+						if (seen.has(d.id)) continue;
+						seen.add(d.id);
+						merged.push({
+							id: d.id,
+							place_name: d.place_name,
+							place_url: d.place_url ?? "",
+							address_name: d.address_name,
+							x: d.x,
+							y: d.y,
+						});
 					}
 				}
-				setNearbyCacheMeta((prev) => ({
-					...prev,
-					[categoryId]: { fetchedAt: Date.now(), isInvalidated: false },
-				}));
-				if (!readOnly) await fetchPlaceReviews();
-				setShowNearbyPlaces(true);
-			} catch {
-				if (categoryId === "accommodation") {
-					setNearbyDocs((prev) => ({ ...prev, accommodation: [] }));
-				} else {
-					setNearbyDocs((prev) => ({ ...prev, [categoryId]: [] }));
-				}
-				setNearbyCacheMeta((prev) => ({
-					...prev,
-					[categoryId]: { fetchedAt: null, isInvalidated: true },
-				}));
-			} finally {
-				setLoadingCategory(null);
+				setNearbyDocs((prev) => ({ ...prev, [categoryId]: merged }));
+			} else {
+				const code = cfg?.categoryGroupCode ?? "AD5";
+				const res = await fetch(
+					`/api/kakao/local/category?${searchParams}&category_group_code=${encodeURIComponent(code)}`,
+				);
+				if (!res.ok) throw new Error("Failed to fetch");
+				const { documents, meta } = (await res.json()) as {
+					documents: KakaoPlaceDoc[];
+					meta: NearbySearchMeta;
+				};
+				totalCount = meta.total_count;
+				fetchedCount = meta.fetched_count;
+				isTruncated = meta.is_truncated;
+				applyNearbyDocs(documents);
 			}
-		},
-		[fetchPlaceReviews, route?.track_points, readOnly],
-	);
+			setNearbyCacheMeta((prev) => ({
+				...prev,
+				[categoryId]: {
+					fetchedAt: Date.now(),
+					isInvalidated: false,
+					totalCount,
+					fetchedCount,
+					isTruncated,
+					mode: effectiveMode,
+				},
+			}));
+			setHasMapMovedSinceSearch(false);
+			if (!readOnly) await fetchPlaceReviews();
+			setShowNearbyPlaces(true);
+		} catch {
+			if (categoryId === "accommodation") {
+				setNearbyDocs((prev) => ({ ...prev, accommodation: [] }));
+			} else {
+				setNearbyDocs((prev) => ({ ...prev, [categoryId]: [] }));
+			}
+			setNearbyCacheMeta((prev) => ({
+				...prev,
+				[categoryId]: { ...EMPTY_NEARBY_CATEGORY_CACHE_META },
+			}));
+		} finally {
+			setLoadingCategory(null);
+		}
+	};
 
 	const handleNearbyVisibilityToggle = useCallback(() => {
 		if (showNearbyPlaces) {
@@ -2056,31 +2225,32 @@ export default function KakaoMap({
 		}
 	}, [isZoomRestricted, invalidateAllNearbyCache]);
 
-	const handleNearbyCategoryClick = useCallback(
-		(categoryId: NearbyCategoryId) => {
-			if (readOnly) return;
-			if (isNearbySearchDisabled) return;
-			const shouldReload = !isNearbyCacheUsable(categoryId);
-			if (categoryId === activeCategory) {
-				setShowSearchPopover((prev) => !prev);
-				if (!showNearbyPlaces) setShowNearbyPlaces(true);
-				if (shouldReload) void handleReloadNearby(categoryId);
-				return;
-			}
-			setActiveCategory(categoryId);
-			setShowSearchPopover(true);
+	const handleNearbyCategoryClick = (categoryId: NearbyCategoryId) => {
+		if (readOnly) return;
+		if (isNearbySearchDisabled) return;
+		const shouldReload = !isNearbyCacheUsable(categoryId);
+		if (categoryId === activeCategory) {
+			setShowSearchPopover((prev) => !prev);
 			if (!showNearbyPlaces) setShowNearbyPlaces(true);
-			if (shouldReload) void handleReloadNearby(categoryId);
-		},
-		[
-			readOnly,
-			isNearbySearchDisabled,
-			isNearbyCacheUsable,
-			activeCategory,
-			showNearbyPlaces,
-			handleReloadNearby,
-		],
-	);
+			if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
+			return;
+		}
+		setActiveCategory(categoryId);
+		setShowSearchPopover(true);
+		if (!showNearbyPlaces) setShowNearbyPlaces(true);
+		if (shouldReload) void handleReloadNearby(categoryId, nearbySearchMode);
+	};
+
+	const handleSearchModeChange = (mode: NearbySearchMode) => {
+		setNearbySearchMode(mode);
+		if (activeCategory) void handleReloadNearby(activeCategory, mode);
+	};
+
+	const handleMaxDetourChange = (maxDetourM: number) => {
+		setNearbyMaxDetourM(maxDetourM);
+		// 상태 반영을 기다리지 않도록 새 값을 직접 넘긴다.
+		if (activeCategory) void handleReloadNearby(activeCategory, nearbySearchMode, maxDetourM);
+	};
 
 	const handleAccommodationFilterChange = useCallback((category: AccommodationCategory) => {
 		setAccommodationFilters((prev) => ({
@@ -2387,6 +2557,25 @@ export default function KakaoMap({
 							</button>
 						)}
 					</div>
+					{!readOnly &&
+						showNearbyPlaces &&
+						activeCategory != null &&
+						hasMapMovedSinceSearch &&
+						!isNearbySearchDisabled && (
+							<div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
+								<button
+									type="button"
+									onClick={() => void handleReloadNearby(activeCategory, nearbySearchMode)}
+									disabled={loadingCategory != null}
+									className="inline-flex h-9 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-700 shadow-md hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+								>
+									<RefreshCw
+										className={loadingCategory != null ? "size-3.5 animate-spin" : "size-3.5"}
+									/>
+									이 지역 다시 검색
+								</button>
+							</div>
+						)}
 					{!readOnly && (
 						<div
 							ref={searchPopoverRef}
@@ -2450,7 +2639,83 @@ export default function KakaoMap({
 											</button>
 										</div>
 									</div>
-									<p className="mb-2 text-xs text-gray-500">현재 지도 범위 내 결과</p>
+									<div className="mb-2 flex rounded border border-gray-200 p-0.5">
+										{NEARBY_SEARCH_MODE_OPTIONS.map((option) => (
+											<button
+												key={option.mode}
+												type="button"
+												onClick={() => handleSearchModeChange(option.mode)}
+												disabled={loadingCategory != null}
+												aria-pressed={nearbySearchMode === option.mode}
+												className={
+													nearbySearchMode === option.mode
+														? "flex-1 rounded bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60"
+														: "flex-1 rounded px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+												}
+											>
+												{option.label}
+											</button>
+										))}
+									</div>
+									{nearbySearchMode === "route" && (
+										<div className="mb-2 flex items-center gap-1.5">
+											<span className="text-[11px] text-gray-500">경로에서</span>
+											<div className="flex flex-1 rounded border border-gray-200 p-0.5">
+												{NEARBY_MAX_DETOUR_OPTIONS.map((option) => (
+													<button
+														key={option.value}
+														type="button"
+														onClick={() => handleMaxDetourChange(option.value)}
+														disabled={loadingCategory != null}
+														aria-pressed={nearbyMaxDetourM === option.value}
+														className={
+															nearbyMaxDetourM === option.value
+																? "flex-1 rounded bg-gray-700 px-1.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60"
+																: "flex-1 rounded px-1.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+														}
+													>
+														{option.label}
+													</button>
+												))}
+											</div>
+											<span className="text-[11px] text-gray-500">이내</span>
+										</div>
+									)}
+									{nearbySearchMode === "route" &&
+										activeCategoryCacheMeta?.mode === "viewport" && (
+											<p className="mb-2 text-[11px] leading-snug text-gray-500">
+												화면에 경로가 없어서 지도 범위로 검색했어요.
+											</p>
+										)}
+									{activeCategoryCacheMeta?.isTruncated && (
+										<div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
+											{activeCategoryCacheMeta.mode === "route" ? (
+												<>
+													장소가 너무 밀집한 구간이라 일부를 못 가져왔어요. 지도 범위 모드로
+													확대해서 찾으면 나머지가 보입니다.
+												</>
+											) : (
+												<>
+													이 범위에 {activeCategoryCacheMeta.totalCount}개가 있는데{" "}
+													{activeCategoryCacheMeta.fetchedCount}개만 찾았어요. 너무 밀집한 지역이라
+													지도를 확대한 뒤 다시 검색해야 나머지가 보입니다.
+												</>
+											)}
+										</div>
+									)}
+									{isActiveCategoryEmptyOnRoute && (
+										<div className="mb-2 rounded border border-gray-200 bg-gray-50 px-2 py-2 text-[11px] leading-snug text-gray-600">
+											이 화면엔 경로 주변 {withSubjectJosa(activeCategoryLabel)} 없어요.
+											<button
+												type="button"
+												onClick={() => handleSearchModeChange("viewport")}
+												disabled={loadingCategory != null}
+												className="mt-1.5 w-full rounded bg-blue-500 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
+											>
+												이 지도 범위에서 찾기
+											</button>
+										</div>
+									)}
 									{activeCategory === "accommodation" ? (
 										<>
 											<div className="grid grid-cols-2 gap-2">
