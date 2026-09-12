@@ -311,6 +311,7 @@ type NearbySearchMeta = {
 	total_count: number;
 	fetched_count: number;
 	is_truncated: boolean;
+	request_count: number;
 };
 
 type AccommodationCategory = "motel" | "hotel" | "inn" | "pension" | "camping" | "other";
@@ -824,7 +825,9 @@ type NearbyCategoryCacheMeta = {
 	isInvalidated: boolean;
 	/** 카카오가 보고한 실제 검색 결과 수 (45개 캡 이전) */
 	totalCount: number;
-	/** 45개 캡에 걸려 일부만 받아왔는지 */
+	/** 실제로 받아온 수 */
+	fetchedCount: number;
+	/** 영역을 4분할해 다시 훑고도 여전히 캡에 걸렸는지 */
 	isTruncated: boolean;
 	/** 이 결과를 만들어낸 검색 방식 */
 	mode: NearbySearchMode;
@@ -836,6 +839,7 @@ const EMPTY_NEARBY_CATEGORY_CACHE_META: NearbyCategoryCacheMeta = {
 	fetchedAt: null,
 	isInvalidated: true,
 	totalCount: 0,
+	fetchedCount: 0,
 	isTruncated: false,
 	mode: "route",
 };
@@ -1610,6 +1614,7 @@ export default function KakaoMap({
 
 			setLoadingCategory(categoryId);
 			let totalCount = 0;
+			let fetchedCount = 0;
 			let isTruncated = false;
 			try {
 				if (cfg?.keywordQueries?.length) {
@@ -1625,6 +1630,7 @@ export default function KakaoMap({
 							meta: NearbySearchMeta;
 						};
 						totalCount += meta.total_count;
+						fetchedCount += meta.fetched_count;
 						isTruncated = isTruncated || meta.is_truncated;
 						for (const d of documents) {
 							if (seen.has(d.id)) continue;
@@ -1651,6 +1657,7 @@ export default function KakaoMap({
 						meta: NearbySearchMeta;
 					};
 					totalCount = meta.total_count;
+					fetchedCount = meta.fetched_count;
 					isTruncated = meta.is_truncated;
 					if (categoryId === "accommodation") {
 						setNearbyDocs((prev) => ({
@@ -1667,6 +1674,7 @@ export default function KakaoMap({
 						fetchedAt: Date.now(),
 						isInvalidated: false,
 						totalCount,
+						fetchedCount,
 						isTruncated,
 						mode: effectiveMode,
 					},
@@ -2201,13 +2209,10 @@ export default function KakaoMap({
 		],
 	);
 
-	const handleSearchModeChange = useCallback(
-		(mode: NearbySearchMode) => {
-			setNearbySearchMode(mode);
-			if (activeCategory) void handleReloadNearby(activeCategory, mode);
-		},
-		[activeCategory, handleReloadNearby],
-	);
+	const handleSearchModeChange = (mode: NearbySearchMode) => {
+		setNearbySearchMode(mode);
+		if (activeCategory) void handleReloadNearby(activeCategory, mode);
+	};
 
 	const handleAccommodationFilterChange = useCallback((category: AccommodationCategory) => {
 		setAccommodationFilters((prev) => ({
@@ -2622,8 +2627,9 @@ export default function KakaoMap({
 										)}
 									{activeCategoryCacheMeta?.isTruncated && (
 										<div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
-											이 범위에 {activeCategoryCacheMeta.totalCount}개가 있지만 카카오 검색은 45개까지만
-											돌려줍니다. 지도를 확대한 뒤 다시 검색하면 빠진 곳을 볼 수 있어요.
+											이 범위에 {activeCategoryCacheMeta.totalCount}개가 있는데{" "}
+											{activeCategoryCacheMeta.fetchedCount}개만 찾았어요. 너무 밀집한 지역이라 지도를
+											확대한 뒤 다시 검색해야 나머지가 보입니다.
 										</div>
 									)}
 									{isActiveCategoryEmptyOnRoute && (
