@@ -108,7 +108,7 @@ interface KakaoMapsAPI {
 	CustomOverlay: new (options: {
 		map: KakaoMapInstance;
 		position: unknown;
-		content: string;
+		content: string | HTMLElement;
 		yAnchor?: number;
 		xAnchor?: number;
 		zIndex?: number;
@@ -800,6 +800,14 @@ interface KakaoMapProps {
 	selectedDayNumber?: number | null;
 	/** 스테이지 종료 탐색 중 지도에서 확대·강조할 누적 거리 구간 */
 	explorationRangeKm?: { startKm: number; endKm: number } | null;
+	/** 종료 지점 비교 후보. 선택 상태는 목록·고도 프로필과 공유한다. */
+	explorationCandidates?: {
+		id: string;
+		label: string;
+		distanceKm: number;
+		selected?: boolean;
+	}[];
+	onExplorationCandidateSelect?: (candidateId: string) => void;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -898,6 +906,8 @@ export default function KakaoMap({
 	suspendPlanMapElevationSync = false,
 	selectedDayNumber = null,
 	explorationRangeKm = null,
+	explorationCandidates = [],
+	onExplorationCandidateSelect,
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
@@ -908,6 +918,7 @@ export default function KakaoMap({
 	const boundaryPreviewOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const courseBriefingOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const explorationPolylineRef = useRef<KakaoPolyline | null>(null);
+	const explorationCandidateOverlaysRef = useRef<KakaoCustomOverlay[]>([]);
 	const previousExplorationRangeRef = useRef<typeof explorationRangeKm>(null);
 	const onPositionChangeRef = useRef(onPositionChange);
 	const isPinnedRef = useRef(isPinned);
@@ -2246,6 +2257,65 @@ export default function KakaoMap({
 			explorationPolylineRef.current = null;
 		};
 	}, [explorationRangeKm, handleFitCourse, mapReady, route?.track_points]);
+
+	useEffect(() => {
+		for (const overlay of explorationCandidateOverlaysRef.current) overlay.setMap(null);
+		explorationCandidateOverlaysRef.current = [];
+
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		const maps = window.kakao?.maps;
+		if (!map || !maps || !mapReady || explorationCandidates.length === 0) return;
+		const points = trackPoints.filter((point): point is TrackPoint & { d: number } => point.d != null);
+		if (points.length < 2) return;
+
+		const overlays = explorationCandidates.flatMap((candidate) => {
+			const point = interpolateBoundaryPoint(points, candidate.distanceKm * 1000);
+			if (!point) return [];
+			const marker = document.createElement("button");
+			marker.type = "button";
+			marker.setAttribute(
+				"aria-label",
+				`${candidate.label} 후보 ${candidate.distanceKm.toFixed(0)}km`,
+			);
+			marker.textContent = candidate.label;
+			marker.style.cssText = candidate.selected
+				? "width:36px;height:36px;border:3px solid white;border-radius:9999px;background:#f97316;color:white;font:700 14px system-ui;box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer;"
+				: "width:28px;height:28px;border:2px solid #71717a;border-radius:9999px;background:white;color:#3f3f46;font:700 12px system-ui;box-shadow:0 2px 7px rgba(0,0,0,.25);cursor:pointer;";
+			const stopMapInteraction = (event: Event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				event.stopImmediatePropagation();
+			};
+			for (const eventName of ["pointerdown", "mousedown", "mouseup", "dblclick"]) {
+				marker.addEventListener(eventName, stopMapInteraction);
+			}
+			marker.addEventListener("click", (event) => {
+				stopMapInteraction(event);
+				onExplorationCandidateSelect?.(candidate.id);
+			});
+			return [
+				new maps.CustomOverlay({
+					map,
+					position: new maps.LatLng(point.y, point.x),
+					content: marker,
+					xAnchor: 0.5,
+					yAnchor: 0.5,
+					zIndex: candidate.selected ? 90 : 80,
+					clickable: true,
+				}),
+			];
+		});
+		explorationCandidateOverlaysRef.current = overlays;
+
+		return () => {
+			for (const overlay of overlays) overlay.setMap(null);
+		};
+	}, [
+		explorationCandidates,
+		mapReady,
+		onExplorationCandidateSelect,
+		trackPoints,
+	]);
 
 	const isZoomRestricted = zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION;
 	const isNearbySearchDisabled = isZoomRestricted || loadingCategory != null;

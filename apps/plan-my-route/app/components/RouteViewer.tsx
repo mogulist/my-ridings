@@ -840,6 +840,8 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		setStageEndSearchStatus("idle");
 		setStageEndSearchError(null);
 		setStageEndSearchResult(null);
+		setPositionIndex(null);
+		setIsPinned(false);
 		setPanelStageId(null);
 		setStageEditOpen(false);
 		setPlanListCollapsed(true);
@@ -872,6 +874,23 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 			nonce: (prev?.nonce ?? 0) + 1,
 		}));
 	}, []);
+	const stageEndExplorerVisualCandidates = useMemo(
+		() =>
+			stageEndExplorerCandidates.map((candidate) => ({
+				id: candidate.id,
+				label: candidate.label,
+				distanceKm: candidate.absoluteDistanceKm,
+				selected: candidate.id === selectedStageEndCandidateId,
+			})),
+		[stageEndExplorerCandidates, selectedStageEndCandidateId],
+	);
+	const handleMapStageEndCandidateSelect = useCallback(
+		(candidateId: string) => {
+			const candidate = stageEndExplorerCandidates.find((item) => item.id === candidateId);
+			if (candidate) handleStageEndCandidateSelect(candidate);
+		},
+		[handleStageEndCandidateSelect, stageEndExplorerCandidates],
+	);
 
 	const handleStageEndSearch = useCallback(async () => {
 		if (isGuestMode) {
@@ -1682,7 +1701,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 							activeStageId={activeStageId}
 							onStageHover={setActiveStageId}
 							highlightPosition={
-								stageEndBoundaryChartEditMode
+								stageEndBoundaryChartEditMode || stageEndExplorerOpen
 									? null
 									: positionIndex != null && route?.track_points?.[positionIndex]
 										? [route.track_points[positionIndex].y, route.track_points[positionIndex].x]
@@ -1707,6 +1726,8 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 										}
 									: null
 							}
+							explorationCandidates={stageEndExplorerVisualCandidates}
+							onExplorationCandidateSelect={handleMapStageEndCandidateSelect}
 							onDeleteOfficialSummit={handleDeleteOfficialSummit}
 							onCreatePlanPoi={handleCreatePlanPoi}
 							onUpdatePlanPoi={handleUpdatePlanPoi}
@@ -1720,7 +1741,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 									? pendingStageEdit.previewEndKm
 									: null
 							}
-							suspendPlanMapElevationSync={stageEndBoundaryChartEditMode}
+							suspendPlanMapElevationSync={
+								stageEndBoundaryChartEditMode || stageEndExplorerOpen
+							}
 						/>
 					)}
 				</section>
@@ -1758,12 +1781,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 									}
 								: null
 						}
-						explorationCandidates={stageEndExplorerCandidates.map((candidate) => ({
-							id: candidate.id,
-							label: candidate.label,
-							distanceKm: candidate.absoluteDistanceKm,
-							selected: candidate.id === selectedStageEndCandidateId,
-						}))}
+						explorationCandidates={stageEndExplorerVisualCandidates}
 						onStageEndBoundaryEditMapCenter={handleStageEndBoundaryEditMapCenter}
 						stageEndBoundaryChartEditMode={stageEndBoundaryChartEditMode}
 						onExitStageEndBoundaryChartEditMode={handleExitStageEndBoundaryChartEditMode}

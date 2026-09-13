@@ -553,7 +553,8 @@ export function useElevationProfileState({
 	const visibleCPs = cpMarkers.filter(
 		(cp) => cp.distanceKm >= visibleStart && cp.distanceKm <= visibleEnd,
 	);
-	const showStageMarkerNames = selectedDayNumber != null || climbProfile != null;
+	const showStageMarkerNames =
+		selectedDayNumber != null || climbProfile != null || explorationRangeKm != null;
 	// 서밋 마커는 항상 렌더링(클릭 가능하도록). 이름은 스테이지 선택/클라임 줌 시에만.
 	const visibleSummits = summitMarkers
 		.filter((summit) => summit.distanceKm >= visibleStart && summit.distanceKm <= visibleEnd)
