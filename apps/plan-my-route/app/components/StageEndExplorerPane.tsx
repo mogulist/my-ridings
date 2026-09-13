@@ -1,6 +1,7 @@
 "use client";
 
-import { BedDouble, ChevronLeft, MapPin, Store } from "lucide-react";
+import { BedDouble, ChevronLeft, LoaderCircle, MapPin, Search, Store } from "lucide-react";
+import type { StageEndDensityBin } from "@/lib/stage-end-search";
 
 export type StageEndCandidate = {
 	id: string;
@@ -9,7 +10,17 @@ export type StageEndCandidate = {
 	absoluteDistanceKm: number;
 	elevationGainM: number;
 	accommodationCount: number;
+	preferredAccommodationCount?: number;
 	convenienceCount: number;
+	areaName?: string;
+};
+
+export type StageEndSearchMeta = {
+	durationMs: number;
+	scannedCells: number;
+	servedCells: number;
+	kakaoRequests: number;
+	isTruncated: boolean;
 };
 
 type StageEndExplorerPaneProps = {
@@ -21,7 +32,12 @@ type StageEndExplorerPaneProps = {
 	maxSelectableDistanceKm: number;
 	candidates: StageEndCandidate[];
 	selectedCandidateId: string | null;
+	searchStatus: "idle" | "loading" | "success" | "error";
+	searchError: string | null;
+	densityBins: StageEndDensityBin[];
+	searchMeta: StageEndSearchMeta | null;
 	onRangeChange: (range: { minDistanceKm: number; maxDistanceKm: number }) => void;
+	onSearch: () => void;
 	onCandidateSelect: (candidate: StageEndCandidate) => void;
 	onClose: () => void;
 };
@@ -41,7 +57,12 @@ export function StageEndExplorerPane({
 	maxSelectableDistanceKm,
 	candidates,
 	selectedCandidateId,
+	searchStatus,
+	searchError,
+	densityBins,
+	searchMeta,
 	onRangeChange,
+	onSearch,
 	onCandidateSelect,
 	onClose,
 }: StageEndExplorerPaneProps) {
@@ -59,6 +80,8 @@ export function StageEndExplorerPane({
 		: 0;
 	const rangeStartPct = (minDistanceKm / rangeLimit) * 100;
 	const rangeWidthPct = ((maxDistanceKm - minDistanceKm) / rangeLimit) * 100;
+	const maxAccommodationDensity = Math.max(1, ...densityBins.map((bin) => bin.accommodationCount));
+	const maxConvenienceDensity = Math.max(1, ...densityBins.map((bin) => bin.convenienceCount));
 
 	const updateMin = (next: number) => {
 		onRangeChange({
@@ -228,13 +251,65 @@ export function StageEndExplorerPane({
 							<Store className="size-3.5" /> 편의점
 						</span>
 					</div>
+					<p className="mt-2 text-[10px] leading-4 text-zinc-400">
+						편의점은 CU·GS25·세븐일레븐만 24시간 운영 후보로 계산합니다.
+					</p>
 					<button
 						type="button"
-						disabled
-						className="mt-3 w-full rounded-md bg-zinc-200 px-3 py-2.5 text-sm font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+						onClick={onSearch}
+						disabled={searchStatus === "loading"}
+						className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-orange-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 disabled:cursor-wait disabled:bg-orange-300 dark:disabled:bg-orange-900"
 					>
-						1B에서 실제 장소를 찾습니다
+						{searchStatus === "loading" ? (
+							<LoaderCircle className="size-4 animate-spin" />
+						) : (
+							<Search className="size-4" />
+						)}
+						{searchStatus === "loading" ? "경로를 따라 찾는 중…" : "숙소·편의점 찾기"}
 					</button>
+					{searchError ? (
+						<p className="mt-2 text-[11px] leading-4 text-red-600 dark:text-red-400">
+							{searchError}
+						</p>
+					) : null}
+					{densityBins.length > 0 ? (
+						<div className="mt-4">
+							<div className="grid grid-cols-[42px_1fr] items-center gap-2">
+								<span className="text-[10px] text-blue-700 dark:text-blue-300">숙소</span>
+								<div className="flex h-3 items-end gap-px overflow-hidden rounded-sm bg-blue-50 dark:bg-blue-950/40">
+									{densityBins.map((bin) => (
+										<span
+											key={`accommodation-${bin.startKm}`}
+											title={`${bin.startKm.toFixed(0)}–${bin.endKm.toFixed(0)}km: 숙소 ${bin.accommodationCount}곳`}
+											className="h-full flex-1 bg-blue-500"
+											style={{
+												opacity: 0.08 + (bin.accommodationCount / maxAccommodationDensity) * 0.92,
+											}}
+										/>
+									))}
+								</div>
+								<span className="text-[10px] text-emerald-700 dark:text-emerald-300">편의점</span>
+								<div className="flex h-3 items-end gap-px overflow-hidden rounded-sm bg-emerald-50 dark:bg-emerald-950/40">
+									{densityBins.map((bin) => (
+										<span
+											key={`convenience-${bin.startKm}`}
+											title={`${bin.startKm.toFixed(0)}–${bin.endKm.toFixed(0)}km: 편의점 ${bin.convenienceCount}곳`}
+											className="h-full flex-1 bg-emerald-500"
+											style={{
+												opacity: 0.08 + (bin.convenienceCount / maxConvenienceDensity) * 0.92,
+											}}
+										/>
+									))}
+								</div>
+							</div>
+							{searchMeta ? (
+								<p className="mt-2 text-[10px] tabular-nums text-zinc-400">
+									{(searchMeta.durationMs / 1000).toFixed(1)}초 · 새 격자 {searchMeta.scannedCells}
+									개{searchMeta.isTruncated ? " · 일부 밀집 지역 누락 가능" : ""}
+								</p>
+							) : null}
+						</div>
+					) : null}
 				</section>
 
 				<section className="px-4 py-4">
@@ -242,8 +317,16 @@ export function StageEndExplorerPane({
 						<h3 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
 							종료 지점 비교
 						</h3>
-						<span className="text-[11px] text-zinc-400">예시 후보</span>
+						<span className="text-[11px] text-zinc-400">
+							{searchStatus === "success" ? `상위 ${candidates.length}곳` : "예시 후보"}
+						</span>
 					</div>
+					{searchStatus === "success" && candidates.length === 0 ? (
+						<p className="mt-2 rounded-md bg-zinc-50 px-3 py-3 text-xs leading-5 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+							숙소와 24시간 추정 편의점이 함께 있는 구간을 찾지 못했습니다. 범위를 옮겨 다시
+							찾아보세요.
+						</p>
+					) : null}
 					<div className="mt-2 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
 						{candidates.map((candidate) => {
 							const selected = candidate.id === selectedCandidateId;
@@ -268,6 +351,11 @@ export function StageEndExplorerPane({
 										{candidate.label}
 									</span>
 									<span className="min-w-0 flex-1">
+										{candidate.areaName ? (
+											<span className="mb-0.5 block text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
+												{candidate.areaName}
+											</span>
+										) : null}
 										<span className="flex items-center justify-between gap-2">
 											<span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
 												{candidate.distanceFromStageStartKm.toFixed(0)}km
@@ -279,7 +367,9 @@ export function StageEndExplorerPane({
 											{candidate.elevationGainM.toLocaleString("ko-KR")}m
 										</span>
 										<span className="mt-1 block text-[11px] text-zinc-400">
-											숙소·편의점 수는 실제 검색 단계에서 표시
+											{candidate.areaName
+												? `숙소 ${candidate.accommodationCount}곳 (호텔·모텔 ${candidate.preferredAccommodationCount ?? 0}) · 편의점 ${candidate.convenienceCount}곳`
+												: "숙소·편의점 수는 검색 후 표시"}
 										</span>
 									</span>
 								</button>

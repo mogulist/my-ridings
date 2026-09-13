@@ -5,6 +5,10 @@ import { cn } from "@my-ridings/ui";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { parseRouteOfficialSpecs } from "@/lib/route-official-specs";
+import type {
+	StageEndDensityBin,
+	StageEndSearchCandidate as StageEndSearchResultCandidate,
+} from "@/lib/stage-end-search";
 import {
 	computeCPsOnRoute,
 	computeSummitsOnRoute,
@@ -38,7 +42,11 @@ import {
 } from "./RouteOfficialSpecsDialog";
 import { StageDetailPanel } from "./StageDetailPanel";
 import { StageEditDialog } from "./StageEditDialog";
-import { type StageEndCandidate, StageEndExplorerPane } from "./StageEndExplorerPane";
+import {
+	type StageEndCandidate,
+	StageEndExplorerPane,
+	type StageEndSearchMeta,
+} from "./StageEndExplorerPane";
 
 export { computeCPsOnRoute, computeSummitsOnRoute };
 
@@ -65,6 +73,13 @@ type DbPlanSnapshot = {
 
 type DbRouteSnapshot = {
 	plans?: DbPlanSnapshot[];
+};
+
+type StageEndSearchResponse = {
+	densityBins: StageEndDensityBin[];
+	candidates: StageEndSearchResultCandidate[];
+	acceptedConvenienceCount: number;
+	meta: StageEndSearchMeta;
 };
 
 function normalizeDbStages(rawStages: DbStage[]): Stage[] {
@@ -139,6 +154,12 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	const [selectedStageEndCandidateId, setSelectedStageEndCandidateId] = useState<string | null>(
 		null,
 	);
+	const [stageEndSearchStatus, setStageEndSearchStatus] = useState<
+		"idle" | "loading" | "success" | "error"
+	>("idle");
+	const [stageEndSearchError, setStageEndSearchError] = useState<string | null>(null);
+	const [stageEndSearchResult, setStageEndSearchResult] =
+		useState<StageEndSearchResponse | null>(null);
 	const [panelStageId, setPanelStageId] = useState<string | null>(null);
 	const [focusPlanPoiRequest, setFocusPlanPoiRequest] = useState<{
 		poiId: string;
@@ -760,6 +781,23 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	const stageEndExplorerStartKm = totalRouteDistanceKm - unplannedDistanceKm;
 	const stageEndExplorerCandidates = useMemo<StageEndCandidate[]>(() => {
 		if (!stageEndExplorerOpen || !route?.track_points?.length) return [];
+		if (stageEndSearchResult) {
+			return stageEndSearchResult.candidates.map((candidate, index) => ({
+				id: `stage-end-result-${candidate.absoluteDistanceKm}`,
+				label: String.fromCharCode(65 + index),
+				distanceFromStageStartKm: candidate.absoluteDistanceKm - stageEndExplorerStartKm,
+				absoluteDistanceKm: candidate.absoluteDistanceKm,
+				elevationGainM: computeRawGainBetweenKm(
+					route.track_points,
+					stageEndExplorerStartKm,
+					candidate.absoluteDistanceKm,
+				),
+				accommodationCount: candidate.accommodationCount,
+				preferredAccommodationCount: candidate.preferredAccommodationCount,
+				convenienceCount: candidate.convenienceCount,
+				areaName: candidate.areaName,
+			}));
+		}
 		const { minDistanceKm, maxDistanceKm } = stageEndExplorerRange;
 		const width = maxDistanceKm - minDistanceKm;
 		const candidateDistances = [0.12, 0.5, 0.82].map(
@@ -789,6 +827,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		stageEndExplorerOpen,
 		stageEndExplorerRange,
 		stageEndExplorerStartKm,
+		stageEndSearchResult,
 		totalRouteDistanceKm,
 	]);
 
@@ -798,6 +837,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		const minDistanceKm = maxDistanceKm > 150 ? 150 : Math.max(0, maxDistanceKm - 100);
 		setStageEndExplorerRange({ minDistanceKm, maxDistanceKm });
 		setSelectedStageEndCandidateId(null);
+		setStageEndSearchStatus("idle");
+		setStageEndSearchError(null);
+		setStageEndSearchResult(null);
 		setPanelStageId(null);
 		setStageEditOpen(false);
 		setPlanListCollapsed(true);
@@ -807,12 +849,18 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	const closeStageEndExplorer = useCallback(() => {
 		setStageEndExplorerOpen(false);
 		setSelectedStageEndCandidateId(null);
+		setStageEndSearchStatus("idle");
+		setStageEndSearchError(null);
+		setStageEndSearchResult(null);
 	}, []);
 
 	const handleStageEndExplorerRangeChange = useCallback(
 		(range: { minDistanceKm: number; maxDistanceKm: number }) => {
 			setStageEndExplorerRange(range);
 			setSelectedStageEndCandidateId(null);
+			setStageEndSearchStatus("idle");
+			setStageEndSearchError(null);
+			setStageEndSearchResult(null);
 		},
 		[],
 	);
@@ -824,6 +872,39 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 			nonce: (prev?.nonce ?? 0) + 1,
 		}));
 	}, []);
+
+	const handleStageEndSearch = useCallback(async () => {
+		if (isGuestMode) {
+			setStageEndSearchStatus("error");
+			setStageEndSearchError("로그인한 경로에서 장소 검색을 사용할 수 있습니다.");
+			return;
+		}
+		const startKm = stageEndExplorerStartKm + stageEndExplorerRange.minDistanceKm;
+		const endKm = stageEndExplorerStartKm + stageEndExplorerRange.maxDistanceKm;
+		setStageEndSearchStatus("loading");
+		setStageEndSearchError(null);
+		setStageEndSearchResult(null);
+		setSelectedStageEndCandidateId(null);
+		try {
+			const params = new URLSearchParams({ startKm: String(startKm), endKm: String(endKm) });
+			const response = await fetch(`/api/routes/${routeId}/stage-end-search?${params}`);
+			const payload = await response.json();
+			if (!response.ok) {
+				throw new Error(payload.error ?? "선택 구간의 장소를 검색하지 못했습니다.");
+			}
+			setStageEndSearchResult(payload as StageEndSearchResponse);
+			setStageEndSearchStatus("success");
+		} catch (searchError) {
+			setStageEndSearchStatus("error");
+			setStageEndSearchError((searchError as Error).message);
+		}
+	}, [
+		isGuestMode,
+		routeId,
+		stageEndExplorerRange.maxDistanceKm,
+		stageEndExplorerRange.minDistanceKm,
+		stageEndExplorerStartKm,
+	]);
 
 	const routeOfficialSpecs = parseRouteOfficialSpecs(dbRoute);
 
@@ -1485,7 +1566,12 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 								maxSelectableDistanceKm={unplannedDistanceKm}
 								candidates={stageEndExplorerCandidates}
 								selectedCandidateId={selectedStageEndCandidateId}
+								searchStatus={stageEndSearchStatus}
+								searchError={stageEndSearchError}
+								densityBins={stageEndSearchResult?.densityBins ?? []}
+								searchMeta={stageEndSearchResult?.meta ?? null}
 								onRangeChange={handleStageEndExplorerRangeChange}
+								onSearch={handleStageEndSearch}
 								onCandidateSelect={handleStageEndCandidateSelect}
 								onClose={closeStageEndExplorer}
 							/>
