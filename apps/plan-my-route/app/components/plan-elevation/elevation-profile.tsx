@@ -66,9 +66,7 @@ export function ElevationProfile(props: ElevationProfileProps) {
 					summitName={state.focusedSummit?.name ?? "고개"}
 					profile={state.climbProfile}
 					onDismiss={
-						!state.disablePinAndHoverScrub
-							? () => state.setClimbZoomSummitKey(null)
-							: undefined
+						!state.disablePinAndHoverScrub ? () => state.setClimbZoomSummitKey(null) : undefined
 					}
 					climbRange={state.effectiveClimbRange}
 					onClimbRangeChange={state.setClimbRange}
@@ -104,6 +102,8 @@ export function ElevationProfile(props: ElevationProfileProps) {
 					hasStages={state.hasStages}
 					stageKeys={state.stageKeys}
 					selectedDayNumber={state.selectedDayNumber}
+					explorationRangeKm={props.explorationRangeKm}
+					explorationCandidates={props.explorationCandidates}
 					visibleStart={state.visibleStart}
 					visibleEnd={state.visibleEnd}
 					climbProfile={state.climbProfile}

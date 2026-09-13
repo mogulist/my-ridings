@@ -34,10 +34,23 @@ export type ElevationScheduleMarkerFocus =
 			categoryLabel: string;
 	  };
 
-export type PreviewStageStats = { distanceKm: number; elevationGain: number; elevationLoss: number };
+export type PreviewStageStats = {
+	distanceKm: number;
+	elevationGain: number;
+	elevationLoss: number;
+};
 
 export type ElevationProfileProps = {
 	trackPoints: TrackPoint[];
+	/** 스테이지 종료 탐색 중 차트가 집중해서 보여줄 누적 거리 구간 */
+	explorationRangeKm?: { startKm: number; endKm: number } | null;
+	/** 탐색 중 비교하는 가상 종료 지점 */
+	explorationCandidates?: {
+		id: string;
+		label: string;
+		distanceKm: number;
+		selected?: boolean;
+	}[];
 	positionIndex?: number | null;
 	onPositionChange?: (index: number | null) => void;
 	stages?: Stage[];

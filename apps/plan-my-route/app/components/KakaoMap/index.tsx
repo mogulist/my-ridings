@@ -9,20 +9,20 @@ import {
 	useCourseBriefingProgress,
 } from "@/app/components/plan-elevation/course-briefing";
 import { MAP_VISUAL_PALETTE } from "@/app/constants/mapVisualPalette";
-import type { PlanPoiRow } from "@/app/types/planPoi";
-import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import {
 	normalizeReviewState,
 	type PlaceReviewRow,
 	type ReviewState,
 } from "@/app/types/placeReview";
+import type { PlanPoiRow } from "@/app/types/planPoi";
+import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
-import { PlanPoiDialog } from "./PlanPoiDialog";
 import type { NearbyCategoryId } from "./nearbyCategoryId";
 import { getNearbyCategoryMarkerImage } from "./nearbyCategoryMarkerImages";
 import { nearbyCategoryIcon } from "./nearbyCategoryToolbarIcons";
+import { PlanPoiDialog } from "./PlanPoiDialog";
 import {
 	lucideIconNodeForOfficialSummit,
 	lucideIconNodeForPlanPoiType,
@@ -90,7 +90,7 @@ interface KakaoMapsAPI {
 		strokeColor?: string;
 		strokeOpacity?: number;
 		strokeStyle?: string;
-	}) => void;
+	}) => KakaoPolyline;
 	Marker: new (options: {
 		map: KakaoMapInstance;
 		position: unknown;
@@ -145,6 +145,10 @@ interface KakaoMarker {
 	setMap?: (map: unknown) => void;
 	setZIndex?: (zIndex: number) => void;
 	setOpacity?: (opacity: number) => void;
+}
+
+interface KakaoPolyline {
+	setMap?: (map: unknown) => void;
 }
 
 interface KakaoInfoWindow {
@@ -543,8 +547,7 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 	const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
 	const titleStyle =
 		"font-size:13px;font-weight:700;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;";
-	const typeStyle =
-		"margin-top:4px;font-size:11px;font-weight:600;color:#1976d2;";
+	const typeStyle = "margin-top:4px;font-size:11px;font-weight:600;color:#1976d2;";
 	const hasMemo = Boolean(row.memo?.trim());
 	const memoInner = hasMemo ? esc(row.memo ?? "") : esc("메모 없음");
 	const memoColor = hasMemo ? "#374151" : "#9ca3af";
@@ -559,15 +562,11 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
 }
 
-function buildOfficialSummitInfoWindowHtml(
-	row: SummitCatalogRow,
-	showActions: boolean,
-): string {
+function buildOfficialSummitInfoWindowHtml(row: SummitCatalogRow, showActions: boolean): string {
 	const esc = (s: string) => s.replace(/</g, "&lt;").replace(/"/g, "&quot;");
 	const titleStyle =
 		"font-size:13px;font-weight:700;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;";
-	const badgeStyle =
-		`margin-top:4px;font-size:11px;font-weight:600;color:${MAP_VISUAL_PALETTE.elevationCpStroke};`;
+	const badgeStyle = `margin-top:4px;font-size:11px;font-weight:600;color:${MAP_VISUAL_PALETTE.elevationCpStroke};`;
 	const elevationText =
 		row.elevation_m == null ? "고도 정보 없음" : `고도 ${Math.round(row.elevation_m)}m`;
 	const detailStyle =
@@ -799,6 +798,8 @@ interface KakaoMapProps {
 	suspendPlanMapElevationSync?: boolean;
 	/** 고도/일별 칩과 동일한 코스 브리핑 구간 (null = 전체) */
 	selectedDayNumber?: number | null;
+	/** 스테이지 종료 탐색 중 지도에서 확대·강조할 누적 거리 구간 */
+	explorationRangeKm?: { startKm: number; endKm: number } | null;
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────
@@ -896,6 +897,7 @@ export default function KakaoMap({
 	boundaryPreviewEndKm = null,
 	suspendPlanMapElevationSync = false,
 	selectedDayNumber = null,
+	explorationRangeKm = null,
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
@@ -905,6 +907,8 @@ export default function KakaoMap({
 	const highlightOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const boundaryPreviewOverlayRef = useRef<KakaoCustomOverlay | null>(null);
 	const courseBriefingOverlayRef = useRef<KakaoCustomOverlay | null>(null);
+	const explorationPolylineRef = useRef<KakaoPolyline | null>(null);
+	const previousExplorationRangeRef = useRef<typeof explorationRangeKm>(null);
 	const onPositionChangeRef = useRef(onPositionChange);
 	const isPinnedRef = useRef(isPinned);
 	const onPinRef = useRef(onPin);
@@ -917,8 +921,11 @@ export default function KakaoMap({
 	const [mapReady, setMapReady] = useState(false);
 	const [zoomLevel, setZoomLevel] = useState<number | null>(null);
 	const [isCourseBriefingActive, setIsCourseBriefingActive] = useState(false);
-	const { progress: courseBriefingProgress, replay: replayCourseBriefing, isComplete: isCourseBriefingComplete } =
-		useCourseBriefingProgress(isCourseBriefingActive);
+	const {
+		progress: courseBriefingProgress,
+		replay: replayCourseBriefing,
+		isComplete: isCourseBriefingComplete,
+	} = useCourseBriefingProgress(isCourseBriefingActive);
 	const isCourseBriefingPlaying = isCourseBriefingActive && !isCourseBriefingComplete;
 	const [showMapControls, setShowMapControls] = useState(true);
 	const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
@@ -1255,12 +1262,7 @@ export default function KakaoMap({
 				setHasMapMovedSinceSearch(true);
 			});
 		},
-		[
-			stages,
-			activeStageId,
-			invalidateAllNearbyCache,
-			promptAndCreateOfficialSummit,
-		],
+		[stages, activeStageId, invalidateAllNearbyCache, promptAndCreateOfficialSummit],
 	);
 
 	const handleScriptLoad = useCallback(() => {
@@ -1396,10 +1398,10 @@ export default function KakaoMap({
 						image: getPoiRoundedRectMarkerImage(
 							maps,
 							lucideIconNodeForOfficialSummit(),
-						MAP_VISUAL_PALETTE.elevationCpStroke,
-						"stroke",
-						0.82,
-						1.8,
+							MAP_VISUAL_PALETTE.elevationCpStroke,
+							"stroke",
+							0.82,
+							1.8,
 						),
 					});
 					marker.setZIndex?.(SUMMIT_MARKER_Z_INDEX);
@@ -1497,16 +1499,10 @@ export default function KakaoMap({
 			const routeTrackPoints = route?.track_points ?? [];
 			const nextMarkers: KakaoMarker[] = [];
 			for (const doc of docs) {
-				const state = normalizeReviewState(
-					reviewsMap[doc.id]?.review_state ?? "neutral",
-				);
+				const state = normalizeReviewState(reviewsMap[doc.id]?.review_state ?? "neutral");
 				const docTooltipOptions = {
 					...tooltipAddPoiOptions,
-					routeDetourLabel: buildRouteDetourLabel(
-						routeTrackPoints,
-						Number(doc.y),
-						Number(doc.x),
-					),
+					routeDetourLabel: buildRouteDetourLabel(routeTrackPoints, Number(doc.y), Number(doc.x)),
 				};
 				const marker = new maps.Marker({
 					map: map as never,
@@ -1620,9 +1616,7 @@ export default function KakaoMap({
 				point.y <= viewportRectBounds.neLat,
 		);
 		const routeRect =
-			mode === "route"
-				? buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM)
-				: null;
+			mode === "route" ? buildBufferedRouteRect(visibleRoutePoints, NEARBY_SEARCH_BUFFER_KM) : null;
 		// 경로 모드인데 화면에 경로가 없으면 검색할 대상이 없으므로 지도 화면으로 대신한다.
 		const effectiveMode: NearbySearchMode = routeRect ? "route" : "viewport";
 		const searchParams = routeRect
@@ -2007,8 +2001,7 @@ export default function KakaoMap({
 		const map = mapInstanceRef.current as KakaoMapInstance | null;
 		const maps = window.kakao?.maps;
 		if (!map || !maps || !mapReady || !route) return;
-		const showOfficialSummitsOnMap =
-			zoomLevel != null && zoomLevel <= ZOOM_LIMIT_SUMMIT;
+		const showOfficialSummitsOnMap = zoomLevel != null && zoomLevel <= ZOOM_LIMIT_SUMMIT;
 		renderMergedPoiMarkers(
 			map,
 			maps,
@@ -2214,6 +2207,46 @@ export default function KakaoMap({
 		map.setBounds(bounds);
 	}, [computeBounds]);
 
+	useEffect(() => {
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		const maps = window.kakao?.maps;
+		explorationPolylineRef.current?.setMap?.(null);
+		explorationPolylineRef.current = null;
+
+		if (!explorationRangeKm) {
+			if (previousExplorationRangeRef.current && mapReady) handleFitCourse();
+			previousExplorationRangeRef.current = null;
+			return;
+		}
+		previousExplorationRangeRef.current = explorationRangeKm;
+		if (!map || !maps || !mapReady || !route?.track_points?.length) return;
+
+		const focusedPoints = slicePointsByDistance(
+			route.track_points,
+			explorationRangeKm.startKm,
+			explorationRangeKm.endKm,
+		);
+		if (focusedPoints.length < 2) return;
+
+		const path = focusedPoints.map((point) => new maps.LatLng(point.y, point.x));
+		explorationPolylineRef.current = new maps.Polyline({
+			map,
+			path,
+			strokeWeight: 7,
+			strokeColor: "#f97316",
+			strokeOpacity: 0.95,
+			strokeStyle: "solid",
+		});
+		const bounds = new maps.LatLngBounds();
+		for (const latlng of path) bounds.extend(latlng);
+		map.setBounds(bounds);
+
+		return () => {
+			explorationPolylineRef.current?.setMap?.(null);
+			explorationPolylineRef.current = null;
+		};
+	}, [explorationRangeKm, handleFitCourse, mapReady, route?.track_points]);
+
 	const isZoomRestricted = zoomLevel == null || zoomLevel > ZOOM_LIMIT_ACCOMMODATION;
 	const isNearbySearchDisabled = isZoomRestricted || loadingCategory != null;
 
@@ -2335,11 +2368,7 @@ export default function KakaoMap({
 					if (pos) {
 						isSummitAddModeRef.current = false;
 						setIsSummitAddMode(false);
-						void promptAndCreateOfficialSummitRef.current(
-							pos[0],
-							pos[1],
-							trackPointsRef.current,
-						);
+						void promptAndCreateOfficialSummitRef.current(pos[0], pos[1], trackPointsRef.current);
 					}
 				} else {
 					onUnpinRef.current?.();
@@ -2513,7 +2542,8 @@ export default function KakaoMap({
 	const lastTrackPoint = trackPoints[trackPoints.length - 1];
 	const courseTotalKm = lastTrackPoint?.d != null ? lastTrackPoint.d / 1000 : 0;
 	const courseBriefingRange = resolveBriefingRange(stages, selectedDayNumber, courseTotalKm);
-	const canPlayCourse = trackPoints.length > 0 && courseBriefingRange.endKm > courseBriefingRange.startKm;
+	const canPlayCourse =
+		trackPoints.length > 0 && courseBriefingRange.endKm > courseBriefingRange.startKm;
 	const showSummitButton = !readOnly && Boolean(onCreateOfficialSummit);
 
 	const handlePlayCourseBriefing = () => {
@@ -2681,12 +2711,11 @@ export default function KakaoMap({
 											<span className="text-[11px] text-gray-500">이내</span>
 										</div>
 									)}
-									{nearbySearchMode === "route" &&
-										activeCategoryCacheMeta?.mode === "viewport" && (
-											<p className="mb-2 text-[11px] leading-snug text-gray-500">
-												화면에 경로가 없어서 지도 범위로 검색했어요.
-											</p>
-										)}
+									{nearbySearchMode === "route" && activeCategoryCacheMeta?.mode === "viewport" && (
+										<p className="mb-2 text-[11px] leading-snug text-gray-500">
+											화면에 경로가 없어서 지도 범위로 검색했어요.
+										</p>
+									)}
 									{activeCategoryCacheMeta?.isTruncated && (
 										<div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] leading-snug text-amber-800">
 											{activeCategoryCacheMeta.mode === "route" ? (
@@ -2847,34 +2876,30 @@ export default function KakaoMap({
 					onSave={onCreatePlanPoi}
 				/>
 			)}
-			{mapReady &&
-				editPoiDialog.open &&
-				editPoiDialog.row &&
-				onUpdatePlanPoi &&
-				!readOnly && (
-					<PlanPoiDialog
-						key={`poi-edit-${editPoiDialog.row.id}`}
-						mode="edit"
-						open={editPoiDialog.open}
-						onOpenChange={(open) =>
-							setEditPoiDialog((s) => ({
-								open,
-								row: open ? s.row : null,
-							}))
+			{mapReady && editPoiDialog.open && editPoiDialog.row && onUpdatePlanPoi && !readOnly && (
+				<PlanPoiDialog
+					key={`poi-edit-${editPoiDialog.row.id}`}
+					mode="edit"
+					open={editPoiDialog.open}
+					onOpenChange={(open) =>
+						setEditPoiDialog((s) => ({
+							open,
+							row: open ? s.row : null,
+						}))
+					}
+					row={editPoiDialog.row}
+					onSave={async (payload) => {
+						const id = editPoiDialog.row?.id;
+						if (!id) return null;
+						const updated = await onUpdatePlanPoi(id, payload);
+						if (updated) {
+							openInfoWindowRef.current?.close();
+							openInfoWindowRef.current = null;
 						}
-						row={editPoiDialog.row}
-						onSave={async (payload) => {
-							const id = editPoiDialog.row?.id;
-							if (!id) return null;
-							const updated = await onUpdatePlanPoi(id, payload);
-							if (updated) {
-								openInfoWindowRef.current?.close();
-								openInfoWindowRef.current = null;
-							}
-							return updated;
-						}}
-					/>
-				)}
+						return updated;
+					}}
+				/>
+			)}
 		</div>
 	);
 }

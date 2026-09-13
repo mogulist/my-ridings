@@ -1,37 +1,37 @@
-import type { CSSProperties } from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ClimbProfile, ClimbStartMode } from "@my-ridings/plan-geometry";
 import {
 	computeGradientSegments,
 	detectClimb,
 	lookupGradientAtKm,
 } from "@my-ridings/plan-geometry";
-import type { ClimbProfile, ClimbStartMode } from "@my-ridings/plan-geometry";
+import type { CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Stage } from "@/app/types/plan";
-import { buildChartData } from "@/lib/enrich-chart-data";
 import type { ChartDatum } from "@/lib/enrich-chart-data";
+import { buildChartData } from "@/lib/enrich-chart-data";
 import { summitMarkerKey } from "@/lib/rwgps-plan-markers";
 import { buildStageKeys, computeVisibleRange } from "./chart-data-helpers";
 import {
 	CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM,
+	chartOverlayXFromRechartsCoordinate,
 	DEFAULT_AREA_CHART_MARGIN,
 	ELEVATION_HOVER_TOOLTIP_TOP_BELOW_LABEL_BAND_PX,
-	GRADIENT_STRIP_BOTTOM_MARGIN,
-	STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX,
-	STAGE_END_BOUNDARY_MENU_W_PX,
-	chartOverlayXFromRechartsCoordinate,
 	elevationChartAnchorXFromKm,
 	elevationChartTooltipPlacementFromAnchorX,
 	elevationYAxisReservedWidth,
+	GRADIENT_STRIP_BOTTOM_MARGIN,
 	getChartPlotBox,
 	nearestChartRowEleByKm,
+	STAGE_END_BOUNDARY_MENU_GAP_FROM_ANCHOR_PX,
+	STAGE_END_BOUNDARY_MENU_W_PX,
 	scheduleSelectionTooltipPlotStyle,
 } from "./chart-layout";
 import {
 	CP_SUMMIT_OVERLAP_TRACK_INDEX_TOLERANCE,
-	LABEL_STAGGER_ROW_HEIGHT_PX,
 	computeLabelRows,
-	resolveLabelStaggerMaxRow,
+	LABEL_STAGGER_ROW_HEIGHT_PX,
 	type LabelRow,
+	resolveLabelStaggerMaxRow,
 } from "./marker-labels";
 import {
 	hasOpenDialogElement,
@@ -46,6 +46,7 @@ type TooltipState = {
 
 export function useElevationProfileState({
 	trackPoints,
+	explorationRangeKm = null,
 	positionIndex = null,
 	onPositionChange,
 	stages = [],
@@ -112,15 +113,13 @@ export function useElevationProfileState({
 	const hasStages = stages.length > 0;
 	const totalKm = rawChartData.length > 0 ? rawChartData[rawChartData.length - 1].distanceKm : 0;
 
-	const gradientSegments = useMemo(
-		() => computeGradientSegments(trackPoints),
-		[trackPoints],
-	);
+	const gradientSegments = useMemo(() => computeGradientSegments(trackPoints), [trackPoints]);
 
 	const computedVisibleRange = useMemo(() => {
+		if (explorationRangeKm) return explorationRangeKm;
 		if (!hasStages || selectedDayNumber == null) return { startKm: 0, endKm: totalKm };
 		return computeVisibleRange(stages, selectedDayNumber, totalKm);
-	}, [hasStages, selectedDayNumber, stages, totalKm]);
+	}, [explorationRangeKm, hasStages, selectedDayNumber, stages, totalKm]);
 
 	// 스케줄 탭에서 서밋 포커스 시 자동 줌, 일반 모드에서는 클릭으로 설정
 	const effectiveClimbZoomSummitKey = useMemo(() => {
@@ -131,8 +130,7 @@ export function useElevationProfileState({
 	}, [disablePinAndHoverScrub, scheduleMarkerFocus, climbZoomSummitKey]);
 
 	const focusedSummit = useMemo(
-		() =>
-			summitMarkers.find((s) => summitMarkerKey(s) === effectiveClimbZoomSummitKey) ?? null,
+		() => summitMarkers.find((s) => summitMarkerKey(s) === effectiveClimbZoomSummitKey) ?? null,
 		[effectiveClimbZoomSummitKey, summitMarkers],
 	);
 
@@ -223,8 +221,14 @@ export function useElevationProfileState({
 			const base =
 				stageEndBoundaryChartEditMode && totalKm > 0
 					? {
-							startKm: Math.max(0, boundaryKmForVisibleZoom - CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM),
-							endKm: Math.min(totalKm, boundaryKmForVisibleZoom + CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM),
+							startKm: Math.max(
+								0,
+								boundaryKmForVisibleZoom - CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM,
+							),
+							endKm: Math.min(
+								totalKm,
+								boundaryKmForVisibleZoom + CHART_STAGE_END_BOUNDARY_EDIT_HALF_WIDTH_KM,
+							),
 						}
 					: computedVisibleRange;
 			frozenVisibleRangeRef.current = base;
@@ -269,7 +273,7 @@ export function useElevationProfileState({
 				Number.POSITIVE_INFINITY,
 			);
 		}
-		if (selectedDayNumber == null) return rawChartData;
+		if (selectedDayNumber == null && explorationRangeKm == null) return rawChartData;
 		return rawChartData.filter((d) => d.distanceKm >= visibleStart && d.distanceKm <= visibleEnd);
 	}, [
 		rawChartData,
@@ -279,6 +283,7 @@ export function useElevationProfileState({
 		selectedDayNumber,
 		climbProfile,
 		summitFocusZoomRange,
+		explorationRangeKm,
 		visibleStart,
 		visibleEnd,
 	]);
@@ -301,9 +306,7 @@ export function useElevationProfileState({
 			km = cp.distanceKm;
 			fallbackEle = Math.round(cp.elevation);
 		} else if (f.kind === "summit") {
-			const s = summitMarkers.find(
-				(x) => x.id === f.id && x.passIndex === f.passIndex,
-			);
+			const s = summitMarkers.find((x) => x.id === f.id && x.passIndex === f.passIndex);
 			if (!s) return null;
 			km = s.distanceKm;
 			fallbackEle = Math.round(s.elevation);
@@ -361,10 +364,7 @@ export function useElevationProfileState({
 			lastHoverIndexRef.current = index;
 			const coordX = state.activeCoordinate?.x;
 			if (typeof coordX === "number" && Number.isFinite(coordX)) {
-				const overlayX = chartOverlayXFromRechartsCoordinate(
-					coordX,
-					chartContainerRef.current,
-				);
+				const overlayX = chartOverlayXFromRechartsCoordinate(coordX, chartContainerRef.current);
 				scrubAnchorXPxRef.current = overlayX;
 				setScrubAnchorXPx(overlayX);
 			}
@@ -595,9 +595,7 @@ export function useElevationProfileState({
 	/** 선택된 스테이지 구간 내(경계 포함)인지 — 인접 스테이지 오버랩 구간의 라벨은 숨김 */
 	const isWithinSelectedStage = (distanceKm: number) => {
 		if (selectedStage == null) return true;
-		return (
-			distanceKm >= selectedStage.startDistanceKm && distanceKm <= selectedStage.endDistanceKm
-		);
+		return distanceKm >= selectedStage.startDistanceKm && distanceKm <= selectedStage.endDistanceKm;
 	};
 
 	const cpNameVisible = (cp: CPOnRoute) => {
@@ -611,11 +609,7 @@ export function useElevationProfileState({
 		if (!isWithinSelectedStage(summit.distanceKm)) return false;
 		if (!useSingleScheduleLabel) return showStageMarkerNames;
 		const f = scheduleMarkerFocus;
-		return (
-			f?.kind === "summit" &&
-			f.id === summit.id &&
-			f.passIndex === summit.passIndex
-		);
+		return f?.kind === "summit" && f.id === summit.id && f.passIndex === summit.passIndex;
 	};
 
 	const planPoiFocusInView =
