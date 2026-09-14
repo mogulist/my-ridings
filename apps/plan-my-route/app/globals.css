@@ -1,6 +1,41 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap");
 @import "../../../packages/design-tokens/src/tokens.css";
 @import "tailwindcss";
+
+.stage-explorer-range {
+	height: 28px;
+	appearance: none;
+	pointer-events: none;
+	background: transparent;
+}
+
+.stage-explorer-range::-webkit-slider-thumb {
+	width: 18px;
+	height: 18px;
+	appearance: none;
+	pointer-events: auto;
+	cursor: grab;
+	border: 3px solid white;
+	border-radius: 9999px;
+	background: #f97316;
+	box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+.stage-explorer-range::-moz-range-thumb {
+	width: 14px;
+	height: 14px;
+	pointer-events: auto;
+	cursor: grab;
+	border: 3px solid white;
+	border-radius: 9999px;
+	background: #f97316;
+	box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+.stage-explorer-range:focus-visible::-webkit-slider-thumb {
+	outline: 2px solid #f97316;
+	outline-offset: 2px;
+}
 @source "../../../packages/ui/src";
 
 @import "../../../packages/design-tokens/src/theme.css";

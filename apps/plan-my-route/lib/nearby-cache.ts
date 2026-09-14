@@ -101,12 +101,17 @@ export async function fetchNearbyAlongRoute(options: {
 	categoryId: string;
 	bounds: ViewportBounds;
 	maxDetourM?: number;
+	/** 지도 탐색은 기본 8셀, 명시적인 구간 탐색은 더 많은 셀을 한 번에 처리할 수 있다. */
+	maxCells?: number;
 	kakaoApiKey: string;
 }): Promise<NearbyResult> {
 	const { trackPoints, categoryId, bounds, kakaoApiKey } = options;
 	const maxDetourM = options.maxDetourM ?? DEFAULT_MAX_DETOUR_M;
 
-	const cells = routeCellsInViewport(trackPoints, bounds).slice(0, MAX_CELLS_PER_REQUEST);
+	const cells = routeCellsInViewport(trackPoints, bounds).slice(
+		0,
+		options.maxCells ?? MAX_CELLS_PER_REQUEST,
+	);
 	if (cells.length === 0) {
 		return {
 			documents: [],
