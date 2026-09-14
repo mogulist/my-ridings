@@ -595,6 +595,7 @@ export function useElevationProfileState({
 
 	/** 선택된 스테이지 구간 내(경계 포함)인지 — 인접 스테이지 오버랩 구간의 라벨은 숨김 */
 	const isWithinSelectedStage = (distanceKm: number) => {
+		if (explorationRangeKm != null) return true;
 		if (selectedStage == null) return true;
 		return distanceKm >= selectedStage.startDistanceKm && distanceKm <= selectedStage.endDistanceKm;
 	};

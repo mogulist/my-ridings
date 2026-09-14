@@ -1,6 +1,14 @@
 "use client";
 
-import { BedDouble, ChevronLeft, LoaderCircle, MapPin, Search, Store } from "lucide-react";
+import {
+	BedDouble,
+	Check,
+	ChevronLeft,
+	LoaderCircle,
+	MapPin,
+	Search,
+	Store,
+} from "lucide-react";
 import type { StageEndDensityBin } from "@/lib/stage-end-search";
 
 export type StageEndCandidate = {
@@ -39,6 +47,7 @@ type StageEndExplorerPaneProps = {
 	onRangeChange: (range: { minDistanceKm: number; maxDistanceKm: number }) => void;
 	onSearch: () => void;
 	onCandidateSelect: (candidate: StageEndCandidate) => void;
+	onCandidateConfirm: (candidate: StageEndCandidate) => void;
 	onClose: () => void;
 };
 
@@ -64,6 +73,7 @@ export function StageEndExplorerPane({
 	onRangeChange,
 	onSearch,
 	onCandidateSelect,
+	onCandidateConfirm,
 	onClose,
 }: StageEndExplorerPaneProps) {
 	const rangeLimit = Math.max(
@@ -82,6 +92,10 @@ export function StageEndExplorerPane({
 	const rangeWidthPct = ((maxDistanceKm - minDistanceKm) / rangeLimit) * 100;
 	const maxAccommodationDensity = Math.max(1, ...densityBins.map((bin) => bin.accommodationCount));
 	const maxConvenienceDensity = Math.max(1, ...densityBins.map((bin) => bin.convenienceCount));
+	const selectedCandidate =
+		searchStatus === "success"
+			? candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null
+			: null;
 
 	const updateMin = (next: number) => {
 		onRangeChange({
@@ -114,7 +128,7 @@ export function StageEndExplorerPane({
 					<ChevronLeft className="size-3.5" />
 					스테이지 목록
 				</button>
-				<div className="flex items-start justify-between gap-3">
+				<div>
 					<div>
 						<h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
 							{dayNumber}일차 종료 지점 탐색
@@ -123,9 +137,6 @@ export function StageEndExplorerPane({
 							경로 {stageStartKm.toFixed(0)}km 지점에서 출발
 						</p>
 					</div>
-					<span className="rounded-full bg-orange-100 px-2 py-1 text-[11px] font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300">
-						UI 미리보기
-					</span>
 				</div>
 			</header>
 
@@ -378,6 +389,30 @@ export function StageEndExplorerPane({
 					</div>
 				</section>
 			</div>
+			{selectedCandidate ? (
+				<footer className="shrink-0 border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+					<div className="mb-2 flex items-center justify-between gap-3 text-xs">
+						<span className="min-w-0 truncate font-medium text-zinc-600 dark:text-zinc-300">
+							{selectedCandidate.label}
+							{selectedCandidate.areaName ? ` · ${selectedCandidate.areaName}` : ""}
+						</span>
+						<span className="shrink-0 font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+							{selectedCandidate.distanceFromStageStartKm.toFixed(0)}km
+						</span>
+					</div>
+					<button
+						type="button"
+						onClick={() => onCandidateConfirm(selectedCandidate)}
+						className="flex w-full items-center justify-center gap-2 rounded-md bg-orange-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
+					>
+						<Check className="size-4" />
+						{dayNumber}일차 종료로 결정
+					</button>
+					<p className="mt-1.5 text-center text-[10px] text-zinc-400">
+						결정한 뒤에도 스테이지 거리를 다시 조정할 수 있습니다.
+					</p>
+				</footer>
+			) : null}
 		</div>
 	);
 }

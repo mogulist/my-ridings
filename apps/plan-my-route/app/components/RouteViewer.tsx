@@ -1,6 +1,10 @@
 "use client";
 
-import { type SnappedPlanPoi, stageDayLabel } from "@my-ridings/plan-geometry";
+import {
+	computeTrackElevationGainLoss,
+	type SnappedPlanPoi,
+	stageDayLabel,
+} from "@my-ridings/plan-geometry";
 import { cn } from "@my-ridings/ui";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
@@ -27,7 +31,6 @@ import type { SummitCatalogRow } from "../types/summitCatalog";
 import { DeleteConfirmationDialog, PendingDeletionDialog } from "./DeleteStageDialog";
 import {
 	type CPOnRoute,
-	computeRawGainBetweenKm,
 	ElevationProfile,
 	type SummitOnRoute,
 	type TrackPoint,
@@ -787,11 +790,12 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 				label: String.fromCharCode(65 + index),
 				distanceFromStageStartKm: candidate.absoluteDistanceKm - stageEndExplorerStartKm,
 				absoluteDistanceKm: candidate.absoluteDistanceKm,
-				elevationGainM: computeRawGainBetweenKm(
+				elevationGainM: computeTrackElevationGainLoss(
 					route.track_points,
 					stageEndExplorerStartKm,
 					candidate.absoluteDistanceKm,
-				),
+					calibratedThreshold,
+				).gain,
 				accommodationCount: candidate.accommodationCount,
 				preferredAccommodationCount: candidate.preferredAccommodationCount,
 				convenienceCount: candidate.convenienceCount,
@@ -813,16 +817,18 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 				label: String.fromCharCode(65 + index),
 				distanceFromStageStartKm,
 				absoluteDistanceKm,
-				elevationGainM: computeRawGainBetweenKm(
+				elevationGainM: computeTrackElevationGainLoss(
 					route.track_points,
 					stageEndExplorerStartKm,
 					absoluteDistanceKm,
-				),
+					calibratedThreshold,
+				).gain,
 				accommodationCount: 0,
 				convenienceCount: 0,
 			};
 		});
 	}, [
+		calibratedThreshold,
 		route?.track_points,
 		stageEndExplorerOpen,
 		stageEndExplorerRange,
@@ -842,6 +848,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		setStageEndSearchResult(null);
 		setPositionIndex(null);
 		setIsPinned(false);
+		setSelectedDayNumber(null);
 		setPanelStageId(null);
 		setStageEditOpen(false);
 		setPlanListCollapsed(true);
@@ -890,6 +897,23 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 			if (candidate) handleStageEndCandidateSelect(candidate);
 		},
 		[handleStageEndCandidateSelect, stageEndExplorerCandidates],
+	);
+	const handleStageEndCandidateConfirm = useCallback(
+		(candidate: StageEndCandidate) => {
+			if (stageEndSearchStatus !== "success") return;
+			const distanceKm = Math.round(candidate.distanceFromStageStartKm * 10) / 10;
+			if (distanceKm <= 0 || distanceKm > unplannedDistanceKm) return;
+			addStage(distanceKm);
+			setSelectedDayNumber(stages.length + 1);
+			closeStageEndExplorer();
+		},
+		[
+			addStage,
+			closeStageEndExplorer,
+			stageEndSearchStatus,
+			stages.length,
+			unplannedDistanceKm,
+		],
 	);
 
 	const handleStageEndSearch = useCallback(async () => {
@@ -1592,6 +1616,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 								onRangeChange={handleStageEndExplorerRangeChange}
 								onSearch={handleStageEndSearch}
 								onCandidateSelect={handleStageEndCandidateSelect}
+								onCandidateConfirm={handleStageEndCandidateConfirm}
 								onClose={closeStageEndExplorer}
 							/>
 						) : (
