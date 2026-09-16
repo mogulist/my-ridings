@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS public.plan (
     name text NOT NULL,
     sort_order integer,
     start_date date,
+    review_note text,
     public_share_token uuid,
     shared_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
@@ -237,6 +238,7 @@ GRANT ALL ON TABLE public.summit_catalog TO service_role;
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS memo text;
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS start_name text;
 -- ALTER TABLE public.stage ADD COLUMN IF NOT EXISTS end_name text;
+-- ALTER TABLE public.plan ADD COLUMN IF NOT EXISTS review_note text;
 -- If route table already exists without cover columns, run:
 -- ALTER TABLE public.route ADD COLUMN IF NOT EXISTS cover_image_thumb_url text;
 -- ALTER TABLE public.route ADD COLUMN IF NOT EXISTS cover_image_hero_url text;

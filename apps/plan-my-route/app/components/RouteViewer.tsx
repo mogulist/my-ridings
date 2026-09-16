@@ -9,15 +9,15 @@ import { cn } from "@my-ridings/ui";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { parseRouteOfficialSpecs } from "@/lib/route-official-specs";
-import type {
-	StageEndDensityBin,
-	StageEndSearchCandidate as StageEndSearchResultCandidate,
-} from "@/lib/stage-end-search";
 import {
 	computeCPsOnRoute,
 	computeSummitsOnRoute,
 	summitQueryStringForTrackPoints,
 } from "@/lib/rwgps-plan-markers";
+import type {
+	StageEndDensityBin,
+	StageEndSearchCandidate as StageEndSearchResultCandidate,
+} from "@/lib/stage-end-search";
 import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import { usePlanStages } from "../hooks/usePlanStages";
 import type { GuestPlan } from "../types/guestPlan";
@@ -161,8 +161,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		"idle" | "loading" | "success" | "error"
 	>("idle");
 	const [stageEndSearchError, setStageEndSearchError] = useState<string | null>(null);
-	const [stageEndSearchResult, setStageEndSearchResult] =
-		useState<StageEndSearchResponse | null>(null);
+	const [stageEndSearchResult, setStageEndSearchResult] = useState<StageEndSearchResponse | null>(
+		null,
+	);
 	const [panelStageId, setPanelStageId] = useState<string | null>(null);
 	const [focusPlanPoiRequest, setFocusPlanPoiRequest] = useState<{
 		poiId: string;
@@ -907,13 +908,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 			setSelectedDayNumber(stages.length + 1);
 			closeStageEndExplorer();
 		},
-		[
-			addStage,
-			closeStageEndExplorer,
-			stageEndSearchStatus,
-			stages.length,
-			unplannedDistanceKm,
-		],
+		[addStage, closeStageEndExplorer, stageEndSearchStatus, stages.length, unplannedDistanceKm],
 	);
 
 	const handleStageEndSearch = useCallback(async () => {
@@ -1197,6 +1192,34 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 			} catch (err) {
 				console.error(err);
 				alert("플랜 이름 수정에 실패했습니다.");
+			} finally {
+				setPlanActionInProgress(null);
+			}
+		},
+		[isGuestMode],
+	);
+
+	const handleUpdatePlanReviewNote = useCallback(
+		async (planId: string, reviewNote: string | null) => {
+			setPlanActionInProgress("update");
+			try {
+				if (!isGuestMode) {
+					const res = await fetch(`/api/plans/${planId}`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ review_note: reviewNote }),
+					});
+					if (!res.ok) throw new Error("Plan review note update failed");
+				}
+				setDbRoute((prev: any) => ({
+					...prev,
+					plans: (prev?.plans ?? []).map((plan: any) =>
+						plan.id === planId ? { ...plan, review_note: reviewNote } : plan,
+					),
+				}));
+			} catch (err) {
+				console.error(err);
+				alert("검토 메모 저장에 실패했습니다.");
 			} finally {
 				setPlanActionInProgress(null);
 			}
@@ -1587,6 +1610,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 							onSelectPlan={handlePlanSelect}
 							onUpdatePlan={handleUpdatePlan}
 							onUpdatePlanStartDate={handleUpdatePlanStartDateByPlanId}
+							onUpdatePlanReviewNote={handleUpdatePlanReviewNote}
 							onDuplicatePlan={handleDuplicatePlan}
 							onDeletePlan={handleDeletePlan}
 							onTogglePlanShare={handleTogglePlanShare}
@@ -1766,9 +1790,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 									? pendingStageEdit.previewEndKm
 									: null
 							}
-							suspendPlanMapElevationSync={
-								stageEndBoundaryChartEditMode || stageEndExplorerOpen
-							}
+							suspendPlanMapElevationSync={stageEndBoundaryChartEditMode || stageEndExplorerOpen}
 						/>
 					)}
 				</section>

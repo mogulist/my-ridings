@@ -1,6 +1,6 @@
 import { HeaderButton } from "@react-navigation/elements";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigation } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
@@ -81,7 +81,9 @@ export default function RoutePlansScreen() {
 	const movePlan = useCallback(
 		async (fromIndex: number, toIndex: number) => {
 			if (!normalizedRouteId || isSavingOrder) return;
-			const previous = queryClient.getQueryData<RouteDetail>(routeDetailQueryKey(normalizedRouteId));
+			const previous = queryClient.getQueryData<RouteDetail>(
+				routeDetailQueryKey(normalizedRouteId),
+			);
 			if (!previous) return;
 			const nextPlans = moveItem(previous.plans, fromIndex, toIndex).map((plan, index) => ({
 				...plan,
@@ -95,7 +97,10 @@ export default function RoutePlansScreen() {
 			});
 			setIsSavingOrder(true);
 			try {
-				await updateRoutePlanOrder(normalizedRouteId, nextPlans.map((plan) => plan.id));
+				await updateRoutePlanOrder(
+					normalizedRouteId,
+					nextPlans.map((plan) => plan.id),
+				);
 				setSnackbarMessage("플랜 우선순위를 저장했습니다.");
 			} catch (moveError) {
 				queryClient.setQueryData(routeDetailQueryKey(normalizedRouteId), previous);
@@ -112,7 +117,9 @@ export default function RoutePlansScreen() {
 	const selectRidePlan = useCallback(
 		async (planId: string) => {
 			if (!normalizedRouteId || selectingPlanId) return;
-			const previous = queryClient.getQueryData<RouteDetail>(routeDetailQueryKey(normalizedRouteId));
+			const previous = queryClient.getQueryData<RouteDetail>(
+				routeDetailQueryKey(normalizedRouteId),
+			);
 			if (!previous || previous.selected_plan_id === planId) return;
 
 			queryClient.setQueryData<RouteDetail>(routeDetailQueryKey(normalizedRouteId), {
@@ -140,14 +147,10 @@ export default function RoutePlansScreen() {
 	const requestRidePlanSelection = useCallback(
 		(planId: string, planName: string) => {
 			if (data?.selected_plan_id && data.selected_plan_id !== planId) {
-				Alert.alert(
-					"라이딩 플랜 변경",
-					`현재 선택을 “${planName}” 플랜으로 변경할까요?`,
-					[
-						{ text: "취소", style: "cancel" },
-						{ text: "변경", onPress: () => void selectRidePlan(planId) },
-					],
-				);
+				Alert.alert("라이딩 플랜 변경", `현재 선택을 “${planName}” 플랜으로 변경할까요?`, [
+					{ text: "취소", style: "cancel" },
+					{ text: "변경", onPress: () => void selectRidePlan(planId) },
+				]);
 				return;
 			}
 			void selectRidePlan(planId);
@@ -227,6 +230,12 @@ export default function RoutePlansScreen() {
 										onSelectRidePlan={() => requestRidePlanSelection(plan.id, plan.name)}
 										onMoveUp={() => void movePlan(index, index - 1)}
 										onMoveDown={() => void movePlan(index, index + 1)}
+										onEditReviewNote={() =>
+											router.push({
+												pathname: "/routes/[routeId]/plans/[planId]/note",
+												params: { routeId: normalizedRouteId ?? "", planId: plan.id },
+											})
+										}
 										onPress={() =>
 											router.push({
 												pathname: "/routes/[routeId]/plans/[planId]/schedule",

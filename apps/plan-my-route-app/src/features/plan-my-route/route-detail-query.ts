@@ -4,6 +4,7 @@ import {
 	fetchRouteDetail,
 	patchPlanOrder,
 	patchSelectedPlan,
+	putPlanReviewNote,
 	type RouteDetail,
 } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
@@ -40,6 +41,17 @@ export async function updateRouteSelectedPlan(
 	const accessToken = await getStoredAccessToken();
 	if (!accessToken) throw new Error("UNAUTHENTICATED");
 	await patchSelectedPlan(apiOrigin, accessToken, routeId, planId);
+}
+
+export async function updatePlanReviewNote(
+	planId: string,
+	reviewNote: string | null,
+): Promise<void> {
+	const apiOrigin = getApiOrigin();
+	if (!apiOrigin) throw new Error("EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.");
+	const accessToken = await getStoredAccessToken();
+	if (!accessToken) throw new Error("UNAUTHENTICATED");
+	await putPlanReviewNote(apiOrigin, accessToken, planId, reviewNote);
 }
 
 export function seedRouteDetailCache(

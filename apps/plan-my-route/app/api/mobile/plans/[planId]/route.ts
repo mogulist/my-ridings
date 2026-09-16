@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { parseNumber, SUMMIT_SELECT_COLS } from "@/app/api/summits/shared";
 import type { PlanPoiRow } from "@/app/types/planPoi";
-import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import { normalizeScheduleMarkerMemos } from "@/app/types/scheduleMarkerMemos";
+import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import {
 	computeCPsOnRoute,
@@ -50,6 +50,7 @@ type PlanRowWithNested = {
 	id: string;
 	name: string;
 	start_date: string | null;
+	review_note: string | null;
 	public_share_token: string;
 	shared_at: string | null;
 	schedule_marker_memos?: unknown;
@@ -80,8 +81,7 @@ async function fetchOfficialSummitsForTrack(
 	const minLng = parseNumber(sp.get("minLng"));
 	const maxLng = parseNumber(sp.get("maxLng"));
 	const limitRaw = parseNumber(sp.get("limit"));
-	const limit =
-		limitRaw == null ? 1200 : Math.min(Math.max(Math.round(limitRaw), 1), 2000);
+	const limit = limitRaw == null ? 1200 : Math.min(Math.max(Math.round(limitRaw), 1), 2000);
 
 	let query = supabaseAdmin
 		.from("summit_catalog")
@@ -101,10 +101,7 @@ async function fetchOfficialSummitsForTrack(
 	return (data ?? []) as SummitCatalogRow[];
 }
 
-export async function GET(
-	request: Request,
-	{ params }: { params: Promise<{ planId: string }> },
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ planId: string }> }) {
 	const user = await getAuthenticatedUser(request);
 	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -122,6 +119,7 @@ export async function GET(
 			id,
 			name,
 			start_date,
+			review_note,
 			public_share_token,
 			shared_at,
 			schedule_marker_memos,
@@ -168,9 +166,7 @@ export async function GET(
 	let planPois: PlanPoiRow[] = [];
 	const { data: poiRows, error: poiError } = await supabaseAdmin
 		.from("plan_poi")
-		.select(
-			"id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, created_at, updated_at",
-		)
+		.select("id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, created_at, updated_at")
 		.eq("plan_id", row.id)
 		.order("created_at", { ascending: true });
 
@@ -195,8 +191,7 @@ export async function GET(
 	const rwgpsRoute = unwrapRideWithGpsRoute(rwgpsRaw);
 
 	const fullTrack = rwgpsRoute?.track_points ?? [];
-	const officialSummits =
-		fullTrack.length > 0 ? await fetchOfficialSummitsForTrack(fullTrack) : [];
+	const officialSummits = fullTrack.length > 0 ? await fetchOfficialSummitsForTrack(fullTrack) : [];
 
 	const cpMarkers =
 		rwgpsRoute && fullTrack.length > 0
@@ -204,9 +199,7 @@ export async function GET(
 			: [];
 
 	const summitMarkers =
-		rwgpsRoute && fullTrack.length > 0
-			? computeSummitsOnRoute(officialSummits, fullTrack)
-			: [];
+		rwgpsRoute && fullTrack.length > 0 ? computeSummitsOnRoute(officialSummits, fullTrack) : [];
 
 	const knownRouteElevationGainM = rwgpsRoute
 		? Number(rwgpsRoute.elevation_gain) || Number(routeRow.elevation_gain) || 0
@@ -220,6 +213,7 @@ export async function GET(
 			id: row.id,
 			name: row.name,
 			start_date: row.start_date,
+			review_note: row.review_note,
 			public_share_token: row.public_share_token,
 			shared_at: row.shared_at,
 			...(scheduleMarkerMemos != null ? { schedule_marker_memos: scheduleMarkerMemos } : {}),

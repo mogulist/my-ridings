@@ -18,6 +18,7 @@ type DbPlan = {
 	name: string;
 	sort_order: number | null;
 	start_date: string | null;
+	review_note: string | null;
 	created_at?: string;
 	stages?: DbStage[];
 };
@@ -37,10 +38,7 @@ type RouteWithPlans = {
 	plans?: DbPlan[];
 };
 
-export async function POST(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const user = await getAuthenticatedUser(request);
 	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -63,6 +61,7 @@ export async function POST(
 					name,
 					sort_order,
 					start_date,
+					review_note,
 					created_at,
 					stages:stage (
 						title,
@@ -133,6 +132,7 @@ export async function POST(
 					name: plan.name,
 					sort_order: plan.sort_order,
 					start_date: plan.start_date,
+					review_note: plan.review_note,
 				})
 				.select()
 				.single();
@@ -153,9 +153,7 @@ export async function POST(
 
 			if (stagesToInsert.length === 0) continue;
 
-			const { error: insertStagesError } = await supabaseAdmin
-				.from("stage")
-				.insert(stagesToInsert);
+			const { error: insertStagesError } = await supabaseAdmin.from("stage").insert(stagesToInsert);
 			if (insertStagesError) throw insertStagesError;
 		}
 

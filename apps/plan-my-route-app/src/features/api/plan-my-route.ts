@@ -14,6 +14,7 @@ export type PlanItem = {
 	name: string;
 	created_at?: string;
 	start_date?: string | null;
+	review_note?: string | null;
 	sort_order?: number | null;
 	is_favorite?: boolean;
 	isFavorite?: boolean;
@@ -48,6 +49,7 @@ export type MobilePlanSummary = {
 	id: string;
 	name: string;
 	start_date: string | null;
+	review_note: string | null;
 	public_share_token: string;
 	shared_at: string | null;
 	schedule_marker_memos?: Record<string, string> | null;
@@ -190,6 +192,32 @@ export const patchSelectedPlan = async (
 	});
 	if (!response.ok) {
 		let message = `PATCH /api/routes/${routeId}/selected-plan failed (${response.status})`;
+		try {
+			const body = (await response.json()) as { error?: string };
+			if (body.error?.trim()) message = body.error.trim();
+		} catch {
+			// 응답 본문이 JSON이 아니면 상태 코드 메시지를 사용한다.
+		}
+		throw new Error(message);
+	}
+};
+
+export const putPlanReviewNote = async (
+	apiOrigin: string,
+	accessToken: string,
+	planId: string,
+	reviewNote: string | null,
+): Promise<void> => {
+	const response = await fetch(`${apiOrigin}/api/plans/${planId}`, {
+		method: "PUT",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ review_note: reviewNote }),
+	});
+	if (!response.ok) {
+		let message = `PUT /api/plans/${planId} failed (${response.status})`;
 		try {
 			const body = (await response.json()) as { error?: string };
 			if (body.error?.trim()) message = body.error.trim();
