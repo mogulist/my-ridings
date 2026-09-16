@@ -6,6 +6,7 @@ import { AppState, type AppStateStatus, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { SUPABASE } from "@/features/auth/supabase-client";
+import { rememberActiveRideRoute } from "@/features/navigation/active-ride";
 import { rememberLastReviewRoute } from "@/features/navigation/last-review-route";
 import { assertPlanGeometryPackageLinked } from "@/features/plan/workspace-package-check";
 
@@ -65,6 +66,7 @@ function ReviewRouteTracker() {
 
 	useEffect(() => {
 		void rememberLastReviewRoute(pathname);
+		void rememberActiveRideRoute(pathname);
 	}, [pathname]);
 
 	return null;

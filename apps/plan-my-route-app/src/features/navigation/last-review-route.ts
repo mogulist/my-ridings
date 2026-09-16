@@ -12,6 +12,10 @@ export async function rememberLastReviewRoute(pathname: string): Promise<void> {
 	await AsyncStorage.setItem(STORAGE_KEY, route);
 }
 
+export async function forgetLastReviewRoute(): Promise<void> {
+	await AsyncStorage.removeItem(STORAGE_KEY);
+}
+
 /** 앱 프로세스마다 한 번만 복원하여 사용자가 홈으로 이동한 뒤 되돌아가는 것을 막는다. */
 export async function claimLastReviewRoute(): Promise<string | null> {
 	if (didClaimInitialRoute) return null;
