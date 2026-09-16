@@ -1,11 +1,12 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { useEffect, useState } from "react";
 import { AppState, type AppStateStatus, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { SUPABASE } from "@/features/auth/supabase-client";
+import { rememberLastReviewRoute } from "@/features/navigation/last-review-route";
 import { assertPlanGeometryPackageLinked } from "@/features/plan/workspace-package-check";
 
 assertPlanGeometryPackageLinked();
@@ -45,6 +46,7 @@ export default function TabLayout() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+				<ReviewRouteTracker />
 				<AnimatedSplashOverlay />
 				<Stack screenOptions={{ headerShown: false }}>
 					<Stack.Screen name="(tabs)" />
@@ -55,4 +57,14 @@ export default function TabLayout() {
 			</ThemeProvider>
 		</QueryClientProvider>
 	);
+}
+
+function ReviewRouteTracker() {
+	const pathname = usePathname();
+
+	useEffect(() => {
+		void rememberLastReviewRoute(pathname);
+	}, [pathname]);
+
+	return null;
 }
