@@ -17,6 +17,7 @@ export type PlanItem = {
 	is_favorite?: boolean;
 	isFavorite?: boolean;
 	favorite?: boolean;
+	stages?: MobilePlanStageRow[];
 };
 
 export type RouteDetail = RouteItem & {

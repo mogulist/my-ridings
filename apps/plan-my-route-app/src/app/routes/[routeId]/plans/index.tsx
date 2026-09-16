@@ -9,11 +9,9 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { HeaderBack } from "@/components/ui/header-back";
 import { AppIcon } from "@/components/ui/icon";
-import { ListItemCard } from "@/components/ui/list-item-card";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
-import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import { formatPlanMetaDate } from "@/features/plan-my-route/format-plan-meta-date";
+import { PlanComparisonCard } from "@/features/plan-my-route/components/plan-comparison-card";
 import { useRouteDetailQuery } from "@/features/plan-my-route/route-detail-query";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -111,39 +109,18 @@ export default function RoutePlansScreen() {
 				) : (
 					<View style={styles.list}>
 						{plans.map((plan, index) => {
-							const meta = formatPlanMetaDate(plan.start_date, plan.created_at);
 							return (
 								<Animated.View key={plan.id} entering={FadeInDown.delay(index * 40).duration(280)}>
-									<ListItemCard>
-										<PressableHaptic
-											style={styles.cardPressable}
-											onPress={() =>
-												router.push({
-													pathname: "/routes/[routeId]/plans/[planId]/schedule",
-													params: { routeId: normalizedRouteId ?? "", planId: plan.id },
-												})
-											}
-										>
-											<View style={styles.planCardInner}>
-												<View style={styles.cardText}>
-													<ThemedText selectable type="smallBold">
-														{plan.name}
-													</ThemedText>
-													{meta ? (
-														<ThemedText
-															selectable
-															type="caption"
-															themeColor="textSecondary"
-															style={styles.metaDate}
-														>
-															{meta}
-														</ThemedText>
-													) : null}
-												</View>
-												<AppIcon name="chevron.right" size={18} tintColor={theme.textSecondary} />
-											</View>
-										</PressableHaptic>
-									</ListItemCard>
+									<PlanComparisonCard
+										plan={plan}
+										rank={index + 1}
+										onPress={() =>
+											router.push({
+												pathname: "/routes/[routeId]/plans/[planId]/schedule",
+												params: { routeId: normalizedRouteId ?? "", planId: plan.id },
+											})
+										}
+									/>
 								</Animated.View>
 							);
 						})}
@@ -198,26 +175,5 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		gap: Spacing.three,
-	},
-	cardPressable: {
-		flex: 1,
-		minWidth: 0,
-	},
-	planCardInner: {
-		flex: 1,
-		flexDirection: "row",
-		alignItems: "center",
-		paddingLeft: Spacing.three,
-		paddingRight: Spacing.two,
-		paddingVertical: Spacing.three,
-		gap: Spacing.two,
-	},
-	cardText: {
-		flex: 1,
-		minWidth: 0,
-		gap: Spacing.half,
-	},
-	metaDate: {
-		fontVariant: ["tabular-nums"],
 	},
 });
