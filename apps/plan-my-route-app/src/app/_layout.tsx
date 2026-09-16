@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname } from "expo-router";
 import { useEffect, useState } from "react";
 import { AppState, type AppStateStatus, useColorScheme } from "react-native";
@@ -26,6 +26,7 @@ export default function TabLayout() {
 
 	useEffect(() => {
 		const handleAppStateChange = (state: AppStateStatus) => {
+			focusManager.setFocused(state === "active");
 			if (state === "active") {
 				SUPABASE.auth.startAutoRefresh();
 				return;

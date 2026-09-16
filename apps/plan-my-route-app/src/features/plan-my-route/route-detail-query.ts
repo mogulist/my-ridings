@@ -2,7 +2,7 @@ import { type QueryClient, type UseQueryResult, useQuery } from "@tanstack/react
 
 import { fetchRouteDetail, type RouteDetail } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
-import { INFINITE_CACHE_OPTIONS } from "@/lib/query-cache";
+import { REVIEW_QUERY_OPTIONS } from "@/lib/query-cache";
 
 export const routeDetailQueryKey = (routeId: string) => ["routeDetail", routeId] as const;
 
@@ -33,6 +33,6 @@ export function useRouteDetailQuery(
 		queryKey: routeId ? routeDetailQueryKey(routeId) : ["routeDetail", "__none__"],
 		queryFn: () => fetchRouteDetailQuery(routeId!),
 		enabled: Boolean(routeId),
-		...INFINITE_CACHE_OPTIONS,
+		...REVIEW_QUERY_OPTIONS,
 	});
 }

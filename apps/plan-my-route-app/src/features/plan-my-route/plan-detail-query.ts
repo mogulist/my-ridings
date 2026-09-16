@@ -2,7 +2,7 @@ import { type QueryClient, type UseQueryResult, useQuery } from "@tanstack/react
 
 import { fetchPlanDetail, type PlanDetail } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
-import { INFINITE_CACHE_OPTIONS } from "@/lib/query-cache";
+import { REVIEW_QUERY_OPTIONS } from "@/lib/query-cache";
 
 export const planDetailQueryKey = (planId: string) => ["planDetail", planId] as const;
 
@@ -31,6 +31,6 @@ export function usePlanDetailQuery(planId: string | undefined): UseQueryResult<P
 		queryKey: planId ? planDetailQueryKey(planId) : ["planDetail", "__none__"],
 		queryFn: () => fetchPlanDetailQuery(planId!),
 		enabled: Boolean(planId),
-		...INFINITE_CACHE_OPTIONS,
+		...REVIEW_QUERY_OPTIONS,
 	});
 }
