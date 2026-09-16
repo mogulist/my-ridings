@@ -14,9 +14,25 @@ type PlanComparisonCardProps = {
 	plan: PlanItem;
 	rank: number;
 	onPress: () => void;
+	isEditingOrder?: boolean;
+	canMoveUp?: boolean;
+	canMoveDown?: boolean;
+	reorderDisabled?: boolean;
+	onMoveUp?: () => void;
+	onMoveDown?: () => void;
 };
 
-export function PlanComparisonCard({ plan, rank, onPress }: PlanComparisonCardProps) {
+export function PlanComparisonCard({
+	plan,
+	rank,
+	onPress,
+	isEditingOrder = false,
+	canMoveUp = false,
+	canMoveDown = false,
+	reorderDisabled = false,
+	onMoveUp,
+	onMoveDown,
+}: PlanComparisonCardProps) {
 	const theme = useTheme();
 	const summary = buildPlanComparisonSummary(plan);
 	const meta = formatPlanMetaDate(plan.start_date, plan.created_at);
@@ -27,6 +43,7 @@ export function PlanComparisonCard({ plan, rank, onPress }: PlanComparisonCardPr
 			<PressableHaptic
 				accessibilityLabel={`${accessibilitySummary}, 플랜 일정 열기`}
 				style={styles.pressable}
+				disabled={isEditingOrder}
 				onPress={onPress}
 			>
 				<View style={styles.content}>
@@ -46,7 +63,9 @@ export function PlanComparisonCard({ plan, rank, onPress }: PlanComparisonCardPr
 								</ThemedText>
 							) : null}
 						</View>
-						<AppIcon name="chevron.right" size={16} tintColor={theme.textSecondary} />
+						{isEditingOrder ? null : (
+							<AppIcon name="chevron.right" size={16} tintColor={theme.textSecondary} />
+						)}
 					</View>
 
 					<View style={[styles.metrics, { borderColor: theme.separator }]}>
@@ -89,7 +108,51 @@ export function PlanComparisonCard({ plan, rank, onPress }: PlanComparisonCardPr
 					)}
 				</View>
 			</PressableHaptic>
+			{isEditingOrder ? (
+				<View style={[styles.reorderRow, { borderColor: theme.separator }]}>
+					<ReorderButton
+						label="우선순위 올리기"
+						icon="arrow.up"
+						disabled={!canMoveUp || reorderDisabled}
+						onPress={onMoveUp}
+					/>
+					<View style={[styles.reorderDivider, { backgroundColor: theme.separator }]} />
+					<ReorderButton
+						label="우선순위 내리기"
+						icon="arrow.down"
+						disabled={!canMoveDown || reorderDisabled}
+						onPress={onMoveDown}
+					/>
+				</View>
+			) : null}
 		</ListItemCard>
+	);
+}
+
+function ReorderButton({
+	label,
+	icon,
+	disabled,
+	onPress,
+}: {
+	label: string;
+	icon: string;
+	disabled: boolean;
+	onPress?: () => void;
+}) {
+	const theme = useTheme();
+	return (
+		<PressableHaptic
+			accessibilityLabel={label}
+			disabled={disabled}
+			style={[styles.reorderButton, disabled ? styles.disabled : null]}
+			onPress={onPress}
+		>
+			<AppIcon name={icon} size={15} tintColor={theme.tint} />
+			<ThemedText type="caption" style={{ color: theme.tint, fontWeight: "600" }}>
+				{label}
+			</ThemedText>
+		</PressableHaptic>
 	);
 }
 
@@ -132,4 +195,18 @@ const styles = StyleSheet.create({
 	stageDistance: { width: 66, fontVariant: ["tabular-nums"], fontWeight: "600" },
 	stageEnd: { flex: 1, minWidth: 0 },
 	stageGain: { fontVariant: ["tabular-nums"] },
+	reorderRow: {
+		flexDirection: "row",
+		borderTopWidth: StyleSheet.hairlineWidth,
+	},
+	reorderButton: {
+		flex: 1,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+		minHeight: 44,
+	},
+	reorderDivider: { width: StyleSheet.hairlineWidth },
+	disabled: { opacity: 0.3 },
 });

@@ -147,6 +147,32 @@ export const fetchRouteDetail = async (
 	};
 };
 
+export const patchPlanOrder = async (
+	apiOrigin: string,
+	accessToken: string,
+	routeId: string,
+	planIds: string[],
+): Promise<void> => {
+	const response = await fetch(`${apiOrigin}/api/routes/${routeId}/plans/order`, {
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ planIds }),
+	});
+	if (!response.ok) {
+		let message = `PATCH /api/routes/${routeId}/plans/order failed (${response.status})`;
+		try {
+			const body = (await response.json()) as { error?: string };
+			if (body.error?.trim()) message = body.error.trim();
+		} catch {
+			// 응답 본문이 JSON이 아니면 상태 코드 메시지를 사용한다.
+		}
+		throw new Error(message);
+	}
+};
+
 export const fetchPlanDetail = async (
 	apiOrigin: string,
 	accessToken: string,
