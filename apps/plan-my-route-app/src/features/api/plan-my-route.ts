@@ -1,11 +1,3 @@
-import {
-	alongForecastResponseSchema,
-	stageBriefingResponseSchema,
-	type StageBriefingResponse,
-} from "@my-ridings/weather-types";
-
-import { alongForecastToStageBriefing } from "@/features/plan-my-route/legacy-to-stage-briefing";
-
 export type RouteItem = {
 	id: string;
 	name: string;
@@ -152,44 +144,6 @@ export const fetchRouteDetail = async (
 		...json,
 		plans: Array.isArray(json.plans) ? json.plans : [],
 	};
-};
-
-export type PlanStageForecastBody = {
-	dayNumber: number;
-};
-
-export const fetchPlanStageForecastAlong = async (
-	apiOrigin: string,
-	accessToken: string,
-	planId: string,
-	body: PlanStageForecastBody,
-): Promise<StageBriefingResponse> => {
-	const response = await fetch(`${apiOrigin}/api/mobile/plans/${planId}/forecast-along`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(body),
-	});
-	if (!response.ok) {
-		let message = `POST /api/mobile/plans/${planId}/forecast-along failed (${response.status})`;
-		try {
-			const errJson = (await response.json()) as { error?: string };
-			if (typeof errJson.error === "string" && errJson.error.trim()) message = errJson.error.trim();
-		} catch {
-			/* ignore body parse errors */
-		}
-		throw new Error(message);
-	}
-	const json: unknown = await response.json();
-	const stage = stageBriefingResponseSchema.safeParse(json);
-	if (stage.success) return stage.data;
-	const along = alongForecastResponseSchema.safeParse(json);
-	if (along.success) {
-		return alongForecastToStageBriefing(along.data);
-	}
-	throw new Error("Invalid weather response");
 };
 
 export const fetchPlanDetail = async (
