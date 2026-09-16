@@ -37,6 +37,30 @@ function HeaderBackToPlans() {
 	return <HeaderBack onPress={handlePress} accessibilityLabel="플랜 목록으로 돌아가기" />;
 }
 
+function HeaderBackToSchedule() {
+	const router = useRouter();
+	const params = useGlobalSearchParams<{ routeId?: string; planId?: string }>();
+	const routeId = typeof params.routeId === "string" ? params.routeId : "";
+	const planId = typeof params.planId === "string" ? params.planId : "";
+
+	const handlePress = () => {
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+		if (routeId && planId) {
+			router.replace({
+				pathname: "/routes/[routeId]/plans/[planId]/schedule",
+				params: { routeId, planId },
+			});
+			return;
+		}
+		router.replace("/(tabs)");
+	};
+
+	return <HeaderBack onPress={handlePress} accessibilityLabel="플랜 일정으로 돌아가기" />;
+}
+
 export default function PlanDetailLayout() {
 	const pathname = usePathname();
 	const router = useRouter();
@@ -124,7 +148,11 @@ export default function PlanDetailLayout() {
 				/>
 				<Stack.Screen
 					name="stages/[dayNumber]/index"
-					options={{ title: "Stage", ...planDetailHeaderChrome }}
+					options={{
+						title: "Stage",
+						...planDetailHeaderChrome,
+						headerLeft: () => <HeaderBackToSchedule />,
+					}}
 				/>
 				<Stack.Screen
 					name="stages/[dayNumber]/edit"
