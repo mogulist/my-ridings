@@ -10,15 +10,19 @@
       "environment": "development",
       "env": {
         "APP_VARIANT": "development"
-      }
+      },
+      "channel": "debug"
     },
     "preview": {
       "distribution": "internal",
-      "environment": "preview"
+      "environment": "preview",
+      "autoIncrement": true,
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "environment": "production"
+      "environment": "production",
+      "channel": "production"
     }
   },
   "submit": {
