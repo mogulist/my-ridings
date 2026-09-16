@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -16,14 +15,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  MoreHorizontalIcon,
-  PencilIcon,
-  TrashIcon,
-  CopyIcon,
-  GripVertical,
-  Share2Icon,
-} from "lucide-react";
-import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +22,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@my-ridings/ui";
+import {
+  CopyIcon,
+  GripVertical,
+  MoreHorizontalIcon,
+  PencilIcon,
+  Share2Icon,
+  TrashIcon,
+} from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 import { RouteSummaryBlock } from "./RouteSummaryBlock";
 
 type PlanItem = {
@@ -38,6 +38,7 @@ type PlanItem = {
   name: string;
   stages?: unknown[];
   start_date?: string | null;
+  review_note?: string | null;
   public_share_token?: string | null;
   shared_at?: string | null;
 };
@@ -59,6 +60,7 @@ type PlanListPaneProps = {
   onSelectPlan: (planId: string) => void;
   onUpdatePlan?: (planId: string, newName: string) => void;
   onUpdatePlanStartDate?: (planId: string, startDate: string | null) => void;
+  onUpdatePlanReviewNote?: (planId: string, reviewNote: string | null) => void;
   onDuplicatePlan?: (plan: PlanItem) => void;
   onDeletePlan?: (planId: string) => void;
   onTogglePlanShare?: (planId: string, enabled: boolean) => void;
@@ -118,7 +120,9 @@ function SortablePlanRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: plan.id });
+  } = useSortable({
+    id: plan.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -161,7 +165,9 @@ function SortablePlanRow({
       </button>
       <div
         className={`min-w-0 flex-1 text-left ${
-          isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-700 dark:text-zinc-300"
+          isActive
+            ? "text-zinc-900 dark:text-zinc-100"
+            : "text-zinc-700 dark:text-zinc-300"
         }`}
       >
         <div className="font-medium">{plan.name}</div>
@@ -169,6 +175,11 @@ function SortablePlanRow({
           {stageCount > 0 ? `${stageCount}일 계획` : "스테이지 없음"}
           {hasShareLink ? " · 공유중" : ""}
         </div>
+        {plan.review_note?.trim() ? (
+          <div className="mt-1 line-clamp-2 whitespace-pre-line text-xs text-zinc-600 dark:text-zinc-300">
+            {plan.review_note.trim()}
+          </div>
+        ) : null}
       </div>
       {showActions && (
         <DropdownMenu
@@ -237,10 +248,11 @@ function SortablePlanRow({
                 링크 복사
               </DropdownMenuItem>
             )}
-            {(onUpdatePlan || onDuplicatePlan || onTogglePlanShare || onCopyPlanShareLink) &&
-              onDeletePlan && (
-              <DropdownMenuSeparator />
-            )}
+            {(onUpdatePlan ||
+              onDuplicatePlan ||
+              onTogglePlanShare ||
+              onCopyPlanShareLink) &&
+              onDeletePlan && <DropdownMenuSeparator />}
             {onDeletePlan && (
               <DropdownMenuItem
                 variant="destructive"
@@ -274,6 +286,7 @@ export function PlanListPane({
   onTogglePlanShare,
   onCopyPlanShareLink,
   onUpdatePlanStartDate,
+  onUpdatePlanReviewNote,
   onReorderPlans,
   newPlanName,
   setNewPlanName,
@@ -285,6 +298,7 @@ export function PlanListPane({
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editStartDate, setEditStartDate] = useState("");
+  const [editReviewNote, setEditReviewNote] = useState("");
   const [deleteConfirmPlanId, setDeleteConfirmPlanId] = useState<string | null>(
     null,
   );
@@ -295,31 +309,50 @@ export function PlanListPane({
     setEditingPlanId(plan.id);
     setEditName(plan.name);
     setEditStartDate(plan.start_date ?? "");
+    setEditReviewNote(plan.review_note ?? "");
   }, []);
 
   const handleSaveEdit = useCallback(() => {
     if (!editingPlanId) return;
-    if (editName.trim() && onUpdatePlan) {
+    const currentPlan = plans.find((plan) => plan.id === editingPlanId);
+    if (
+      editName.trim() &&
+      editName.trim() !== currentPlan?.name &&
+      onUpdatePlan
+    ) {
       onUpdatePlan(editingPlanId, editName.trim());
     }
-    if (onUpdatePlanStartDate) {
+    const storedStartDate = currentPlan?.start_date ?? "";
+    if (onUpdatePlanStartDate && editStartDate !== storedStartDate) {
       onUpdatePlanStartDate(editingPlanId, editStartDate || null);
+    }
+    const normalizedReviewNote = editReviewNote.trim();
+    if (
+      onUpdatePlanReviewNote &&
+      normalizedReviewNote !== (currentPlan?.review_note ?? "").trim()
+    ) {
+      onUpdatePlanReviewNote(editingPlanId, normalizedReviewNote || null);
     }
     setEditingPlanId(null);
     setEditName("");
     setEditStartDate("");
+    setEditReviewNote("");
   }, [
     editingPlanId,
     editName,
     editStartDate,
+    editReviewNote,
+    plans,
     onUpdatePlan,
     onUpdatePlanStartDate,
+    onUpdatePlanReviewNote,
   ]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingPlanId(null);
     setEditName("");
     setEditStartDate("");
+    setEditReviewNote("");
   }, []);
 
   const handleRequestDelete = useCallback((planId: string) => {
@@ -447,44 +480,41 @@ export function PlanListPane({
           <div
             className={`space-y-2 ${isReorderingPlans ? "pointer-events-none opacity-70" : ""}`}
           >
-          {plans.length === 0 ? (
-            <p className="text-xs text-zinc-500">생성된 플랜이 없습니다.</p>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={plans.map((p) => p.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {plans.map((plan) => (
-                  <SortablePlanRow
-                    key={plan.id}
-                    plan={plan}
-                    isActive={activePlanId === plan.id}
-                    showActions={Boolean(
-                      onUpdatePlan ||
-                        onDuplicatePlan ||
-                        onDeletePlan ||
-                        onTogglePlanShare ||
-                        onCopyPlanShareLink,
-                    )}
-                    openMenuPlanId={openMenuPlanId}
-                    setOpenMenuPlanId={setOpenMenuPlanId}
-                    onSelectPlan={onSelectPlan}
-                    onStartEdit={handleStartEdit}
-                    onRequestDelete={handleRequestDelete}
-                    onDuplicatePlan={onDuplicatePlan}
-                    onUpdatePlan={onUpdatePlan}
-                    onDeletePlan={onDeletePlan}
-                    onTogglePlanShare={onTogglePlanShare}
-                    onCopyPlanShareLink={onCopyPlanShareLink}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
+            {plans.length === 0 ? (
+              <p className="text-xs text-zinc-500">생성된 플랜이 없습니다.</p>
+            ) : (
+              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={plans.map((p) => p.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {plans.map((plan) => (
+                    <SortablePlanRow
+                      key={plan.id}
+                      plan={plan}
+                      isActive={activePlanId === plan.id}
+                      showActions={Boolean(
+                        onUpdatePlan ||
+                          onDuplicatePlan ||
+                          onDeletePlan ||
+                          onTogglePlanShare ||
+                          onCopyPlanShareLink,
+                      )}
+                      openMenuPlanId={openMenuPlanId}
+                      setOpenMenuPlanId={setOpenMenuPlanId}
+                      onSelectPlan={onSelectPlan}
+                      onStartEdit={handleStartEdit}
+                      onRequestDelete={handleRequestDelete}
+                      onDuplicatePlan={onDuplicatePlan}
+                      onUpdatePlan={onUpdatePlan}
+                      onDeletePlan={onDeletePlan}
+                      onTogglePlanShare={onTogglePlanShare}
+                      onCopyPlanShareLink={onCopyPlanShareLink}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
           </div>
         </div>
         <form
@@ -555,6 +585,21 @@ export function PlanListPane({
                     : "날짜 선택"}
                 </button>
               </div>
+            )}
+            {onUpdatePlanReviewNote && (
+              <>
+                <label className="mt-3 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  검토 메모
+                </label>
+                <textarea
+                  value={editReviewNote}
+                  onChange={(e) => setEditReviewNote(e.target.value)}
+                  maxLength={2000}
+                  rows={5}
+                  className="mt-0.5 w-full resize-y rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                  placeholder="모바일에서 작성한 검토 메모"
+                />
+              </>
             )}
             <div className="mt-4 flex justify-end gap-2">
               <button

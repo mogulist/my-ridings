@@ -20,6 +20,7 @@ type PlanComparisonCardProps = {
 	reorderDisabled?: boolean;
 	onMoveUp?: () => void;
 	onMoveDown?: () => void;
+	onEditReviewNote?: () => void;
 	isRidePlan?: boolean;
 	isSelectingRidePlan?: boolean;
 	onSelectRidePlan?: () => void;
@@ -35,6 +36,7 @@ export function PlanComparisonCard({
 	reorderDisabled = false,
 	onMoveUp,
 	onMoveDown,
+	onEditReviewNote,
 	isRidePlan = false,
 	isSelectingRidePlan = false,
 	onSelectRidePlan,
@@ -77,7 +79,11 @@ export function PlanComparisonCard({
 					<View style={[styles.metrics, { borderColor: theme.separator }]}>
 						<Metric icon="calendar" value={`${summary.dayCount}일`} />
 						<Metric icon="figure.outdoor.cycle" value={formatDistance(summary.totalDistanceKm)} />
-						<Metric icon="arrow.up.forward" value={`+${summary.totalElevationGainM.toLocaleString()}m`} tint={theme.gain} />
+						<Metric
+							icon="arrow.up.forward"
+							value={`+${summary.totalElevationGainM.toLocaleString()}m`}
+							tint={theme.gain}
+						/>
 					</View>
 
 					{summary.stages.length > 0 ? (
@@ -89,11 +95,7 @@ export function PlanComparisonCard({
 											D{stage.dayNumber}
 										</ThemedText>
 									</View>
-									<ThemedText
-										type="caption"
-										style={styles.stageDistance}
-										numberOfLines={1}
-									>
+									<ThemedText type="caption" style={styles.stageDistance} numberOfLines={1}>
 										{formatDistance(stage.distanceKm)}
 									</ThemedText>
 									<ThemedText
@@ -123,6 +125,24 @@ export function PlanComparisonCard({
 					)}
 				</View>
 			</PressableHaptic>
+			{isEditingOrder ? null : (
+				<PressableHaptic
+					accessibilityLabel={`${plan.name} 검토 메모 ${plan.review_note?.trim() ? "편집" : "추가"}`}
+					style={[styles.noteRow, { borderColor: theme.separator }]}
+					onPress={onEditReviewNote}
+				>
+					<AppIcon name="square.and.pencil" size={16} tintColor={theme.tint} />
+					<ThemedText
+						type="caption"
+						themeColor={plan.review_note?.trim() ? "text" : "textSecondary"}
+						style={styles.notePreview}
+						numberOfLines={2}
+					>
+						{plan.review_note?.trim() || "검토 메모 추가"}
+					</ThemedText>
+					<AppIcon name="chevron.right" size={13} tintColor={theme.textSecondary} />
+				</PressableHaptic>
+			)}
 			{isEditingOrder ? (
 				<View style={[styles.reorderRow, { borderColor: theme.separator }]}>
 					<ReorderButton
@@ -142,7 +162,10 @@ export function PlanComparisonCard({
 			) : isRidePlan ? (
 				<View
 					accessibilityLabel="선택된 라이딩 플랜"
-					style={[styles.ridePlanRow, { borderColor: theme.separator, backgroundColor: `${theme.success}12` }]}
+					style={[
+						styles.ridePlanRow,
+						{ borderColor: theme.separator, backgroundColor: `${theme.success}12` },
+					]}
 				>
 					<AppIcon name="checkmark.circle.fill" size={17} tintColor={theme.success} />
 					<ThemedText type="smallBold" style={{ color: theme.success }}>
@@ -240,6 +263,16 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		borderTopWidth: StyleSheet.hairlineWidth,
 	},
+	noteRow: {
+		minHeight: 44,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.two,
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.two,
+		borderTopWidth: StyleSheet.hairlineWidth,
+	},
+	notePreview: { flex: 1, minWidth: 0 },
 	reorderButton: {
 		flex: 1,
 		flexDirection: "row",

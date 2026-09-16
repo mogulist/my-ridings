@@ -115,6 +115,14 @@ export default function PlanDetailLayout() {
 					}}
 				/>
 				<Stack.Screen
+					name="note"
+					options={{
+						presentation: "modal",
+						title: "검토 메모",
+						...planDetailHeaderChrome,
+					}}
+				/>
+				<Stack.Screen
 					name="stages/[dayNumber]/index"
 					options={{ title: "Stage", ...planDetailHeaderChrome }}
 				/>
