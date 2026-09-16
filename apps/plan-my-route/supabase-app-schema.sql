@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.route (
     cover_image_hero_url text,
     cover_image_og_url text,
     cover_image_generated_at timestamp with time zone,
+	selected_plan_id uuid,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT route_pkey PRIMARY KEY (id),
@@ -53,6 +54,14 @@ CREATE TABLE IF NOT EXISTS public.plan (
 -- Index for querying plans by route efficiently
 CREATE INDEX IF NOT EXISTS plan_route_id_idx ON public.plan (route_id);
 CREATE UNIQUE INDEX IF NOT EXISTS plan_public_share_token_idx ON public.plan (public_share_token);
+
+ALTER TABLE public.route
+    ADD CONSTRAINT route_selected_plan_id_fkey
+    FOREIGN KEY (selected_plan_id)
+    REFERENCES public.plan (id)
+    ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS route_selected_plan_id_idx ON public.route (selected_plan_id);
 
 -- 3. Stages Table
 CREATE TABLE IF NOT EXISTS public.stage (

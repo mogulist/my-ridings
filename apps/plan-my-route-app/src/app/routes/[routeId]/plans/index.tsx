@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,6 +20,7 @@ import { moveItem } from "@/features/plan-my-route/plan-order";
 import {
 	routeDetailQueryKey,
 	updateRoutePlanOrder,
+	updateRouteSelectedPlan,
 	useRouteDetailQuery,
 } from "@/features/plan-my-route/route-detail-query";
 import { useTheme } from "@/hooks/use-theme";
@@ -43,6 +44,7 @@ export default function RoutePlansScreen() {
 	const insets = useSafeAreaInsets();
 	const [isEditingOrder, setIsEditingOrder] = useState(false);
 	const [isSavingOrder, setIsSavingOrder] = useState(false);
+	const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
 	const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 	const { routeId: routeIdParam } = useLocalSearchParams<{ routeId: string | string[] }>();
 	const normalizedRouteId = useMemo(() => {
@@ -105,6 +107,52 @@ export default function RoutePlansScreen() {
 			}
 		},
 		[isSavingOrder, normalizedRouteId, queryClient],
+	);
+
+	const selectRidePlan = useCallback(
+		async (planId: string) => {
+			if (!normalizedRouteId || selectingPlanId) return;
+			const previous = queryClient.getQueryData<RouteDetail>(routeDetailQueryKey(normalizedRouteId));
+			if (!previous || previous.selected_plan_id === planId) return;
+
+			queryClient.setQueryData<RouteDetail>(routeDetailQueryKey(normalizedRouteId), {
+				...previous,
+				selected_plan_id: planId,
+			});
+			setSelectingPlanId(planId);
+			try {
+				await updateRouteSelectedPlan(normalizedRouteId, planId);
+				setSnackbarMessage("라이딩 플랜으로 선택했습니다.");
+			} catch (selectionError) {
+				queryClient.setQueryData(routeDetailQueryKey(normalizedRouteId), previous);
+				setSnackbarMessage(
+					selectionError instanceof Error
+						? selectionError.message
+						: "라이딩 플랜을 선택하지 못했습니다.",
+				);
+			} finally {
+				setSelectingPlanId(null);
+			}
+		},
+		[normalizedRouteId, queryClient, selectingPlanId],
+	);
+
+	const requestRidePlanSelection = useCallback(
+		(planId: string, planName: string) => {
+			if (data?.selected_plan_id && data.selected_plan_id !== planId) {
+				Alert.alert(
+					"라이딩 플랜 변경",
+					`현재 선택을 “${planName}” 플랜으로 변경할까요?`,
+					[
+						{ text: "취소", style: "cancel" },
+						{ text: "변경", onPress: () => void selectRidePlan(planId) },
+					],
+				);
+				return;
+			}
+			void selectRidePlan(planId);
+		},
+		[data?.selected_plan_id, selectRidePlan],
 	);
 
 	useEffect(() => {
@@ -174,6 +222,9 @@ export default function RoutePlansScreen() {
 										canMoveUp={index > 0}
 										canMoveDown={index < plans.length - 1}
 										reorderDisabled={isSavingOrder}
+										isRidePlan={data?.selected_plan_id === plan.id}
+										isSelectingRidePlan={selectingPlanId !== null}
+										onSelectRidePlan={() => requestRidePlanSelection(plan.id, plan.name)}
 										onMoveUp={() => void movePlan(index, index - 1)}
 										onMoveDown={() => void movePlan(index, index + 1)}
 										onPress={() =>

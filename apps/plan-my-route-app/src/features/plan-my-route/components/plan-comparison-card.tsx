@@ -20,6 +20,9 @@ type PlanComparisonCardProps = {
 	reorderDisabled?: boolean;
 	onMoveUp?: () => void;
 	onMoveDown?: () => void;
+	isRidePlan?: boolean;
+	isSelectingRidePlan?: boolean;
+	onSelectRidePlan?: () => void;
 };
 
 export function PlanComparisonCard({
@@ -32,6 +35,9 @@ export function PlanComparisonCard({
 	reorderDisabled = false,
 	onMoveUp,
 	onMoveDown,
+	isRidePlan = false,
+	isSelectingRidePlan = false,
+	onSelectRidePlan,
 }: PlanComparisonCardProps) {
 	const theme = useTheme();
 	const summary = buildPlanComparisonSummary(plan);
@@ -124,7 +130,33 @@ export function PlanComparisonCard({
 						onPress={onMoveDown}
 					/>
 				</View>
-			) : null}
+			) : isRidePlan ? (
+				<View
+					accessibilityLabel="선택된 라이딩 플랜"
+					style={[styles.ridePlanRow, { borderColor: theme.separator, backgroundColor: `${theme.success}12` }]}
+				>
+					<AppIcon name="checkmark.circle.fill" size={17} tintColor={theme.success} />
+					<ThemedText type="smallBold" style={{ color: theme.success }}>
+						라이딩 플랜
+					</ThemedText>
+				</View>
+			) : (
+				<PressableHaptic
+					accessibilityLabel={`${plan.name}, 이 플랜으로 라이딩`}
+					disabled={isSelectingRidePlan}
+					style={[
+						styles.ridePlanButton,
+						{ borderColor: theme.separator },
+						isSelectingRidePlan ? styles.disabled : null,
+					]}
+					onPress={onSelectRidePlan}
+				>
+					<AppIcon name="checkmark.circle" size={17} tintColor={theme.tint} />
+					<ThemedText type="small" style={{ color: theme.tint, fontWeight: "600" }}>
+						이 플랜으로 라이딩
+					</ThemedText>
+				</PressableHaptic>
+			)}
 		</ListItemCard>
 	);
 }
@@ -209,4 +241,20 @@ const styles = StyleSheet.create({
 	},
 	reorderDivider: { width: StyleSheet.hairlineWidth },
 	disabled: { opacity: 0.3 },
+	ridePlanRow: {
+		minHeight: 44,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+		borderTopWidth: StyleSheet.hairlineWidth,
+	},
+	ridePlanButton: {
+		minHeight: 44,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+		borderTopWidth: StyleSheet.hairlineWidth,
+	},
 });

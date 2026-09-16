@@ -6,6 +6,7 @@ export type RouteItem = {
 	/** YYYY-MM-DD, 서버 `route.start_date` */
 	start_date?: string | null;
 	cover_image_thumb_url?: string | null;
+	selected_plan_id?: string | null;
 };
 
 export type PlanItem = {
@@ -163,6 +164,32 @@ export const patchPlanOrder = async (
 	});
 	if (!response.ok) {
 		let message = `PATCH /api/routes/${routeId}/plans/order failed (${response.status})`;
+		try {
+			const body = (await response.json()) as { error?: string };
+			if (body.error?.trim()) message = body.error.trim();
+		} catch {
+			// 응답 본문이 JSON이 아니면 상태 코드 메시지를 사용한다.
+		}
+		throw new Error(message);
+	}
+};
+
+export const patchSelectedPlan = async (
+	apiOrigin: string,
+	accessToken: string,
+	routeId: string,
+	planId: string | null,
+): Promise<void> => {
+	const response = await fetch(`${apiOrigin}/api/routes/${routeId}/selected-plan`, {
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ planId }),
+	});
+	if (!response.ok) {
+		let message = `PATCH /api/routes/${routeId}/selected-plan failed (${response.status})`;
 		try {
 			const body = (await response.json()) as { error?: string };
 			if (body.error?.trim()) message = body.error.trim();
