@@ -1,5 +1,5 @@
-/** 리스트·상세 조회를 세션 동안 캐시. 새로고침은 refetch로만. */
-export const INFINITE_CACHE_OPTIONS = {
-	staleTime: Number.POSITIVE_INFINITY,
+/** 짧은 화면 이동은 캐시를 쓰고, 포그라운드 복귀 시 오래된 검토 데이터를 갱신한다. */
+export const REVIEW_QUERY_OPTIONS = {
+	staleTime: 60_000,
 	gcTime: Number.POSITIVE_INFINITY,
 } as const;

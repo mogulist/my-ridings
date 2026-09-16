@@ -7,16 +7,16 @@ import { Pressable, SectionList, StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { ListItemCard } from "@/components/ui/list-item-card";
+import { ListRefreshControl } from "@/components/ui/list-refresh-control";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { getFavoritePlans, type RouteItem } from "@/features/api/plan-my-route";
 import {
-	fetchRouteDetail,
-	fetchRoutes,
-	getFavoritePlans,
-	type RouteItem,
-} from "@/features/api/plan-my-route";
-import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
-import { seedRouteDetailCache } from "@/features/plan-my-route/route-detail-query";
+	fetchRouteDetailQuery,
+	routeDetailQueryKey,
+} from "@/features/plan-my-route/route-detail-query";
+import { useRouteListQuery } from "@/features/plan-my-route/route-list-query";
 import { useTheme } from "@/hooks/use-theme";
+import { REVIEW_QUERY_OPTIONS } from "@/lib/query-cache";
 
 function formatRouteListDate(isoOrDate: string | undefined | null, fallbackIso: string | undefined) {
 	const raw = (isoOrDate && isoOrDate.trim() ? isoOrDate : fallbackIso) ?? "";
@@ -44,57 +44,62 @@ type Section =
 	| { title: string; data: FavoriteRow[]; sectionKind: "favorites" }
 	| { title: string; data: RoutesSectionItem[]; sectionKind: "routes" };
 
+const EMPTY_ROUTES: RouteItem[] = [];
+
 export default function HomeScreen() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const theme = useTheme();
-	const [isLoading, setIsLoading] = useState(true);
-	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [routes, setRoutes] = useState<RouteItem[]>([]);
 	const [favoritePlans, setFavoritePlans] = useState<FavoritePlanCard[]>([]);
+	const {
+		data: routeData,
+		dataUpdatedAt,
+		error,
+		isPending,
+		isRefetching,
+		refetch,
+	} = useRouteListQuery();
+	const routes = routeData ?? EMPTY_ROUTES;
 
 	useEffect(() => {
-		let isMounted = true;
+		if (error?.message === "UNAUTHENTICATED") {
+			router.replace("/login");
+		}
+	}, [error, router]);
+
+	useEffect(() => {
+		let isCancelled = false;
+		const routeIds = new Set(routes.map((route) => route.id));
+		setFavoritePlans((current) => current.filter((favorite) => routeIds.has(favorite.routeId)));
+
 		void (async () => {
-			try {
-				const accessToken = await getStoredAccessToken();
-				if (!accessToken) {
-					router.replace("/login");
-					return;
+			for (const route of routes) {
+				if (isCancelled) return;
+				try {
+					const detail = await queryClient.fetchQuery({
+						queryKey: routeDetailQueryKey(route.id),
+						queryFn: () => fetchRouteDetailQuery(route.id),
+						...REVIEW_QUERY_OPTIONS,
+					});
+					if (isCancelled) return;
+					const favorites = getFavoritePlans([detail]);
+					setFavoritePlans((current) => [
+						...current.filter((favorite) => favorite.routeId !== route.id),
+						...favorites,
+					]);
+				} catch {
+					// 한 라우트의 상세 조회 실패가 나머지 라우트 표시를 막지 않게 한다.
 				}
-				const apiOrigin = getApiOrigin();
-				if (!apiOrigin) {
-					setErrorMessage("EXPO_PUBLIC_PLAN_MY_ROUTE_ORIGIN 이 필요합니다.");
-					return;
-				}
-
-				const routeItems = await fetchRoutes(apiOrigin, accessToken);
-				if (!isMounted) return;
-				setRoutes(routeItems);
-
-				const routeDetails = await Promise.all(
-					routeItems.map((route) => fetchRouteDetail(apiOrigin, accessToken, route.id)),
-				);
-				if (!isMounted) return;
-				routeDetails.forEach((detail, i) => {
-					const id = routeItems[i]?.id;
-					if (id) seedRouteDetailCache(queryClient, id, detail);
-				});
-				setFavoritePlans(getFavoritePlans(routeDetails));
-			} catch (error: unknown) {
-				if (!isMounted) return;
-				setErrorMessage(
-					error instanceof Error ? error.message : "홈 데이터를 불러오지 못했습니다.",
-				);
-			} finally {
-				if (isMounted) setIsLoading(false);
 			}
 		})();
 
 		return () => {
-			isMounted = false;
+			isCancelled = true;
 		};
-	}, [queryClient, router]);
+	}, [dataUpdatedAt, queryClient, routes]);
+
+	const errorMessage =
+		error && error.message !== "UNAUTHENTICATED" ? error.message : null;
 
 	const sections: Section[] = [];
 
@@ -107,7 +112,7 @@ export default function HomeScreen() {
 	}
 
 	const routesSectionData: RoutesSectionItem[] = (() => {
-		if (isLoading) return [{ rowKind: "loading" }];
+		if (isPending) return [{ rowKind: "loading" }];
 		if (routes.length === 0) return [{ rowKind: "empty" }];
 		return routes.map((r) => ({ ...r, rowKind: "route" as const }));
 	})();
@@ -135,6 +140,9 @@ export default function HomeScreen() {
 				contentInsetAdjustmentBehavior="automatic"
 				contentContainerStyle={styles.listContent}
 				stickySectionHeadersEnabled={false}
+				refreshControl={
+					<ListRefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+				}
 				renderSectionHeader={({ section: { title } }) => (
 					<ThemedText type="subtitle" style={styles.sectionHeader}>
 						{title}

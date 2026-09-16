@@ -15,7 +15,6 @@ import { Snackbar } from "@/components/snackbar";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/icon";
-import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import type { MobilePlanStageRow, PlanDetail, TrackPoint } from "@/features/api/plan-my-route";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
@@ -173,11 +172,6 @@ export default function StageDetailScreen() {
 									maxElevationM={maxElevationM}
 									location={location}
 									scrollRef={scrollRef}
-								/>
-								<WeatherBriefingRow
-									routeId={routeId ?? ""}
-									planId={planId ?? ""}
-									dayNumber={dayNumberParam ?? ""}
 								/>
 							</>
 						)}
@@ -436,19 +430,6 @@ const styles = StyleSheet.create({
 	locationRefreshButtonDisabled: {
 		opacity: 0.5,
 	},
-	weatherBriefingRow: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: Spacing.two,
-		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.three,
-		borderRadius: Radius.lg,
-		borderCurve: "continuous",
-		borderWidth: StyleSheet.hairlineWidth,
-	},
-	weatherBriefingLabel: {
-		flex: 1,
-	},
 });
 
 function stageDistanceKm(stage: MobilePlanStageRow): number {
@@ -479,38 +460,4 @@ function stageRouteLine(stage: MobilePlanStageRow): string | null {
 	const endLabel = stage.end_name?.trim();
 	if (startLabel && endLabel) return `${startLabel} → ${endLabel}`;
 	return null;
-}
-
-type WeatherBriefingRowProps = {
-	routeId: string;
-	planId: string;
-	dayNumber: string;
-};
-
-function WeatherBriefingRow({ routeId, planId, dayNumber }: WeatherBriefingRowProps) {
-	const router = useRouter();
-	const theme = useTheme();
-
-	return (
-		<PressableHaptic
-			accessibilityRole="button"
-			accessibilityLabel="날씨 브리핑 보기"
-			style={[
-				styles.weatherBriefingRow,
-				{ backgroundColor: theme.surfaceElevated, borderColor: theme.separator },
-			]}
-			onPress={() => {
-				router.push({
-					pathname: "/routes/[routeId]/plans/[planId]/stages/[dayNumber]/weather",
-					params: { routeId, planId, dayNumber },
-				});
-			}}
-		>
-			<AppIcon name="cloud.sun.fill" size={18} tintColor={theme.tint} />
-			<ThemedText type="small" style={styles.weatherBriefingLabel}>
-				날씨 브리핑
-			</ThemedText>
-			<AppIcon name="chevron.right" size={14} tintColor={theme.textSecondary} />
-		</PressableHaptic>
-	);
 }

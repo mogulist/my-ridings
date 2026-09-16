@@ -109,7 +109,6 @@ export default function PlanDetailLayout() {
 					name="stages/[dayNumber]/index"
 					options={{ title: "Stage", ...planDetailHeaderChrome }}
 				/>
-				<Stack.Screen name="stages/[dayNumber]/weather" options={{ title: "", ...planDetailHeaderChrome }} />
 				<Stack.Screen
 					name="stages/[dayNumber]/edit"
 					options={{
