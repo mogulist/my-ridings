@@ -22,8 +22,10 @@ type PlanComparisonCardProps = {
 	onMoveDown?: () => void;
 	onEditReviewNote?: () => void;
 	isRidePlan?: boolean;
+	isActiveRide?: boolean;
 	isSelectingRidePlan?: boolean;
 	onSelectRidePlan?: () => void;
+	onOpenRidePlan?: () => void;
 };
 
 export function PlanComparisonCard({
@@ -38,8 +40,10 @@ export function PlanComparisonCard({
 	onMoveDown,
 	onEditReviewNote,
 	isRidePlan = false,
+	isActiveRide = false,
 	isSelectingRidePlan = false,
 	onSelectRidePlan,
+	onOpenRidePlan,
 }: PlanComparisonCardProps) {
 	const theme = useTheme();
 	const summary = buildPlanComparisonSummary(plan);
@@ -160,18 +164,21 @@ export function PlanComparisonCard({
 					/>
 				</View>
 			) : isRidePlan ? (
-				<View
-					accessibilityLabel="선택된 라이딩 플랜"
+				<PressableHaptic
+					accessibilityRole="button"
+					accessibilityLabel={`${plan.name}, ${isActiveRide ? "라이딩 이어가기" : "라이딩 시작"}`}
 					style={[
 						styles.ridePlanRow,
 						{ borderColor: theme.separator, backgroundColor: `${theme.success}12` },
 					]}
+					onPress={onOpenRidePlan}
 				>
 					<AppIcon name="checkmark.circle.fill" size={17} tintColor={theme.success} />
 					<ThemedText type="smallBold" style={{ color: theme.success }}>
-						라이딩 플랜
+						{isActiveRide ? "라이딩 이어가기" : "라이딩 시작"}
 					</ThemedText>
-				</View>
+					<AppIcon name="chevron.right" size={13} tintColor={theme.success} />
+				</PressableHaptic>
 			) : (
 				<PressableHaptic
 					accessibilityLabel={`${plan.name}, 이 플랜으로 라이딩`}

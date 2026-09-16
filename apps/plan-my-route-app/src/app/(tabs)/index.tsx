@@ -1,8 +1,8 @@
 import { Image } from "expo-image";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, SectionList, StyleSheet, View } from "react-native";
+import { type Href, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Pressable, SectionList, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -14,6 +14,11 @@ import {
 	fetchRouteDetailQuery,
 	routeDetailQueryKey,
 } from "@/features/plan-my-route/route-detail-query";
+import {
+	finishActiveRide,
+	getActiveRide,
+	type ActiveRide,
+} from "@/features/navigation/active-ride";
 import { useRouteListQuery } from "@/features/plan-my-route/route-list-query";
 import { useTheme } from "@/hooks/use-theme";
 import { REVIEW_QUERY_OPTIONS } from "@/lib/query-cache";
@@ -36,11 +41,13 @@ type FavoritePlanCard = {
 };
 
 type FavoriteRow = FavoritePlanCard & { rowKind: "favorite" };
+type ActiveRideRow = ActiveRide & { rowKind: "activeRide" };
 type RouteRow = RouteItem & { rowKind: "route" };
 type PlaceholderRow = { rowKind: "loading" } | { rowKind: "empty" };
 type RoutesSectionItem = RouteRow | PlaceholderRow;
 
 type Section =
+	| { title: string; data: ActiveRideRow[]; sectionKind: "activeRide" }
 	| { title: string; data: FavoriteRow[]; sectionKind: "favorites" }
 	| { title: string; data: RoutesSectionItem[]; sectionKind: "routes" };
 
@@ -50,6 +57,7 @@ export default function HomeScreen() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const theme = useTheme();
+	const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
 	const [favoritePlans, setFavoritePlans] = useState<FavoritePlanCard[]>([]);
 	const {
 		data: routeData,
@@ -60,6 +68,18 @@ export default function HomeScreen() {
 		refetch,
 	} = useRouteListQuery();
 	const routes = routeData ?? EMPTY_ROUTES;
+
+	useFocusEffect(
+		useCallback(() => {
+			let isCancelled = false;
+			void getActiveRide().then((ride) => {
+				if (!isCancelled) setActiveRide(ride);
+			});
+			return () => {
+				isCancelled = true;
+			};
+		}, []),
+	);
 
 	useEffect(() => {
 		if (error?.message === "UNAUTHENTICATED") {
@@ -103,6 +123,14 @@ export default function HomeScreen() {
 
 	const sections: Section[] = [];
 
+	if (activeRide) {
+		sections.push({
+			title: "라이딩 중",
+			sectionKind: "activeRide",
+			data: [{ ...activeRide, rowKind: "activeRide" }],
+		});
+	}
+
 	if (favoritePlans.length > 0) {
 		sections.push({
 			title: "즐겨찾기한 나의 플랜",
@@ -129,6 +157,9 @@ export default function HomeScreen() {
 				style={styles.list}
 				sections={sections}
 				keyExtractor={(item, index) => {
+					if ("rowKind" in item && item.rowKind === "activeRide") {
+						return `active:${item.routeId}:${item.planId}`;
+					}
 					if ("rowKind" in item && item.rowKind === "favorite") {
 						return `${item.routeId}:${item.planId}`;
 					}
@@ -150,6 +181,57 @@ export default function HomeScreen() {
 				)}
 				SectionSeparatorComponent={() => <View style={styles.sectionSpacer} />}
 				renderItem={({ item, section }) => {
+					if (section.sectionKind === "activeRide" && item.rowKind === "activeRide") {
+						return (
+							<ListItemCard>
+								<View style={[styles.activeRideCard, { backgroundColor: `${theme.success}12` }]}>
+									<Pressable
+										accessibilityRole="button"
+										accessibilityLabel={`${item.planName} 라이딩 이어가기`}
+										style={({ pressed }) => [styles.activeRideMain, pressed && styles.pressed]}
+										onPress={() => router.push(item.resumePath as Href)}
+									>
+										<View style={styles.activeRideTitleRow}>
+											<View style={[styles.activeRideBadge, { backgroundColor: theme.success }]}>
+												<ThemedText type="caption" style={styles.activeRideBadgeText}>
+													진행 중
+												</ThemedText>
+											</View>
+											<ThemedText type="smallBold" style={styles.activeRideTitle} numberOfLines={1}>
+												{item.planName}
+											</ThemedText>
+										</View>
+										<ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
+											{item.routeName}
+										</ThemedText>
+										<ThemedText type="smallBold" style={{ color: theme.success }}>
+											라이딩 이어가기 →
+										</ThemedText>
+									</Pressable>
+									<Pressable
+										accessibilityRole="button"
+										accessibilityLabel="현재 라이딩 종료"
+										style={({ pressed }) => [styles.finishRideButton, pressed && styles.pressed]}
+										onPress={() =>
+											Alert.alert("라이딩 종료", "앱을 다시 열 때 이 플랜으로 자동 복귀하지 않습니다.", [
+												{ text: "취소", style: "cancel" },
+												{
+													text: "종료",
+													style: "destructive",
+													onPress: () => void finishActiveRide().then(() => setActiveRide(null)),
+												},
+											])
+										}
+									>
+										<ThemedText type="caption" themeColor="textSecondary">
+											종료
+										</ThemedText>
+									</Pressable>
+								</View>
+							</ListItemCard>
+						);
+					}
+
 					if (section.sectionKind === "favorites" && item.rowKind === "favorite") {
 						return (
 							<ListItemCard>
@@ -297,6 +379,39 @@ const styles = StyleSheet.create({
 	},
 	cardPressable: {
 		flex: 1,
+	},
+	activeRideCard: {
+		flexDirection: "row",
+		alignItems: "stretch",
+	},
+	activeRideMain: {
+		flex: 1,
+		gap: Spacing.one,
+		paddingHorizontal: Spacing.three,
+		paddingVertical: Spacing.three,
+	},
+	activeRideTitleRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.two,
+	},
+	activeRideBadge: {
+		borderRadius: 999,
+		paddingHorizontal: Spacing.two,
+		paddingVertical: Spacing.one,
+	},
+	activeRideBadgeText: {
+		color: "#FFFFFF",
+		fontSize: 10,
+		fontWeight: "800",
+	},
+	activeRideTitle: {
+		flex: 1,
+	},
+	finishRideButton: {
+		alignItems: "center",
+		justifyContent: "center",
+		paddingHorizontal: Spacing.three,
 	},
 	cardPad: {
 		gap: Spacing.half,

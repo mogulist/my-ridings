@@ -1,7 +1,7 @@
 import { HeaderButton } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -15,6 +15,11 @@ import { AppIcon } from "@/components/ui/icon";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
 import { MaxContentWidth, Radius, Shadow, Spacing } from "@/constants/theme";
 import type { RouteDetail } from "@/features/api/plan-my-route";
+import {
+	getActiveRide,
+	startActiveRide,
+	type ActiveRide,
+} from "@/features/navigation/active-ride";
 import { PlanComparisonCard } from "@/features/plan-my-route/components/plan-comparison-card";
 import { moveItem } from "@/features/plan-my-route/plan-order";
 import {
@@ -45,6 +50,7 @@ export default function RoutePlansScreen() {
 	const [isEditingOrder, setIsEditingOrder] = useState(false);
 	const [isSavingOrder, setIsSavingOrder] = useState(false);
 	const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
+	const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
 	const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 	const { routeId: routeIdParam } = useLocalSearchParams<{ routeId: string | string[] }>();
 	const normalizedRouteId = useMemo(() => {
@@ -58,6 +64,10 @@ export default function RoutePlansScreen() {
 
 	const routeName = data?.name ?? "";
 	const plans = data?.plans ?? [];
+
+	useEffect(() => {
+		void getActiveRide().then(setActiveRide);
+	}, []);
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
@@ -158,6 +168,36 @@ export default function RoutePlansScreen() {
 		[data?.selected_plan_id, selectRidePlan],
 	);
 
+	const openRidePlan = useCallback(
+		(planId: string, planName: string) => {
+			if (!normalizedRouteId) return;
+			const begin = async () => {
+				const ride = await startActiveRide({
+					routeId: normalizedRouteId,
+					planId,
+					routeName,
+					planName,
+				});
+				setActiveRide(ride);
+				router.push(ride.resumePath as Href);
+			};
+
+			if (activeRide && (activeRide.routeId !== normalizedRouteId || activeRide.planId !== planId)) {
+				Alert.alert(
+					"라이딩 플랜 변경",
+					`진행 중인 “${activeRide.planName}” 대신 “${planName}”으로 라이딩을 시작할까요?`,
+					[
+						{ text: "취소", style: "cancel" },
+						{ text: "변경", onPress: () => void begin() },
+					],
+				);
+				return;
+			}
+			void begin();
+		},
+		[activeRide, normalizedRouteId, routeName, router],
+	);
+
 	useEffect(() => {
 		if (error?.message === "UNAUTHENTICATED") {
 			router.replace("/login");
@@ -226,8 +266,12 @@ export default function RoutePlansScreen() {
 										canMoveDown={index < plans.length - 1}
 										reorderDisabled={isSavingOrder}
 										isRidePlan={data?.selected_plan_id === plan.id}
+										isActiveRide={
+											activeRide?.routeId === normalizedRouteId && activeRide?.planId === plan.id
+										}
 										isSelectingRidePlan={selectingPlanId !== null}
 										onSelectRidePlan={() => requestRidePlanSelection(plan.id, plan.name)}
+										onOpenRidePlan={() => openRidePlan(plan.id, plan.name)}
 										onMoveUp={() => void movePlan(index, index - 1)}
 										onMoveDown={() => void movePlan(index, index + 1)}
 										onEditReviewNote={() =>
