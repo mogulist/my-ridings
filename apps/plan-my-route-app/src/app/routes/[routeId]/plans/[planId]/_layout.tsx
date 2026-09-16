@@ -8,6 +8,7 @@ import {
 	type PlanDetailTabKey,
 } from "@/components/plan-detail-floating-tabs";
 import { HeaderBack } from "@/components/ui/header-back";
+import { PlanSwitcherButton } from "@/features/plan-my-route/components/plan-switcher-button";
 import { useTheme } from "@/hooks/use-theme";
 
 function parsePlanDetailTab(pathname: string): PlanDetailTabKey | null {
@@ -76,6 +77,14 @@ export default function PlanDetailLayout() {
 		headerLeft: () => <HeaderBackToPlans />,
 	} as const;
 
+	const headerForTab = (tab: PlanDetailTabKey) => ({
+		...solidHeader,
+		headerRight: () =>
+			routeId && planId ? (
+				<PlanSwitcherButton routeId={routeId} currentPlanId={planId} tab={tab} />
+			) : null,
+	});
+
 	return (
 		<View style={styles.shell}>
 			<Stack
@@ -88,21 +97,21 @@ export default function PlanDetailLayout() {
 					name="summary"
 					options={{
 						title: "요약",
-						...solidHeader,
+						...headerForTab("summary"),
 					}}
 				/>
 				<Stack.Screen
 					name="schedule"
 					options={{
 						title: "일정",
-						...solidHeader,
+						...headerForTab("schedule"),
 					}}
 				/>
 				<Stack.Screen
 					name="map"
 					options={{
 						title: "맵",
-						...solidHeader,
+						...headerForTab("map"),
 					}}
 				/>
 				<Stack.Screen
