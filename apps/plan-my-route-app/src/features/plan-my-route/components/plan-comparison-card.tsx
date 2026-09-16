@@ -89,8 +89,20 @@ export function PlanComparisonCard({
 											D{stage.dayNumber}
 										</ThemedText>
 									</View>
-									<ThemedText type="small" style={styles.stageDistance}>
+									<ThemedText
+										type="caption"
+										style={styles.stageDistance}
+										numberOfLines={1}
+									>
 										{formatDistance(stage.distanceKm)}
+									</ThemedText>
+									<ThemedText
+										type="caption"
+										themeColor="textSecondary"
+										style={styles.stageGain}
+										numberOfLines={1}
+									>
+										+{stage.elevationGainM.toLocaleString()}m
 									</ThemedText>
 									<ThemedText
 										selectable
@@ -100,9 +112,6 @@ export function PlanComparisonCard({
 										numberOfLines={1}
 									>
 										{stage.endName ?? "종료 지점 미정"}
-									</ThemedText>
-									<ThemedText type="caption" themeColor="textSecondary" style={styles.stageGain}>
-										+{stage.elevationGainM.toLocaleString()}m
 									</ThemedText>
 								</View>
 							))}
@@ -224,9 +233,9 @@ const styles = StyleSheet.create({
 	stageRow: { flexDirection: "row", alignItems: "center", gap: Spacing.two, minHeight: 26 },
 	dayBadge: { minWidth: 30, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Radius.sm },
 	dayText: { textAlign: "center", fontWeight: "700", fontVariant: ["tabular-nums"] },
-	stageDistance: { width: 66, fontVariant: ["tabular-nums"], fontWeight: "600" },
+	stageDistance: { width: 62, fontVariant: ["tabular-nums"], fontWeight: "600" },
 	stageEnd: { flex: 1, minWidth: 0 },
-	stageGain: { fontVariant: ["tabular-nums"] },
+	stageGain: { width: 68, fontVariant: ["tabular-nums"] },
 	reorderRow: {
 		flexDirection: "row",
 		borderTopWidth: StyleSheet.hairlineWidth,

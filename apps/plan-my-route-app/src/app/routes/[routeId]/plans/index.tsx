@@ -13,7 +13,7 @@ import { ThemedView } from "@/components/themed-view";
 import { HeaderBack } from "@/components/ui/header-back";
 import { AppIcon } from "@/components/ui/icon";
 import { ListRefreshControl } from "@/components/ui/list-refresh-control";
-import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { MaxContentWidth, Radius, Shadow, Spacing } from "@/constants/theme";
 import type { RouteDetail } from "@/features/api/plan-my-route";
 import { PlanComparisonCard } from "@/features/plan-my-route/components/plan-comparison-card";
 import { moveItem } from "@/features/plan-my-route/plan-order";
@@ -246,6 +246,23 @@ export default function RoutePlansScreen() {
 					</ThemedText>
 				) : null}
 			</ScrollView>
+			{isSavingOrder ? (
+				<View
+					accessibilityLabel="플랜 순서 저장 중"
+					accessibilityViewIsModal
+					style={[StyleSheet.absoluteFill, styles.savingOverlay]}
+				>
+					<View
+						style={[
+							styles.savingIndicator,
+							{ backgroundColor: theme.surfaceElevated, boxShadow: Shadow.floatingDark },
+						]}
+					>
+						<ActivityIndicator color={theme.tint} />
+						<ThemedText type="smallBold">순서 저장 중…</ThemedText>
+					</View>
+				</View>
+			) : null}
 			<Snackbar message={snackbarMessage} onDismiss={() => setSnackbarMessage(null)} />
 		</ThemedView>
 	);
@@ -289,5 +306,20 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		gap: Spacing.three,
+	},
+	savingOverlay: {
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "rgba(0, 0, 0, 0.28)",
+		zIndex: 10,
+	},
+	savingIndicator: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.two,
+		paddingHorizontal: Spacing.four,
+		paddingVertical: Spacing.three,
+		borderRadius: Radius.lg,
+		borderCurve: "continuous",
 	},
 });

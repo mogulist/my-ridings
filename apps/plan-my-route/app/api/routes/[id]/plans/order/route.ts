@@ -38,19 +38,23 @@ export async function PATCH(
 			);
 		}
 
-		for (let i = 0; i < planIds.length; i++) {
-			const { error } = await supabaseAdmin
-				.from("plan")
-				.update({ sort_order: i, updated_at: new Date().toISOString() })
-				.eq("id", planIds[i])
-				.eq("route_id", routeId);
+		const updatedAt = new Date().toISOString();
+		const updateResults = await Promise.all(
+			planIds.map((planId, index) =>
+				supabaseAdmin
+					.from("plan")
+					.update({ sort_order: index, updated_at: updatedAt })
+					.eq("id", planId)
+					.eq("route_id", routeId)
+			)
+		);
+		const updateError = updateResults.find(({ error }) => error)?.error;
 
-			if (error) {
-				return NextResponse.json(
-					{ error: error.message },
-					{ status: 500 }
-				);
-			}
+		if (updateError) {
+			return NextResponse.json(
+				{ error: updateError.message },
+				{ status: 500 }
+			);
 		}
 
 		return NextResponse.json({ ok: true });
