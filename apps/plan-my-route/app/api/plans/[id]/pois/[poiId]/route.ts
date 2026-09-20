@@ -1,15 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 import {
   isPlanPoiAssignmentMode,
+  isPlanPoiBookingMethod,
   isPlanPoiIntent,
   isPlanPoiType,
   type PlanPoiRow,
+  safePlanPoiExternalUrl,
 } from "@/app/types/planPoi";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const SELECT_COLS =
-  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, created_at, updated_at";
+  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, created_at, updated_at";
 
 async function assertPlanOwner(
   planId: string,
@@ -49,7 +51,18 @@ export async function PATCH(
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { name, poi_type, memo, assignment_mode, stage_id, intent } = body;
+    const {
+      name,
+      poi_type,
+      memo,
+      assignment_mode,
+      stage_id,
+      intent,
+      naver_place_url,
+      booking_method,
+      booking_url,
+      booking_checked_at,
+    } = body;
 
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -96,6 +109,49 @@ export async function PATCH(
         return NextResponse.json({ error: "valid intent is required" }, { status: 400 });
       }
       updates.intent = intent;
+    }
+    if (naver_place_url !== undefined) {
+      const normalized = safePlanPoiExternalUrl(
+        naver_place_url != null && String(naver_place_url).trim()
+          ? String(naver_place_url).trim()
+          : null,
+      );
+      if (naver_place_url != null && String(naver_place_url).trim() && !normalized) {
+        return NextResponse.json(
+          { error: "naver_place_url must be an http(s) URL" },
+          { status: 400 },
+        );
+      }
+      updates.naver_place_url = normalized;
+    }
+    if (booking_method !== undefined) {
+      if (typeof booking_method !== "string" || !isPlanPoiBookingMethod(booking_method)) {
+        return NextResponse.json({ error: "valid booking_method is required" }, { status: 400 });
+      }
+      updates.booking_method = booking_method;
+    }
+    if (booking_url !== undefined) {
+      const normalized = safePlanPoiExternalUrl(
+        booking_url != null && String(booking_url).trim() ? String(booking_url).trim() : null,
+      );
+      if (booking_url != null && String(booking_url).trim() && !normalized) {
+        return NextResponse.json({ error: "booking_url must be an http(s) URL" }, { status: 400 });
+      }
+      updates.booking_url = normalized;
+    }
+    if (booking_checked_at !== undefined) {
+      if (booking_checked_at == null || booking_checked_at === "") {
+        updates.booking_checked_at = null;
+      } else {
+        const date = new Date(String(booking_checked_at));
+        if (Number.isNaN(date.getTime())) {
+          return NextResponse.json(
+            { error: "booking_checked_at must be a valid date" },
+            { status: 400 },
+          );
+        }
+        updates.booking_checked_at = date.toISOString();
+      }
     }
 
     if (Object.keys(updates).length <= 1) {

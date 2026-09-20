@@ -14,7 +14,13 @@ import {
 	type PlaceReviewRow,
 	type ReviewState,
 } from "@/app/types/placeReview";
-import type { PlanPoiAssignmentMode, PlanPoiIntent, PlanPoiRow } from "@/app/types/planPoi";
+import {
+	PLAN_POI_BOOKING_METHOD_LABELS,
+	type PlanPoiCreatePayload,
+	type PlanPoiRow,
+	type PlanPoiUpdatePayload,
+	safePlanPoiExternalUrl,
+} from "@/app/types/planPoi";
 import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import { buildNaverPlaceSearchQuery } from "@/lib/naver-map";
 import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
@@ -571,6 +577,32 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 	const memoInner = hasMemo ? esc(row.memo ?? "") : esc("메모 없음");
 	const memoColor = hasMemo ? "#374151" : "#9ca3af";
 	const memoStyle = `margin-top:6px;font-size:12px;color:${memoColor};line-height:1.45;min-height:2.9em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;white-space:pre-line;`;
+	const linkStyle =
+		"display:inline-block;padding:3px 8px;font-size:11px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;border-radius:4px;text-decoration:none;line-height:1.3;";
+	const generatedNaverUrls = buildNaverMapUrls(
+		row.name,
+		row.address_name ?? undefined,
+		String(row.lat),
+		String(row.lng),
+	);
+	const naverWebUrl = safePlanPoiExternalUrl(row.naver_place_url) ?? generatedNaverUrls?.webUrl;
+	const bookingUrl = safePlanPoiExternalUrl(row.booking_url);
+	const naverLink = naverWebUrl
+		? `<a href="${esc(naverWebUrl)}" class="open-naver-map" target="_blank" rel="noopener noreferrer" data-naver-web-url="${esc(naverWebUrl)}" data-naver-app-url="${esc(generatedNaverUrls?.appSchemeUrl ?? "")}" style="${linkStyle}">네이버맵</a>`
+		: "";
+	const bookingLink = bookingUrl
+		? `<a href="${esc(bookingUrl)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}">예약 페이지</a>`
+		: "";
+	const linksHtml =
+		naverLink || bookingLink
+			? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${naverLink}${bookingLink}</div>`
+			: "";
+	const bookingMeta =
+		row.poi_type === "accommodation" &&
+		row.booking_method &&
+		row.booking_method !== "unconfirmed"
+			? `<div style="margin-top:6px;font-size:11px;color:#6b7280;">${esc(PLAN_POI_BOOKING_METHOD_LABELS[row.booking_method] ?? "예약 정보")}${row.booking_checked_at ? ` · ${esc(new Date(row.booking_checked_at).toLocaleDateString("ko-KR"))} 확인` : ""}</div>`
+			: "";
 	const btnStyle =
 		"padding:3px 10px;font-size:11px;border:1px solid #d1d5db;background:#fff;color:#6b7280;border-radius:4px;cursor:pointer;line-height:1.3;box-sizing:border-box;flex-shrink:0;";
 	const actionsHtml = showActions
@@ -578,7 +610,7 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 		: "";
 	const rootStyle =
 		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
-	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
+	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div>${linksHtml}${bookingMeta}<div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
 }
 
 function buildOfficialSummitInfoWindowHtml(row: SummitCatalogRow, showActions: boolean): string {
@@ -790,30 +822,10 @@ interface KakaoMapProps {
 		elevation_m: number | null;
 	}) => Promise<SummitCatalogRow | null>;
 	onDeleteOfficialSummit?: (summitId: string) => Promise<boolean>;
-	onCreatePlanPoi?: (payload: {
-		kakao_place_id: string | null;
-		name: string;
-		poi_type: string;
-		memo: string | null;
-		lat: number;
-		lng: number;
-		assignment_mode: PlanPoiAssignmentMode;
-		stage_id: string | null;
-		intent: PlanPoiIntent;
-		phone: string | null;
-		address_name: string | null;
-		place_url: string | null;
-	}) => Promise<PlanPoiRow | null>;
+	onCreatePlanPoi?: (payload: PlanPoiCreatePayload) => Promise<PlanPoiRow | null>;
 	onUpdatePlanPoi?: (
 		poiId: string,
-		payload: {
-			name: string;
-			poi_type: string;
-			memo: string | null;
-			assignment_mode: PlanPoiAssignmentMode;
-			stage_id: string | null;
-			intent: PlanPoiIntent;
-		},
+		payload: PlanPoiUpdatePayload,
 	) => Promise<PlanPoiRow | null>;
 	onDeletePlanPoi?: (poiId: string) => Promise<boolean>;
 	/** 공유 뷰 등: 주변 검색·북마크·POI 추가 비활성 */
@@ -3011,6 +3023,14 @@ export default function KakaoMap({
 					phone={addPoiDialog.doc.phone?.trim() || null}
 					addressName={addPoiDialog.doc.address_name?.trim() || null}
 					placeUrl={addPoiDialog.doc.place_url?.trim() || null}
+					naverPlaceUrl={
+						buildNaverMapUrls(
+							addPoiDialog.doc.place_name,
+							addPoiDialog.doc.address_name,
+							addPoiDialog.doc.y,
+							addPoiDialog.doc.x,
+						)?.webUrl ?? null
+					}
 					stages={stages.map((stage) => ({ id: stage.id, dayNumber: stage.dayNumber }))}
 					currentStageId={reviewContext.stageId}
 					distanceAssignmentLabel={addPoiDistanceAssignmentLabel}

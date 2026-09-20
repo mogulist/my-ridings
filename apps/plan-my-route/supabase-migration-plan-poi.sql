@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS public.plan_poi (
     phone text,
     address_name text,
     place_url text,
+    naver_place_url text,
+    booking_method text NOT NULL DEFAULT 'unconfirmed'
+        CHECK (booking_method IN ('unconfirmed', 'naver', 'secretmall', 'yeogi', 'agoda', 'phone', 'walk_in', 'other')),
+    booking_url text,
+    booking_checked_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT plan_poi_pkey PRIMARY KEY (id),

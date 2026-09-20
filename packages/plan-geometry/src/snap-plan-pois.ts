@@ -14,6 +14,7 @@ export type PlanPoiSnapInput = {
 	phone?: string | null;
 	address_name?: string | null;
 	place_url?: string | null;
+	naver_place_url?: string | null;
 };
 
 export type SnappedPlanPoi = {
@@ -29,6 +30,7 @@ export type SnappedPlanPoi = {
 	phone: string | null;
 	addressName: string | null;
 	placeUrl: string | null;
+	naverPlaceUrl: string | null;
 };
 
 export type StageDistanceRange = {
@@ -76,6 +78,7 @@ export function snapPlanPoisToTrack(
 			phone: poi.phone ?? null,
 			addressName: poi.address_name ?? null,
 			placeUrl: poi.place_url ?? null,
+			naverPlaceUrl: poi.naver_place_url ?? null,
 		});
 	}
 	return out.sort((a, b) => a.distanceKm - b.distanceKm);

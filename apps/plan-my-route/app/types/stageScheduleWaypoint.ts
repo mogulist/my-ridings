@@ -23,6 +23,7 @@ export type StageScheduleWaypoint = {
 	phone?: string | null;
 	addressName?: string | null;
 	placeUrl?: string | null;
+	naverPlaceUrl?: string | null;
 	/** 직접 지정 POI가 실제 스테이지 범위 밖에 있을 때 표시할 위치 설명 */
 	stageLocationLabel?: string;
 };

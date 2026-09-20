@@ -22,11 +22,7 @@ import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import { usePlanStages } from "../hooks/usePlanStages";
 import type { GuestPlan } from "../types/guestPlan";
 import type { Stage } from "../types/plan";
-import type {
-	PlanPoiAssignmentMode,
-	PlanPoiIntent,
-	PlanPoiRow,
-} from "../types/planPoi";
+import type { PlanPoiCreatePayload, PlanPoiRow, PlanPoiUpdatePayload } from "../types/planPoi";
 import {
 	normalizeScheduleMarkerMemos,
 	upsertScheduleMarkerMemo,
@@ -588,20 +584,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	}, [route?.id, route?.track_points]);
 
 	const handleCreatePlanPoi = useCallback(
-		async (payload: {
-			kakao_place_id: string | null;
-			name: string;
-			poi_type: string;
-			memo: string | null;
-			lat: number;
-			lng: number;
-			assignment_mode: PlanPoiAssignmentMode;
-			stage_id: string | null;
-			intent: PlanPoiIntent;
-			phone: string | null;
-			address_name: string | null;
-			place_url: string | null;
-		}) => {
+		async (payload: PlanPoiCreatePayload) => {
 			if (!activePlanId) return null;
 			if (isGuestMode) {
 				const now = new Date().toISOString();
@@ -620,6 +603,10 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					phone: payload.phone,
 					address_name: payload.address_name,
 					place_url: payload.place_url,
+					naver_place_url: payload.naver_place_url,
+					booking_method: payload.booking_method,
+					booking_url: payload.booking_url,
+					booking_checked_at: payload.booking_checked_at,
 					created_at: now,
 					updated_at: now,
 				};
@@ -707,17 +694,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	}, []);
 
 	const handleUpdatePlanPoi = useCallback(
-		async (
-			poiId: string,
-			payload: {
-				name: string;
-				poi_type: string;
-				memo: string | null;
-				assignment_mode: PlanPoiAssignmentMode;
-				stage_id: string | null;
-				intent: PlanPoiIntent;
-			},
-		) => {
+		async (poiId: string, payload: PlanPoiUpdatePayload) => {
 			if (!activePlanId) return null;
 			if (isGuestMode) {
 				const updated: PlanPoiRow = {
@@ -735,6 +712,10 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					phone: null,
 					address_name: null,
 					place_url: null,
+					naver_place_url: null,
+					booking_method: payload.booking_method,
+					booking_url: payload.booking_url,
+					booking_checked_at: payload.booking_checked_at,
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				};
@@ -749,6 +730,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 									assignment_mode: payload.assignment_mode,
 									stage_id: payload.stage_id,
 									intent: payload.intent,
+									booking_method: payload.booking_method,
+									booking_url: payload.booking_url,
+									booking_checked_at: payload.booking_checked_at,
 									updated_at: updated.updated_at,
 								}
 							: poi,
@@ -1408,6 +1392,10 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 							phone: poi.phone,
 							address_name: poi.address_name,
 							place_url: poi.place_url,
+							naver_place_url: poi.naver_place_url ?? null,
+							booking_method: poi.booking_method ?? "unconfirmed",
+							booking_url: poi.booking_url ?? null,
+							booking_checked_at: poi.booking_checked_at ?? null,
 						}),
 					});
 					if (!poiRes.ok) throw new Error("Plan POI copy failed");

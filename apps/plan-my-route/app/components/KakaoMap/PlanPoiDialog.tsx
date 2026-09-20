@@ -16,11 +16,17 @@ import { X } from "lucide-react";
 import { useCallback, useEffect, useId, useState } from "react";
 import {
 	isPlanPoiType,
+	PLAN_POI_BOOKING_METHOD_LABELS,
+	PLAN_POI_BOOKING_METHODS,
 	PLAN_POI_TYPES,
 	type PlanPoiAssignmentMode,
+	type PlanPoiBookingMethod,
+	type PlanPoiCreatePayload,
 	type PlanPoiIntent,
 	type PlanPoiRow,
 	type PlanPoiType,
+	type PlanPoiUpdatePayload,
+	safePlanPoiExternalUrl,
 } from "@/app/types/planPoi";
 import type { NearbyCategoryId } from "./nearbyCategoryId";
 
@@ -37,6 +43,14 @@ const INTENT_LABELS: Record<PlanPoiIntent, string> = {
 	planned: "이용 예정",
 	confirmed: "확정",
 };
+
+function isoToLocalDateTime(value: string | null | undefined): string {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+	return local.toISOString().slice(0, 16);
+}
 
 type StageOption = { id: string; dayNumber: number };
 
@@ -65,24 +79,12 @@ export type PlanPoiDialogProps =
 			phone: string | null;
 			addressName: string | null;
 			placeUrl: string | null;
+			naverPlaceUrl: string | null;
 			stages: StageOption[];
 			currentStageId: string | null;
 			distanceAssignmentLabel: string | null;
 			hasActivePlan: boolean;
-			onSave: (payload: {
-				kakao_place_id: string | null;
-				name: string;
-				poi_type: PlanPoiType;
-				memo: string | null;
-				lat: number;
-				lng: number;
-				assignment_mode: PlanPoiAssignmentMode;
-				stage_id: string | null;
-				intent: PlanPoiIntent;
-				phone: string | null;
-				address_name: string | null;
-				place_url: string | null;
-			}) => Promise<PlanPoiRow | null>;
+			onSave: (payload: PlanPoiCreatePayload) => Promise<PlanPoiRow | null>;
 	  }
 	| {
 			mode: "edit";
@@ -91,14 +93,7 @@ export type PlanPoiDialogProps =
 			row: PlanPoiRow;
 			stages: StageOption[];
 			distanceAssignmentLabel: string | null;
-			onSave: (payload: {
-				name: string;
-				poi_type: PlanPoiType;
-				memo: string | null;
-				assignment_mode: PlanPoiAssignmentMode;
-				stage_id: string | null;
-				intent: PlanPoiIntent;
-			}) => Promise<PlanPoiRow | null>;
+			onSave: (payload: PlanPoiUpdatePayload) => Promise<PlanPoiRow | null>;
 	  };
 
 export function PlanPoiDialog(props: PlanPoiDialogProps) {
@@ -108,6 +103,8 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 	const typeLegendId = `${baseId}-type-label`;
 	const nameId = `${baseId}-name`;
 	const memoId = `${baseId}-memo`;
+	const bookingUrlId = `${baseId}-booking-url`;
+	const bookingCheckedAtId = `${baseId}-booking-checked-at`;
 	const assignmentStageId = `${baseId}-assignment-stage`;
 	const assignmentDistanceId = `${baseId}-assignment-distance`;
 	const assignmentPlanId = `${baseId}-assignment-plan`;
@@ -118,6 +115,9 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 	const [assignmentMode, setAssignmentMode] = useState<PlanPoiAssignmentMode>("distance");
 	const [stageId, setStageId] = useState<string>("");
 	const [intent, setIntent] = useState<PlanPoiIntent>("planned");
+	const [bookingMethod, setBookingMethod] = useState<PlanPoiBookingMethod>("unconfirmed");
+	const [bookingUrl, setBookingUrl] = useState("");
+	const [bookingCheckedAt, setBookingCheckedAt] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
 
 	const formSyncKey =
@@ -136,6 +136,9 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 			setAssignmentMode(props.currentStageId ? "stage" : "distance");
 			setStageId(props.currentStageId ?? props.stages[0]?.id ?? "");
 			setIntent(props.defaultCategoryId === "accommodation" ? "candidate" : "planned");
+			setBookingMethod("unconfirmed");
+			setBookingUrl("");
+			setBookingCheckedAt("");
 			return;
 		}
 		setName(props.row.name);
@@ -148,6 +151,9 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 		);
 		setStageId(props.row.stage_id ?? props.stages[0]?.id ?? "");
 		setIntent(props.row.intent ?? "planned");
+		setBookingMethod(props.row.booking_method ?? "unconfirmed");
+		setBookingUrl(props.row.booking_url ?? "");
+		setBookingCheckedAt(isoToLocalDateTime(props.row.booking_checked_at));
 	}, [open, formSyncKey]);
 
 	const handleClose = useCallback(() => {
@@ -180,6 +186,15 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 			setIsSaving(false);
 			return;
 		}
+		const normalizedBookingUrl = safePlanPoiExternalUrl(bookingUrl.trim() || null);
+		if (bookingUrl.trim() && !normalizedBookingUrl) {
+			alert("예약 URL은 http 또는 https 주소로 입력해 주세요.");
+			setIsSaving(false);
+			return;
+		}
+		const normalizedBookingCheckedAt = bookingCheckedAt
+			? new Date(bookingCheckedAt).toISOString()
+			: null;
 		try {
 			if (mode === "create") {
 				const row = await props.onSave({
@@ -195,6 +210,10 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 					phone: props.phone,
 					address_name: props.addressName,
 					place_url: props.placeUrl,
+					naver_place_url: props.naverPlaceUrl,
+					booking_method: bookingMethod,
+					booking_url: normalizedBookingUrl,
+					booking_checked_at: normalizedBookingCheckedAt,
 				});
 				if (row) onOpenChange(false);
 			} else {
@@ -205,6 +224,9 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 					assignment_mode: assignmentMode,
 					stage_id: assignmentMode === "stage" ? stageId : null,
 					intent,
+					booking_method: bookingMethod,
+					booking_url: normalizedBookingUrl,
+					booking_checked_at: normalizedBookingCheckedAt,
 				});
 				if (row) onOpenChange(false);
 			}
@@ -216,6 +238,9 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 	if (!open) return null;
 
 	const title = mode === "create" ? "플랜에 POI 추가" : "POI 수정";
+	const naverPlaceUrl = safePlanPoiExternalUrl(
+		mode === "create" ? props.naverPlaceUrl : props.row.naver_place_url,
+	);
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: backdrop clicks dismiss the modal; Escape is handled globally.
@@ -376,6 +401,72 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 							})}
 						</RadioGroup>
 					</Field>
+					{poiType === "accommodation" ? (
+						<Field>
+							<FieldLabel>예약 확인</FieldLabel>
+							<div className="grid gap-3 rounded-md border p-3">
+								<label className="grid gap-1 text-sm">
+									<span className="text-muted-foreground text-xs">예약 수단</span>
+									<select
+										value={bookingMethod}
+										onChange={(e) => setBookingMethod(e.target.value as PlanPoiBookingMethod)}
+										disabled={isSaving}
+										className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+									>
+										{PLAN_POI_BOOKING_METHODS.map((method) => (
+											<option key={method} value={method}>
+												{PLAN_POI_BOOKING_METHOD_LABELS[method]}
+											</option>
+										))}
+									</select>
+								</label>
+								<label htmlFor={bookingUrlId} className="grid gap-1 text-sm">
+									<span className="text-muted-foreground text-xs">예약 URL</span>
+									<Input
+										id={bookingUrlId}
+										type="url"
+										placeholder="https://…"
+										value={bookingUrl}
+										onChange={(e) => setBookingUrl(e.target.value)}
+									/>
+								</label>
+								<label htmlFor={bookingCheckedAtId} className="grid gap-1 text-sm">
+									<span className="text-muted-foreground text-xs">마지막 확인 시각</span>
+									<span className="flex gap-2">
+										<Input
+											id={bookingCheckedAtId}
+											type="datetime-local"
+											value={bookingCheckedAt}
+											onChange={(e) => setBookingCheckedAt(e.target.value)}
+										/>
+										<Button
+											type="button"
+											variant="outline"
+											onClick={() =>
+												setBookingCheckedAt(isoToLocalDateTime(new Date().toISOString()))
+											}
+											className="shrink-0"
+										>
+											지금
+										</Button>
+									</span>
+								</label>
+								{naverPlaceUrl ? (
+									<p className="text-muted-foreground text-xs">
+										<a
+											href={naverPlaceUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="text-primary underline underline-offset-2"
+										>
+											네이버 지도에서 확인
+										</a>
+										<span> · 이 링크는 POI에 함께 저장됩니다.</span>
+									</p>
+								) : null}
+							</div>
+						</Field>
+					) : null}
 					<Field>
 						<FieldLabel htmlFor={memoId}>메모</FieldLabel>
 						<Textarea

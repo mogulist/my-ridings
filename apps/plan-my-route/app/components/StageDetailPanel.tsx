@@ -5,7 +5,7 @@ import { ExternalLinkIcon, PencilIcon, PhoneIcon, TrashIcon, XIcon } from "lucid
 import { useMemo, useState } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
-import { safePlanPoiExternalUrl, type PlanPoiRow } from "../types/planPoi";
+import { type PlanPoiRow, safePlanPoiExternalUrl } from "../types/planPoi";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type { StageScheduleWaypoint } from "../types/stageScheduleWaypoint";
 import { DotsMenu } from "./DotsMenu";
@@ -103,7 +103,8 @@ export function StageDetailPanel({
 		if (row.markerKind === "plan_poi" && row.planPoiId) {
 			const snap = snapped.find((s) => s.id === row.planPoiId);
 			if (!snap) return null;
-			const safePlaceUrl = safePlanPoiExternalUrl(row.placeUrl);
+			const safePlaceUrl =
+				safePlanPoiExternalUrl(row.naverPlaceUrl) ?? safePlanPoiExternalUrl(row.placeUrl);
 			return (
 				<div className="flex items-center gap-1">
 					{row.phone ? (
@@ -122,7 +123,7 @@ export function StageDetailPanel({
 							target="_blank"
 							rel="noreferrer"
 							className="rounded p-1 text-blue-600 hover:bg-blue-50"
-							aria-label={`${row.name} 지도에서 보기`}
+							aria-label={`${row.name} 네이버 지도에서 보기`}
 						>
 							<ExternalLinkIcon className="h-4 w-4" />
 						</a>

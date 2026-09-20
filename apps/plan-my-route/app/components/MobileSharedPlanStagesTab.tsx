@@ -34,7 +34,7 @@ import {
 import { parseSummitScheduleRowKey, summitScheduleRowKey } from "@/lib/rwgps-plan-markers";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
-import { safePlanPoiExternalUrl, type PlanPoiRow } from "../types/planPoi";
+import { type PlanPoiRow, safePlanPoiExternalUrl } from "../types/planPoi";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type {
 	StageScheduleMarkerKind,
@@ -119,6 +119,7 @@ function waypointRowForAbsoluteKm(
 		phone?: string | null;
 		addressName?: string | null;
 		placeUrl?: string | null;
+		naverPlaceUrl?: string | null;
 	},
 ): StageScheduleWaypoint {
 	const distanceFromStageStartKm =
@@ -170,6 +171,7 @@ export function stageScheduleWaypoints(
 				phone: p.phone,
 				addressName: p.addressName,
 				placeUrl: p.placeUrl,
+				naverPlaceUrl: p.naverPlaceUrl,
 			},
 		);
 		if (p.assignmentMode !== "stage") return row;
@@ -433,7 +435,9 @@ export function InlineStageCard({
 								onWaypointRowClick={onWaypointRowClick}
 								renderRowEnd={(row) =>
 									row.markerKind === "plan_poi" &&
-									(row.phone || safePlanPoiExternalUrl(row.placeUrl)) ? (
+									(row.phone ||
+										safePlanPoiExternalUrl(row.naverPlaceUrl) ||
+										safePlanPoiExternalUrl(row.placeUrl)) ? (
 										<span className="flex items-center gap-1">
 											{row.phone ? (
 												<a
@@ -444,13 +448,18 @@ export function InlineStageCard({
 													<Phone className="size-4" />
 												</a>
 											) : null}
-											{safePlanPoiExternalUrl(row.placeUrl) ? (
+											{safePlanPoiExternalUrl(row.naverPlaceUrl) ||
+											safePlanPoiExternalUrl(row.placeUrl) ? (
 												<a
-													href={safePlanPoiExternalUrl(row.placeUrl) ?? undefined}
+													href={
+														safePlanPoiExternalUrl(row.naverPlaceUrl) ??
+														safePlanPoiExternalUrl(row.placeUrl) ??
+														undefined
+													}
 													target="_blank"
 													rel="noreferrer"
 													className="rounded p-1 text-primary"
-													aria-label={`${row.name} 지도에서 보기`}
+													aria-label={`${row.name} 네이버 지도에서 보기`}
 												>
 													<ExternalLink className="size-4" />
 												</a>

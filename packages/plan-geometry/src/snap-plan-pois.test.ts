@@ -17,6 +17,7 @@ const poi = (overrides: Partial<SnappedPlanPoi>): SnappedPlanPoi => ({
 	phone: null,
 	addressName: null,
 	placeUrl: null,
+	naverPlaceUrl: null,
 	...overrides,
 });
 
@@ -52,6 +53,7 @@ describe("plan POI stage assignment", () => {
 					phone: "054-000-0000",
 					address_name: "풍기읍",
 					place_url: "https://place.map.kakao.com/1",
+					naver_place_url: "https://map.naver.com/p/search/test",
 				},
 			],
 			[{ x: 128, y: 37, d: 101_000, e: 120 }],
@@ -62,6 +64,7 @@ describe("plan POI stage assignment", () => {
 			intent: "candidate",
 			phone: "054-000-0000",
 			addressName: "풍기읍",
+			naverPlaceUrl: "https://map.naver.com/p/search/test",
 		});
 	});
 });
