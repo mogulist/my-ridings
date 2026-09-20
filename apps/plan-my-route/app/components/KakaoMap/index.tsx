@@ -911,6 +911,7 @@ export default function KakaoMap({
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
+	const isPointerOverMapRef = useRef(false);
 	const focusPlanPoiAnchorRef = useRef<KakaoMarker | null>(null);
 	const mapInstanceRef = useRef<unknown>(null);
 	const lastRouteIdRef = useRef<number | null>(null);
@@ -989,6 +990,19 @@ export default function KakaoMap({
 	reviewContextRef.current = reviewContext;
 	const readOnlyRef = useRef(readOnly);
 	readOnlyRef.current = readOnly;
+
+	useEffect(() => {
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || !isPointerOverMapRef.current) return;
+			if (document.querySelector('[role="dialog"], [aria-modal="true"]') != null) return;
+			openInfoWindowRef.current?.close();
+			openInfoWindowRef.current = null;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		};
+		document.addEventListener("keydown", handleEscape, true);
+		return () => document.removeEventListener("keydown", handleEscape, true);
+	}, []);
 	const activePlanIdRef = useRef(activePlanId);
 	activePlanIdRef.current = activePlanId;
 	const planPoisRef = useRef(planPois);
@@ -2628,7 +2642,15 @@ export default function KakaoMap({
 	};
 
 	return (
-		<div className="relative h-full w-full overflow-hidden">
+		<div
+			className="relative h-full w-full overflow-hidden"
+			onPointerEnter={() => {
+				isPointerOverMapRef.current = true;
+			}}
+			onPointerLeave={() => {
+				isPointerOverMapRef.current = false;
+			}}
+		>
 			<Script
 				src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`}
 				onLoad={handleScriptLoad}
