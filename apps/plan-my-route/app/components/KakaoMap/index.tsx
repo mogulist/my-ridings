@@ -16,6 +16,7 @@ import {
 } from "@/app/types/placeReview";
 import type { PlanPoiAssignmentMode, PlanPoiIntent, PlanPoiRow } from "@/app/types/planPoi";
 import type { SummitCatalogRow } from "@/app/types/summitCatalog";
+import { buildNaverPlaceSearchQuery } from "@/lib/naver-map";
 import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
@@ -540,12 +541,13 @@ function buildNaverMapUrls(
 	lat: string,
 	lng: string,
 ): { webUrl: string; appSchemeUrl: string } | null {
-	const query = (placeName || addressName || "").trim();
+	const query = buildNaverPlaceSearchQuery(placeName, addressName);
 	if (!query) return null;
-	const encoded = encodeURIComponent(query);
-	const webUrl = `https://map.naver.com/p/search/${encoded}`;
+	const encodedQuery = encodeURIComponent(query);
+	const encodedPlaceName = encodeURIComponent(placeName.trim() || query);
+	const webUrl = `https://map.naver.com/p/search/${encodedQuery}`;
 	const appname = typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
-	const appSchemeUrl = `nmap://place?lat=${lat}&lng=${lng}&name=${encoded}&appname=${appname}`;
+	const appSchemeUrl = `nmap://place?lat=${lat}&lng=${lng}&name=${encodedPlaceName}&appname=${appname}`;
 	return { webUrl, appSchemeUrl };
 }
 
