@@ -4,8 +4,8 @@ import { useCallback } from "react";
 import type {
   GuestPlan,
   GuestRoute,
-  GuestWorkspace,
   GuestStage,
+  GuestWorkspace,
   PublicPlanSnapshot,
 } from "../types/guestPlan";
 import { GUEST_STORAGE_KEY } from "../types/guestPlan";
@@ -17,8 +17,7 @@ const parseWorkspace = (raw: string | null): GuestWorkspace => {
   if (!raw) return createDefaultWorkspace();
   try {
     const parsed = JSON.parse(raw) as Partial<GuestWorkspace>;
-    if (parsed?.version !== 1 || !Array.isArray(parsed.routes))
-      return createDefaultWorkspace();
+    if (parsed?.version !== 1 || !Array.isArray(parsed.routes)) return createDefaultWorkspace();
     return {
       version: 1,
       routes: parsed.routes,
@@ -38,29 +37,50 @@ const writeWorkspace = (nextWorkspace: GuestWorkspace) => {
   window.localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(nextWorkspace));
 };
 
-const sortStages = (stages: PublicPlanSnapshot["stages"]): GuestStage[] =>
-  [...stages]
+const cloneStages = (
+  stages: PublicPlanSnapshot["stages"],
+): {
+  stages: GuestStage[];
+  idMap: Map<string, string>;
+} => {
+  const idMap = new Map<string, string>();
+  const cloned = [...stages]
     .sort((a, b) => (a.start_distance ?? 0) - (b.start_distance ?? 0))
-    .map((stage) => ({
-      id: crypto.randomUUID(),
-      title: stage.title ?? null,
-      start_distance: stage.start_distance ?? 0,
-      end_distance: stage.end_distance ?? stage.start_distance ?? 0,
-      elevation_gain: Number(stage.elevation_gain) || 0,
-      elevation_loss: Number(stage.elevation_loss) || 0,
-      memo: stage.memo ?? null,
-      start_name: stage.start_name ?? null,
-      end_name: stage.end_name ?? null,
-    }));
+    .map((stage) => {
+      const id = crypto.randomUUID();
+      idMap.set(stage.id, id);
+      return {
+        id,
+        title: stage.title ?? null,
+        start_distance: stage.start_distance ?? 0,
+        end_distance: stage.end_distance ?? stage.start_distance ?? 0,
+        elevation_gain: Number(stage.elevation_gain) || 0,
+        elevation_loss: Number(stage.elevation_loss) || 0,
+        memo: stage.memo ?? null,
+        start_name: stage.start_name ?? null,
+        end_name: stage.end_name ?? null,
+      };
+    });
+  return { stages: cloned, idMap };
+};
 
 const clonePlanPois = (
   planId: string,
   planPois: PublicPlanSnapshot["plan_pois"],
+  stageIdMap: Map<string, string>,
 ): PublicPlanSnapshot["plan_pois"] =>
   planPois.map((poi) => ({
     ...poi,
     id: crypto.randomUUID(),
     plan_id: planId,
+    stage_id:
+      poi.assignment_mode === "stage" && poi.stage_id
+        ? (stageIdMap.get(poi.stage_id) ?? null)
+        : null,
+    assignment_mode:
+      poi.assignment_mode === "stage" && !stageIdMap.has(poi.stage_id ?? "")
+        ? "distance"
+        : (poi.assignment_mode ?? "distance"),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }));
@@ -71,9 +91,8 @@ const buildGuestRouteFromPublicPlan = (publicPlan: PublicPlanSnapshot): GuestRou
   const planId = crypto.randomUUID();
   const routeName = publicPlan.route.name || "공유 경로";
 
-  const scheduleMarkerMemos = normalizeScheduleMarkerMemos(
-    publicPlan.plan.schedule_marker_memos,
-  );
+  const scheduleMarkerMemos = normalizeScheduleMarkerMemos(publicPlan.plan.schedule_marker_memos);
+  const clonedStages = cloneStages(publicPlan.stages);
 
   const firstPlan: GuestPlan = {
     id: planId,
@@ -84,10 +103,8 @@ const buildGuestRouteFromPublicPlan = (publicPlan: PublicPlanSnapshot): GuestRou
     sort_order: 0,
     created_at: nowIso,
     updated_at: nowIso,
-    stages: sortStages(publicPlan.stages),
-    ...(scheduleMarkerMemos != null
-      ? { schedule_marker_memos: scheduleMarkerMemos }
-      : {}),
+    stages: clonedStages.stages,
+    ...(scheduleMarkerMemos != null ? { schedule_marker_memos: scheduleMarkerMemos } : {}),
   };
 
   return {
@@ -103,7 +120,7 @@ const buildGuestRouteFromPublicPlan = (publicPlan: PublicPlanSnapshot): GuestRou
     source_public_share_token: publicPlan.plan.public_share_token,
     plans: [firstPlan],
     plan_pois_by_plan_id: {
-      [planId]: clonePlanPois(planId, publicPlan.plan_pois ?? []),
+      [planId]: clonePlanPois(planId, publicPlan.plan_pois ?? [], clonedStages.idMap),
     },
   };
 };

@@ -1,10 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { isPlanPoiType, type PlanPoiRow } from "@/app/types/planPoi";
-import { supabaseAdmin } from "@/lib/supabase";
+import { type NextRequest, NextResponse } from "next/server";
+import {
+  isPlanPoiAssignmentMode,
+  isPlanPoiIntent,
+  isPlanPoiType,
+  type PlanPoiRow,
+} from "@/app/types/planPoi";
 import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
+import { supabaseAdmin } from "@/lib/supabase";
 
 const SELECT_COLS =
-  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, created_at, updated_at";
+  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, created_at, updated_at";
 
 async function assertPlanOwner(
   planId: string,
@@ -44,7 +49,7 @@ export async function PATCH(
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { name, poi_type, memo } = body;
+    const { name, poi_type, memo, assignment_mode, stage_id, intent } = body;
 
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -58,23 +63,44 @@ export async function PATCH(
     }
     if (poi_type !== undefined) {
       if (typeof poi_type !== "string" || !isPlanPoiType(poi_type)) {
-        return NextResponse.json(
-          { error: "valid poi_type is required" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "valid poi_type is required" }, { status: 400 });
       }
       updates.poi_type = poi_type;
     }
     if (memo !== undefined) {
-      updates.memo =
-        memo != null && String(memo).trim() !== ""
-          ? String(memo).trim()
-          : null;
+      updates.memo = memo != null && String(memo).trim() !== "" ? String(memo).trim() : null;
+    }
+    if (assignment_mode !== undefined) {
+      if (typeof assignment_mode !== "string" || !isPlanPoiAssignmentMode(assignment_mode)) {
+        return NextResponse.json({ error: "valid assignment_mode is required" }, { status: 400 });
+      }
+      updates.assignment_mode = assignment_mode;
+      updates.stage_id = assignment_mode === "stage" ? stage_id : null;
+      if (assignment_mode === "stage") {
+        if (typeof stage_id !== "string" || !stage_id) {
+          return NextResponse.json({ error: "stage_id is required" }, { status: 400 });
+        }
+        const { data: stage } = await supabaseAdmin
+          .from("stage")
+          .select("id")
+          .eq("id", stage_id)
+          .eq("plan_id", planId)
+          .maybeSingle();
+        if (!stage) {
+          return NextResponse.json({ error: "stage_id must belong to the plan" }, { status: 400 });
+        }
+      }
+    }
+    if (intent !== undefined) {
+      if (typeof intent !== "string" || !isPlanPoiIntent(intent)) {
+        return NextResponse.json({ error: "valid intent is required" }, { status: 400 });
+      }
+      updates.intent = intent;
     }
 
     if (Object.keys(updates).length <= 1) {
       return NextResponse.json(
-        { error: "At least one of name, poi_type, memo is required" },
+        { error: "At least one editable field is required" },
         { status: 400 },
       );
     }

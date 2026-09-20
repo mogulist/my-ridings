@@ -8,6 +8,12 @@ export type PlanPoiSnapInput = {
 	memo: string | null;
 	lat: number;
 	lng: number;
+	assignment_mode?: "stage" | "distance" | "plan";
+	stage_id?: string | null;
+	intent?: "candidate" | "planned" | "confirmed";
+	phone?: string | null;
+	address_name?: string | null;
+	place_url?: string | null;
 };
 
 export type SnappedPlanPoi = {
@@ -17,7 +23,26 @@ export type SnappedPlanPoi = {
 	memo: string | null;
 	distanceKm: number;
 	elevation: number;
+	assignmentMode: "stage" | "distance" | "plan";
+	stageId: string | null;
+	intent: "candidate" | "planned" | "confirmed";
+	phone: string | null;
+	addressName: string | null;
+	placeUrl: string | null;
 };
+
+export type StageDistanceRange = {
+	id: string;
+	startDistanceKm: number;
+	endDistanceKm: number;
+};
+
+/** Explicit itinerary ownership wins; unassigned/deleted-stage POIs fall back to distance. */
+export function planPoiBelongsToStage(poi: SnappedPlanPoi, stage: StageDistanceRange): boolean {
+	if (poi.assignmentMode === "plan") return false;
+	if (poi.assignmentMode === "stage" && poi.stageId) return poi.stageId === stage.id;
+	return poi.distanceKm >= stage.startDistanceKm && poi.distanceKm <= stage.endDistanceKm;
+}
 
 export function snapPlanPoisToTrack(
 	planPois: PlanPoiSnapInput[],
@@ -45,6 +70,12 @@ export function snapPlanPoisToTrack(
 			memo: poi.memo,
 			distanceKm: tp.d / 1000,
 			elevation: Math.round(tp.e),
+			assignmentMode: poi.assignment_mode ?? "distance",
+			stageId: poi.stage_id ?? null,
+			intent: poi.intent ?? "planned",
+			phone: poi.phone ?? null,
+			addressName: poi.address_name ?? null,
+			placeUrl: poi.place_url ?? null,
 		});
 	}
 	return out.sort((a, b) => a.distanceKm - b.distanceKm);

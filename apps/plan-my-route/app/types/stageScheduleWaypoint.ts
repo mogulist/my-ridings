@@ -18,4 +18,11 @@ export type StageScheduleWaypoint = {
 	planPoiType?: string;
 	/** `markerKind === "plan_poi"` 일 때 — 클릭·포커스용 */
 	planPoiId?: string;
+	planPoiIntent?: "candidate" | "planned" | "confirmed";
+	planPoiAssignmentMode?: "stage" | "distance" | "plan";
+	phone?: string | null;
+	addressName?: string | null;
+	placeUrl?: string | null;
+	/** 직접 지정 POI가 실제 스테이지 범위 밖에 있을 때 표시할 위치 설명 */
+	stageLocationLabel?: string;
 };

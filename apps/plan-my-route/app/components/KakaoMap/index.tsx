@@ -14,7 +14,7 @@ import {
 	type PlaceReviewRow,
 	type ReviewState,
 } from "@/app/types/placeReview";
-import type { PlanPoiRow } from "@/app/types/planPoi";
+import type { PlanPoiAssignmentMode, PlanPoiIntent, PlanPoiRow } from "@/app/types/planPoi";
 import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
 import type { Stage } from "../../types/plan";
@@ -181,6 +181,22 @@ function findNearestIndexByLatLng(points: TrackPoint[], lat: number, lng: number
 	return bestIdx;
 }
 
+function distanceAssignedStageLabel(
+	lat: number,
+	lng: number,
+	trackPoints: TrackPoint[],
+	stages: Stage[],
+): string | null {
+	const index = findNearestIndexByLatLng(trackPoints, lat, lng);
+	const distanceM = index >= 0 ? trackPoints[index]?.d : null;
+	if (distanceM == null) return null;
+	const distanceKm = distanceM / 1000;
+	const stage = stages.find(
+		(item) => distanceKm >= item.startDistanceKm && distanceKm <= item.endDistanceKm,
+	);
+	return stage ? `스테이지 ${stage.dayNumber}` : null;
+}
+
 /** track_points를 거리 기준으로 구간 분할 */
 function slicePointsByDistance(points: TrackPoint[], startKm: number, endKm: number): TrackPoint[] {
 	const startM = startKm * 1000;
@@ -307,6 +323,7 @@ type KakaoPlaceDoc = {
 	place_name: string;
 	place_url: string;
 	address_name?: string;
+	phone?: string;
 	x: string;
 	y: string;
 };
@@ -778,10 +795,23 @@ interface KakaoMapProps {
 		memo: string | null;
 		lat: number;
 		lng: number;
+		assignment_mode: PlanPoiAssignmentMode;
+		stage_id: string | null;
+		intent: PlanPoiIntent;
+		phone: string | null;
+		address_name: string | null;
+		place_url: string | null;
 	}) => Promise<PlanPoiRow | null>;
 	onUpdatePlanPoi?: (
 		poiId: string,
-		payload: { name: string; poi_type: string; memo: string | null },
+		payload: {
+			name: string;
+			poi_type: string;
+			memo: string | null;
+			assignment_mode: PlanPoiAssignmentMode;
+			stage_id: string | null;
+			intent: PlanPoiIntent;
+		},
 	) => Promise<PlanPoiRow | null>;
 	onDeletePlanPoi?: (poiId: string) => Promise<boolean>;
 	/** 공유 뷰 등: 주변 검색·북마크·POI 추가 비활성 */
@@ -974,6 +1004,17 @@ export default function KakaoMap({
 		open: boolean;
 		row: PlanPoiRow | null;
 	}>({ open: false, row: null });
+	const addPoiDistanceAssignmentLabel = addPoiDialog.doc
+		? distanceAssignedStageLabel(
+				Number(addPoiDialog.doc.y),
+				Number(addPoiDialog.doc.x),
+				trackPoints,
+				stages,
+			)
+		: null;
+	const editPoiDistanceAssignmentLabel = editPoiDialog.row
+		? distanceAssignedStageLabel(editPoiDialog.row.lat, editPoiDialog.row.lng, trackPoints, stages)
+		: null;
 	const onReviewChangeRef = useRef<((placeId: string, review: PlaceReviewRow) => void) | null>(
 		null,
 	);
@@ -1711,6 +1752,7 @@ export default function KakaoMap({
 							place_name: d.place_name,
 							place_url: d.place_url ?? "",
 							address_name: d.address_name,
+							phone: d.phone,
 							x: d.x,
 							y: d.y,
 						});
@@ -2964,6 +3006,12 @@ export default function KakaoMap({
 					kakaoPlaceId={addPoiDialog.doc.id}
 					lat={Number(addPoiDialog.doc.y)}
 					lng={Number(addPoiDialog.doc.x)}
+					phone={addPoiDialog.doc.phone?.trim() || null}
+					addressName={addPoiDialog.doc.address_name?.trim() || null}
+					placeUrl={addPoiDialog.doc.place_url?.trim() || null}
+					stages={stages.map((stage) => ({ id: stage.id, dayNumber: stage.dayNumber }))}
+					currentStageId={reviewContext.stageId}
+					distanceAssignmentLabel={addPoiDistanceAssignmentLabel}
 					hasActivePlan={Boolean(activePlanId)}
 					onSave={onCreatePlanPoi}
 				/>
@@ -2980,6 +3028,8 @@ export default function KakaoMap({
 						}))
 					}
 					row={editPoiDialog.row}
+					stages={stages.map((stage) => ({ id: stage.id, dayNumber: stage.dayNumber }))}
+					distanceAssignmentLabel={editPoiDistanceAssignmentLabel}
 					onSave={async (payload) => {
 						const id = editPoiDialog.row?.id;
 						if (!id) return null;
