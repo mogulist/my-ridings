@@ -2636,7 +2636,7 @@ export default function KakaoMap({
 			/>
 			<div ref={containerCallbackRef} className="h-full w-full" />
 			{mapReady && showMapControls && (
-				<div className="pointer-events-none absolute inset-0 z-10">
+				<div className="pointer-events-none absolute inset-0 z-20">
 					<div className="pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-2rem)] flex-nowrap items-center gap-1">
 						<button
 							type="button"
