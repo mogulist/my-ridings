@@ -12,7 +12,7 @@ import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { fetchRoutes } from "@/features/api/plan-my-route";
 import { createSessionFromUrl } from "@/features/auth/oauth";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
-import { SUPABASE } from "@/features/auth/supabase-client";
+import { isSupabaseConfigured, SUPABASE } from "@/features/auth/supabase-client";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,12 +28,7 @@ export default function LoginScreen() {
 	const [isBusy, setIsBusy] = useState(false);
 
 	const apiOrigin = getApiOrigin();
-	const isConfigValid = Boolean(
-		process.env.EXPO_PUBLIC_SUPABASE_URL &&
-			(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-				process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY) &&
-			apiOrigin,
-	);
+	const isConfigValid = isSupabaseConfigured && Boolean(apiOrigin);
 
 	useEffect(() => {
 		void (async () => {
