@@ -18,6 +18,7 @@ import {
 	isPlanPoiType,
 	PLAN_POI_BOOKING_METHOD_LABELS,
 	PLAN_POI_BOOKING_METHODS,
+	PLAN_POI_INTENT_LABELS,
 	PLAN_POI_TYPES,
 	type PlanPoiAssignmentMode,
 	type PlanPoiBookingMethod,
@@ -36,12 +37,6 @@ const POI_TYPE_LABELS: Record<PlanPoiType, string> = {
 	accommodation: "숙소",
 	cafe: "카페",
 	restaurant: "음식점",
-};
-
-const INTENT_LABELS: Record<PlanPoiIntent, string> = {
-	candidate: "후보",
-	planned: "이용 예정",
-	confirmed: "확정",
 };
 
 function isoToLocalDateTime(value: string | null | undefined): string {
@@ -347,14 +342,14 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 						) : null}
 					</Field>
 					<Field>
-						<FieldLabel>이용 계획</FieldLabel>
+						<FieldLabel>장소 상태</FieldLabel>
 						<RadioGroup
 							value={intent}
 							onValueChange={(v) => setIntent(v as PlanPoiIntent)}
 							disabled={isSaving}
 							className="flex flex-wrap gap-2"
 						>
-							{(Object.keys(INTENT_LABELS) as PlanPoiIntent[]).map((value) => {
+							{(Object.keys(PLAN_POI_INTENT_LABELS) as PlanPoiIntent[]).map((value) => {
 								const itemId = `${baseId}-intent-${value}`;
 								return (
 									<div key={value}>
@@ -363,12 +358,19 @@ export function PlanPoiDialog(props: PlanPoiDialogProps) {
 											htmlFor={itemId}
 											className="border-input peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary inline-flex cursor-pointer rounded-full border px-3 py-1.5 text-sm"
 										>
-											{INTENT_LABELS[value]}
+											{PLAN_POI_INTENT_LABELS[value]}
 										</Label>
 									</div>
 								);
 							})}
 						</RadioGroup>
+						<p className="text-muted-foreground mt-2 text-xs">
+							{intent === "candidate"
+								? "아직 비교 중인 장소입니다."
+								: intent === "planned"
+									? "이용하기로 선택했지만 아직 확정 전입니다."
+									: "예약이나 방문 계획을 확정한 장소입니다."}
+						</p>
 					</Field>
 					<Field>
 						<FieldLabel id={typeLegendId}>타입</FieldLabel>

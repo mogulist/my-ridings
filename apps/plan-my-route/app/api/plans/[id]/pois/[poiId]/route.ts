@@ -11,7 +11,7 @@ import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const SELECT_COLS =
-  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, created_at, updated_at";
+  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, created_at, updated_at";
 
 async function assertPlanOwner(
   planId: string,
@@ -62,6 +62,7 @@ export async function PATCH(
       booking_method,
       booking_url,
       booking_checked_at,
+      candidate_sort_order,
     } = body;
 
     const updates: Record<string, unknown> = {
@@ -151,6 +152,20 @@ export async function PATCH(
           );
         }
         updates.booking_checked_at = date.toISOString();
+      }
+    }
+    if (candidate_sort_order !== undefined) {
+      if (candidate_sort_order == null || candidate_sort_order === "") {
+        updates.candidate_sort_order = null;
+      } else {
+        const order = Number(candidate_sort_order);
+        if (!Number.isInteger(order) || order < 0) {
+          return NextResponse.json(
+            { error: "candidate_sort_order must be a non-negative integer" },
+            { status: 400 },
+          );
+        }
+        updates.candidate_sort_order = order;
       }
     }
 

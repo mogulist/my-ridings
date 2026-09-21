@@ -607,6 +607,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					booking_method: payload.booking_method,
 					booking_url: payload.booking_url,
 					booking_checked_at: payload.booking_checked_at,
+					candidate_sort_order: payload.candidate_sort_order ?? null,
 					created_at: now,
 					updated_at: now,
 				};
@@ -716,6 +717,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					booking_method: payload.booking_method,
 					booking_url: payload.booking_url,
 					booking_checked_at: payload.booking_checked_at,
+					candidate_sort_order: payload.candidate_sort_order ?? null,
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				};
@@ -733,6 +735,9 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 									booking_method: payload.booking_method,
 									booking_url: payload.booking_url,
 									booking_checked_at: payload.booking_checked_at,
+									...(payload.candidate_sort_order !== undefined
+										? { candidate_sort_order: payload.candidate_sort_order }
+										: {}),
 									updated_at: updated.updated_at,
 								}
 							: poi,
@@ -762,6 +767,47 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		},
 		[activePlanId, isGuestMode],
 	);
+
+	const handleAccommodationOrderChange = async (orderedPoiIds: string[]) => {
+		if (!activePlanId) return false;
+		if (isGuestMode) {
+			const orderById = new Map(orderedPoiIds.map((id, index) => [id, index]));
+			setPlanPois((prev) =>
+				prev.map((poi) =>
+					orderById.has(poi.id)
+						? { ...poi, candidate_sort_order: orderById.get(poi.id) ?? null }
+						: poi,
+				),
+			);
+			return true;
+		}
+
+		try {
+			const responses = await Promise.all(
+				orderedPoiIds.map((poiId, index) =>
+					fetch(`/api/plans/${activePlanId}/pois/${poiId}`, {
+						method: "PATCH",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ candidate_sort_order: index }),
+					}),
+				),
+			);
+			const failed = responses.find((response) => !response.ok);
+			if (failed) {
+				const error = (await failed.json().catch(() => ({}))) as { error?: string };
+				throw new Error(error.error ?? "숙소 우선순위 저장에 실패했습니다.");
+			}
+			const updatedRows = (await Promise.all(
+				responses.map((response) => response.json()),
+			)) as PlanPoiRow[];
+			const updatedById = new Map(updatedRows.map((row) => [row.id, row]));
+			setPlanPois((prev) => prev.map((poi) => updatedById.get(poi.id) ?? poi));
+			return true;
+		} catch (error) {
+			alert(error instanceof Error ? error.message : "숙소 우선순위 저장에 실패했습니다.");
+			return false;
+		}
+	};
 
 	const handleDeletePlanPoi = useCallback(
 		async (poiId: string) => {
@@ -1396,6 +1442,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 							booking_method: poi.booking_method ?? "unconfirmed",
 							booking_url: poi.booking_url ?? null,
 							booking_checked_at: poi.booking_checked_at ?? null,
+							candidate_sort_order: poi.candidate_sort_order ?? null,
 						}),
 					});
 					if (!poiRes.ok) throw new Error("Plan POI copy failed");
@@ -1741,6 +1788,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 											setPoiEditSnap(poi);
 										}}
 										onDeletePoi={handleDeletePlanPoi}
+										onAccommodationOrderChange={handleAccommodationOrderChange}
 									/>
 								</motion.div>
 							) : null}
