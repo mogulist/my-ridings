@@ -3,6 +3,15 @@
  */
 export const PLAN_GEOMETRY_PACKAGE_VERSION = 2;
 
+export type {
+  AccommodationCandidate,
+  AccommodationCandidateGroup,
+} from "./accommodation-candidate-groups";
+export {
+  ACCOMMODATION_GROUP_GAP_KM,
+  groupAccommodationCandidates,
+} from "./accommodation-candidate-groups";
+
 export {
   calibrateThreshold,
   computeElevationGainCurve,

@@ -74,6 +74,25 @@ export type PlanPoiRow = {
 	memo: string | null;
 	lat: number;
 	lng: number;
+	assignment_mode: "stage" | "distance" | "plan";
+	stage_id: string | null;
+	intent: "candidate" | "planned" | "confirmed";
+	phone: string | null;
+	address_name: string | null;
+	place_url: string | null;
+	naver_place_url: string | null;
+	booking_method:
+		| "unconfirmed"
+		| "naver"
+		| "secretmall"
+		| "yeogi"
+		| "agoda"
+		| "phone"
+		| "walk_in"
+		| "other";
+	booking_url: string | null;
+	booking_checked_at: string | null;
+	candidate_sort_order: number | null;
 	created_at: string;
 	updated_at: string;
 };

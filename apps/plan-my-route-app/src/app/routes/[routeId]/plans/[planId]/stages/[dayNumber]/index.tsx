@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,6 +17,7 @@ import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/icon";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import type { MobilePlanStageRow, PlanDetail, TrackPoint } from "@/features/api/plan-my-route";
+import { AccommodationChoices } from "@/features/plan-my-route/components/accommodation-choices";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
 import { useTheme } from "@/hooks/use-theme";
@@ -41,10 +42,7 @@ export default function StageDetailScreen() {
 
 	const { data: detail, error, isPending, refetch } = usePlanDetailQuery(planId);
 
-	const [snackbarMessage, setSnackbarMessage] = useMemo(
-		() => [null as string | null, (_: string | null) => {}] as const,
-		[],
-	);
+	const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 	const scrollRef = useRef<ScrollView>(null);
 	const lastSeenCurrentKmRef = useRef<number | null>(null);
 
@@ -121,9 +119,9 @@ export default function StageDetailScreen() {
 		const tolerance = 0.05;
 		const isInStage = km >= startKm - tolerance && km <= endKm + tolerance;
 		if (!isInStage) {
-			void setSnackbarMessage;
+			setSnackbarMessage("현재 위치는 이 스테이지의 경로 밖에 있습니다.");
 		}
-	}, [location.currentKm, stage, setSnackbarMessage]);
+	}, [location.currentKm, stage]);
 
 	return (
 		<ThemedView style={styles.container}>
@@ -172,12 +170,13 @@ export default function StageDetailScreen() {
 									maxElevationM={maxElevationM}
 									location={location}
 									scrollRef={scrollRef}
+									onMessage={setSnackbarMessage}
 								/>
 							</>
 						)}
 					</View>
 				</ScrollView>
-				<Snackbar message={snackbarMessage} onDismiss={() => {}} />
+				<Snackbar message={snackbarMessage} onDismiss={() => setSnackbarMessage(null)} />
 			</SafeAreaView>
 		</ThemedView>
 	);
@@ -189,6 +188,7 @@ type StageSummaryBodyProps = {
 	maxElevationM: number | null;
 	location: ReturnType<typeof useCurrentLocationKm>;
 	scrollRef: React.RefObject<ScrollView | null>;
+	onMessage: (message: string) => void;
 };
 
 function StageSummaryBody({
@@ -197,6 +197,7 @@ function StageSummaryBody({
 	maxElevationM,
 	location,
 	scrollRef,
+	onMessage,
 }: StageSummaryBodyProps) {
 	const theme = useTheme();
 	const routeLabel = stageRouteLine(stage);
@@ -214,6 +215,10 @@ function StageSummaryBody({
 		if (km < stageStartKm - tolerance || km > stageEndKm + tolerance) return null;
 		return Math.min(Math.max(km - stageStartKm, 0), stageLenKm);
 	})();
+	const nonAccommodationPois = useMemo(
+		() => detail.planPois.filter((poi) => poi.poi_type !== "accommodation"),
+		[detail.planPois],
+	);
 
 	return (
 		<>
@@ -267,6 +272,14 @@ function StageSummaryBody({
 
 			<CurrentLocationKmLine location={location} />
 
+			<AccommodationChoices
+				stage={stage}
+				planPois={detail.planPois}
+				trackPoints={detail.trackPoints}
+				currentKm={location.currentKm}
+				onMessage={onMessage}
+			/>
+
 			<PlanStageMiniElevation
 				stage={stage}
 				trackPoints={detail.trackPoints}
@@ -274,7 +287,7 @@ function StageSummaryBody({
 			/>
 
 			<PlanStageTimelineStatic
-				planPois={detail.planPois}
+				planPois={nonAccommodationPois}
 				cpMarkers={detail.cpMarkers}
 				summitMarkers={detail.summitMarkers}
 				stage={stage}
