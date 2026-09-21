@@ -18,6 +18,10 @@ import { AppIcon } from "@/components/ui/icon";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import type { MobilePlanStageRow, PlanDetail, TrackPoint } from "@/features/api/plan-my-route";
 import { AccommodationChoices } from "@/features/plan-my-route/components/accommodation-choices";
+import {
+	type StageFocus,
+	StageFocusTabs,
+} from "@/features/plan-my-route/components/stage-focus-tabs";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
 import { useTheme } from "@/hooks/use-theme";
@@ -200,6 +204,7 @@ function StageSummaryBody({
 	onMessage,
 }: StageSummaryBodyProps) {
 	const theme = useTheme();
+	const [focus, setFocus] = useState<StageFocus>("ride");
 	const routeLabel = stageRouteLine(stage);
 	const distanceKm = stageDistanceKm(stage);
 	const gainM = Math.round(Number(stage.elevation_gain) || 0);
@@ -234,74 +239,87 @@ function StageSummaryBody({
 				</ThemedText>
 			) : null}
 
-			<View style={[styles.metricsRow, { borderColor: theme.separator }]}>
-				<View style={styles.metricItem}>
-					<AppIcon name="figure.outdoor.cycle" size={18} tintColor={theme.tint} />
-					<ThemedText type="metricSm" style={styles.metricNum}>
-						{distanceKm.toFixed(1)}
-					</ThemedText>
-					<ThemedText type="caption" themeColor="textSecondary">
-						거리 (km)
-					</ThemedText>
-				</View>
-				<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
-				<View style={styles.metricItem}>
-					<AppIcon name="arrow.up.forward" size={18} tintColor={theme.gain} />
-					<ThemedText type="metricSm" style={[styles.metricNum, { color: theme.gain }]}>
-						+{gainM.toLocaleString()}
-					</ThemedText>
-					<ThemedText type="caption" themeColor="textSecondary">
-						획득고도 (m)
-					</ThemedText>
-				</View>
-				{maxElevationM != null ? (
-					<>
-						<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
-						<View style={styles.metricItem}>
-							<AppIcon name="mountain.2.fill" size={18} tintColor={theme.tint} />
-							<ThemedText type="metricSm" style={styles.metricNum}>
-								{maxElevationM.toLocaleString()}
-							</ThemedText>
-							<ThemedText type="caption" themeColor="textSecondary">
-								최고 (m)
-							</ThemedText>
-						</View>
-					</>
-				) : null}
-			</View>
-
 			<CurrentLocationKmLine location={location} />
 
-			<AccommodationChoices
-				stage={stage}
-				planPois={detail.planPois}
-				trackPoints={detail.trackPoints}
-				currentKm={location.currentKm}
-				onMessage={onMessage}
-			/>
+			<StageFocusTabs value={focus} onChange={setFocus} />
 
-			<PlanStageMiniElevation
-				stage={stage}
-				trackPoints={detail.trackPoints}
-				currentRelKm={currentRelKm}
-			/>
+			<ThemedText type="caption" themeColor="textSecondary" selectable>
+				{focus === "ride"
+					? "주행 현황과 앞으로 남은 경유지를 확인합니다."
+					: "도착 구간의 숙소를 거리와 우선순위로 비교합니다."}
+			</ThemedText>
 
-			<PlanStageTimelineStatic
-				planPois={nonAccommodationPois}
-				cpMarkers={detail.cpMarkers}
-				summitMarkers={detail.summitMarkers}
-				stage={stage}
-				trackPoints={detail.trackPoints}
-				currentRelKm={currentRelKm}
-				scrollRef={scrollRef}
-			/>
+			{focus === "ride" ? (
+				<>
+					<View style={[styles.metricsRow, { borderColor: theme.separator }]}>
+						<View style={styles.metricItem}>
+							<AppIcon name="figure.outdoor.cycle" size={18} tintColor={theme.tint} />
+							<ThemedText type="metricSm" style={styles.metricNum}>
+								{distanceKm.toFixed(1)}
+							</ThemedText>
+							<ThemedText type="caption" themeColor="textSecondary">
+								오늘 거리 (km)
+							</ThemedText>
+						</View>
+						<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
+						<View style={styles.metricItem}>
+							<AppIcon name="arrow.up.forward" size={18} tintColor={theme.gain} />
+							<ThemedText type="metricSm" style={[styles.metricNum, { color: theme.gain }]}>
+								+{gainM.toLocaleString()}
+							</ThemedText>
+							<ThemedText type="caption" themeColor="textSecondary">
+								전체 획득고도 (m)
+							</ThemedText>
+						</View>
+						{maxElevationM != null ? (
+							<>
+								<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
+								<View style={styles.metricItem}>
+									<AppIcon name="mountain.2.fill" size={18} tintColor={theme.tint} />
+									<ThemedText type="metricSm" style={styles.metricNum}>
+										{maxElevationM.toLocaleString()}
+									</ThemedText>
+									<ThemedText type="caption" themeColor="textSecondary">
+										최고점 (m)
+									</ThemedText>
+								</View>
+							</>
+						) : null}
+					</View>
 
-			<PlanStageHud
-				stage={stage}
-				trackPoints={detail.trackPoints}
-				summitMarkers={detail.summitMarkers}
-				currentRelKm={currentRelKm}
-			/>
+					<PlanStageHud
+						stage={stage}
+						trackPoints={detail.trackPoints}
+						summitMarkers={detail.summitMarkers}
+						currentRelKm={currentRelKm}
+					/>
+
+					<PlanStageMiniElevation
+						stage={stage}
+						trackPoints={detail.trackPoints}
+						currentRelKm={currentRelKm}
+					/>
+
+					<PlanStageTimelineStatic
+						planPois={nonAccommodationPois}
+						cpMarkers={detail.cpMarkers}
+						summitMarkers={detail.summitMarkers}
+						stage={stage}
+						trackPoints={detail.trackPoints}
+						currentRelKm={currentRelKm}
+						scrollRef={scrollRef}
+						onlyUpcoming
+					/>
+				</>
+			) : (
+				<AccommodationChoices
+					stage={stage}
+					planPois={detail.planPois}
+					trackPoints={detail.trackPoints}
+					currentKm={location.currentKm}
+					onMessage={onMessage}
+				/>
+			)}
 		</>
 	);
 }

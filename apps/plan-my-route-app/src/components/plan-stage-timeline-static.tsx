@@ -1,4 +1,8 @@
-import { type PlanPoiSnapInput, snapPlanPoisToTrack } from "@my-ridings/plan-geometry";
+import {
+	planPoiBelongsToStage,
+	type PlanPoiSnapInput,
+	snapPlanPoisToTrack,
+} from "@my-ridings/plan-geometry";
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Animated, Easing, type ScrollView, StyleSheet, View } from "react-native";
 
@@ -51,6 +55,8 @@ export type PlanStageTimelineStaticProps = {
 	/** 스테이지 기준 상대 km (0…스테이지 길이). 없으면 현위치 행·스크롤 생략 */
 	currentRelKm: number | null;
 	scrollRef: RefObject<ScrollView | null>;
+	/** 현위치가 있으면 이미 지나간 경유지를 숨기고 앞으로의 일정에 집중한다. */
+	onlyUpcoming?: boolean;
 };
 
 const LEFT_KM_WIDTH = 56;
@@ -72,6 +78,7 @@ export function PlanStageTimelineStatic({
 	summitMarkers,
 	currentRelKm,
 	scrollRef,
+	onlyUpcoming = false,
 }: PlanStageTimelineStaticProps) {
 	const theme = useTheme();
 	const pulse = useRef(new Animated.Value(1)).current;
@@ -90,8 +97,12 @@ export function PlanStageTimelineStatic({
 				? snapPlanPoisToTrack(planPois as PlanPoiSnapInput[], trackPoints)
 				: [];
 
-		const inStage = snapped.filter(
-			(p) => p.distanceKm >= stageStartKm && p.distanceKm <= stageEndKm,
+		const inStage = snapped.filter((poi) =>
+			planPoiBelongsToStage(poi, {
+				id: stage.id,
+				startDistanceKm: stageStartKm,
+				endDistanceKm: stageEndKm,
+			}),
 		);
 
 		const startTitle = stage.start_name?.trim() ?? "출발";
@@ -128,7 +139,7 @@ export function PlanStageTimelineStatic({
 			...inStage.map((p) => ({
 				id: `poi-${p.id}`,
 				kind: "poi" as const,
-				relKm: Math.max(0, p.distanceKm - stageStartKm),
+				relKm: Math.min(Math.max(0, p.distanceKm - stageStartKm), stageLenKm),
 				title: p.name?.trim() || "POI",
 				sub: poiTypeLabel(p.poiType),
 				memo: p.memo?.trim() || null,
@@ -153,18 +164,30 @@ export function PlanStageTimelineStatic({
 			});
 		}
 
-		rows.sort((a, b) => {
+		const visibleRows =
+			onlyUpcoming && currentRelKm != null
+				? rows.filter(
+						(row) =>
+							row.kind === "current" ||
+							row.kind === "end" ||
+							row.relKm >= currentRelKm - 1e-6,
+					)
+				: rows;
+
+		visibleRows.sort((a, b) => {
 			const d = a.relKm - b.relKm;
 			if (d !== 0) return d;
 			return kindOrder(a.kind) - kindOrder(b.kind);
 		});
 
-		return rows;
+		return visibleRows;
 	}, [
 		cpMarkers,
 		currentRelKm,
+		onlyUpcoming,
 		planPois,
 		stage.end_name,
+		stage.id,
 		stage.start_name,
 		stageEndKm,
 		stageLenKm,
@@ -221,7 +244,7 @@ export function PlanStageTimelineStatic({
 	return (
 		<View style={styles.wrap}>
 			<ThemedText type="smallBold" style={styles.sectionTitle}>
-				경유 포인트
+				{onlyUpcoming ? "앞으로 남은 경유 포인트" : "경유 포인트"}
 			</ThemedText>
 			<View style={styles.timelineContainer}>
 				<View style={styles.columnHeader}>
