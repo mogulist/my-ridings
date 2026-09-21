@@ -80,6 +80,7 @@ export function useElevationProfileState({
 }: ElevationProfileProps) {
 	const chartInteractionDisabled = disablePinAndHoverScrub || stageEndBoundaryChartEditMode;
 	const chartContainerRef = useRef<HTMLDivElement>(null);
+	const elevationProfileRootRef = useRef<HTMLDivElement>(null);
 	const stageEndBoundaryHitStripRef = useRef<HTMLButtonElement>(null);
 	const stageEndBoundaryMenuRef = useRef<HTMLDivElement>(null);
 	const [chartBoxWidth, setChartBoxWidth] = useState(0);
@@ -497,6 +498,8 @@ export function useElevationProfileState({
 					isPinned,
 					isStageEndBoundaryOverlayActive: false,
 					hasOpenDialog: hasOpenDialogElement(),
+					isPointerOverElevationProfile:
+						elevationProfileRootRef.current?.matches(":hover") ?? false,
 				})
 			)
 				return;
@@ -773,6 +776,7 @@ export function useElevationProfileState({
 		boundaryKmForHandle,
 		canDragBoundary,
 		chartContainerRef,
+		elevationProfileRootRef,
 		chartData,
 		chartHeightPx,
 		chartInteractionDisabled,

@@ -1,13 +1,13 @@
 "use client";
 
-import { PencilIcon, TrashIcon, XIcon } from "lucide-react";
+import { type SnappedPlanPoi, snapPlanPoisToTrack } from "@my-ridings/plan-geometry";
+import { ExternalLinkIcon, PencilIcon, PhoneIcon, TrashIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
-import type { PlanPoiRow } from "../types/planPoi";
+import { type PlanPoiRow, safePlanPoiExternalUrl } from "../types/planPoi";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type { StageScheduleWaypoint } from "../types/stageScheduleWaypoint";
-import { snapPlanPoisToTrack, type SnappedPlanPoi } from "@my-ridings/plan-geometry";
 import { DotsMenu } from "./DotsMenu";
 import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
 import { maxElevationInStageRange, stageScheduleWaypoints } from "./MobileSharedPlanStagesTab";
@@ -57,8 +57,9 @@ export function StageDetailPanel({
 	onDeletePoi,
 	readOnly = false,
 }: StageDetailPanelProps) {
-	const [scheduleMemoEditRow, setScheduleMemoEditRow] =
-		useState<StageScheduleWaypoint | null>(null);
+	const [scheduleMemoEditRow, setScheduleMemoEditRow] = useState<StageScheduleWaypoint | null>(
+		null,
+	);
 
 	const snapped = useMemo(
 		() => snapPlanPoisToTrack(planPois, trackPoints),
@@ -90,6 +91,91 @@ export function StageDetailPanel({
 		if (!stage) return null;
 		return maxElevationInStageRange(trackPoints, stage.startDistanceKm, stage.endDistanceKm);
 	}, [trackPoints, stage]);
+
+	const candidateRows = waypointRows.filter(
+		(row) => row.markerKind === "plan_poi" && row.planPoiIntent === "candidate",
+	);
+	const itineraryRows = waypointRows.filter(
+		(row) => !(row.markerKind === "plan_poi" && row.planPoiIntent === "candidate"),
+	);
+
+	const renderRowEnd = (row: StageScheduleWaypoint) => {
+		if (row.markerKind === "plan_poi" && row.planPoiId) {
+			const snap = snapped.find((s) => s.id === row.planPoiId);
+			if (!snap) return null;
+			const safePlaceUrl =
+				safePlanPoiExternalUrl(row.naverPlaceUrl) ?? safePlanPoiExternalUrl(row.placeUrl);
+			return (
+				<div className="flex items-center gap-1">
+					{row.phone ? (
+						<a
+							href={`tel:${row.phone}`}
+							className="rounded p-1 text-blue-600 hover:bg-blue-50"
+							aria-label={`${row.name} 전화`}
+							title={row.phone}
+						>
+							<PhoneIcon className="h-4 w-4" />
+						</a>
+					) : null}
+					{safePlaceUrl ? (
+						<a
+							href={safePlaceUrl}
+							target="_blank"
+							rel="noreferrer"
+							className="rounded p-1 text-blue-600 hover:bg-blue-50"
+							aria-label={`${row.name} 네이버 지도에서 보기`}
+						>
+							<ExternalLinkIcon className="h-4 w-4" />
+						</a>
+					) : null}
+					{readOnly ? null : (
+						<DotsMenu
+							entries={[
+								{
+									type: "item",
+									key: "edit",
+									label: "편집",
+									icon: <PencilIcon className="h-4 w-4" />,
+									onSelect: () => onEditPoi(snap),
+								},
+								{ type: "separator", key: "sep" },
+								{
+									type: "item",
+									key: "delete",
+									label: "삭제",
+									icon: <TrashIcon className="h-4 w-4" />,
+									variant: "destructive",
+									onSelect: () => {
+										if (window.confirm("이 경유지를 삭제할까요?")) onDeletePoi(snap.id);
+									},
+								},
+							]}
+						/>
+					)}
+				</div>
+			);
+		}
+		if (
+			!readOnly &&
+			(row.markerKind === "cp" || row.markerKind === "summit") &&
+			onScheduleMarkerMemoSave
+		) {
+			return (
+				<DotsMenu
+					entries={[
+						{
+							type: "item",
+							key: "memo",
+							label: "메모 편집",
+							icon: <PencilIcon className="h-4 w-4" />,
+							onSelect: () => setScheduleMemoEditRow(row),
+						},
+					]}
+				/>
+			);
+		}
+		return null;
+	};
 
 	if (!stage) return null;
 
@@ -190,9 +276,9 @@ export function StageDetailPanel({
 
 				<section>
 					<h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-						경유 포인트 {waypointRows.length}곳
+						경유 포인트 {itineraryRows.length}곳
 					</h4>
-					{waypointRows.length === 0 ? (
+					{itineraryRows.length === 0 ? (
 						<p className="text-sm text-zinc-400 dark:text-zinc-500">
 							등록된 경유 포인트가 없습니다.
 						</p>
@@ -200,66 +286,26 @@ export function StageDetailPanel({
 						<StageScheduleWaypointList
 							density="comfortable"
 							showHeading={false}
-							rows={waypointRows}
+							rows={itineraryRows}
 							onPlanPoiRowClick={onPoiRowClick}
-							renderRowEnd={
-								readOnly
-									? undefined
-									: (row) => {
-											if (row.markerKind === "plan_poi" && row.planPoiId) {
-												const snap = snapped.find((s) => s.id === row.planPoiId);
-												if (!snap) return null;
-												return (
-													<DotsMenu
-														entries={[
-															{
-																type: "item",
-																key: "edit",
-																label: "편집",
-																icon: <PencilIcon className="h-4 w-4" />,
-																onSelect: () => onEditPoi(snap),
-															},
-															{ type: "separator", key: "sep" },
-															{
-																type: "item",
-																key: "delete",
-																label: "삭제",
-																icon: <TrashIcon className="h-4 w-4" />,
-																variant: "destructive",
-																onSelect: () => {
-																	if (window.confirm("이 경유지를 삭제할까요?")) {
-																		onDeletePoi(snap.id);
-																	}
-																},
-															},
-														]}
-													/>
-												);
-											}
-											if (
-												(row.markerKind === "cp" || row.markerKind === "summit") &&
-												onScheduleMarkerMemoSave
-											) {
-												return (
-													<DotsMenu
-														entries={[
-															{
-																type: "item",
-																key: "memo",
-																label: "메모 편집",
-																icon: <PencilIcon className="h-4 w-4" />,
-																onSelect: () => setScheduleMemoEditRow(row),
-															},
-														]}
-													/>
-												);
-											}
-											return null;
-										}
-							}
+							renderRowEnd={renderRowEnd}
 						/>
 					)}
 				</section>
+				{candidateRows.length > 0 ? (
+					<section className="mt-6 border-t border-zinc-200 pt-5 dark:border-zinc-700">
+						<h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+							후보 장소 {candidateRows.length}곳
+						</h4>
+						<StageScheduleWaypointList
+							density="comfortable"
+							showHeading={false}
+							rows={candidateRows}
+							onPlanPoiRowClick={onPoiRowClick}
+							renderRowEnd={renderRowEnd}
+						/>
+					</section>
+				) : null}
 			</div>
 
 			<ScheduleMarkerMemoDialog

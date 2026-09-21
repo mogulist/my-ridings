@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
 import type { PlanPoiRow } from "@/app/types/planPoi";
 import { normalizeScheduleMarkerMemos } from "@/app/types/scheduleMarkerMemos";
+import { supabaseAdmin } from "@/lib/supabase";
 
 type PublicPlanStage = {
   id: string;
@@ -41,10 +41,7 @@ type PublicPlanRow = {
 const UUID_V4_LIKE_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ token: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!token || !UUID_V4_LIKE_REGEX.test(token)) {
     return NextResponse.json({ error: "Invalid token" }, { status: 400 });
@@ -52,7 +49,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("plan")
-		.select(
+    .select(
       `
 			id,
 			name,
@@ -123,7 +120,7 @@ export async function GET(
   const { data: poiRows, error: poiError } = await supabaseAdmin
     .from("plan_poi")
     .select(
-      "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, created_at, updated_at",
+			"id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, created_at, updated_at",
     )
     .eq("plan_id", publicPlan.id)
     .order("created_at", { ascending: true });
@@ -132,9 +129,7 @@ export async function GET(
     planPois = poiRows as PlanPoiRow[];
   }
 
-  const scheduleMarkerMemos = normalizeScheduleMarkerMemos(
-    publicPlan.schedule_marker_memos,
-  );
+  const scheduleMarkerMemos = normalizeScheduleMarkerMemos(publicPlan.schedule_marker_memos);
 
   return NextResponse.json({
     plan: {
@@ -143,9 +138,7 @@ export async function GET(
       start_date: publicPlan.start_date,
       public_share_token: publicPlan.public_share_token,
       shared_at: publicPlan.shared_at,
-      ...(scheduleMarkerMemos != null
-        ? { schedule_marker_memos: scheduleMarkerMemos }
-        : {}),
+      ...(scheduleMarkerMemos != null ? { schedule_marker_memos: scheduleMarkerMemos } : {}),
     },
     route: routeForClient,
     stages: sortedStages,

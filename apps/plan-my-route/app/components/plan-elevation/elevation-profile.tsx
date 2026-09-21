@@ -36,6 +36,7 @@ export function ElevationProfile(props: ElevationProfileProps) {
 
 	return (
 		<div
+			ref={state.elevationProfileRootRef}
 			className={
 				state.chartHeightPx != null
 					? state.tightFixedHeightChart

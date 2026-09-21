@@ -22,7 +22,7 @@ import { useGuestRouteStore } from "../hooks/useGuestRouteStore";
 import { usePlanStages } from "../hooks/usePlanStages";
 import type { GuestPlan } from "../types/guestPlan";
 import type { Stage } from "../types/plan";
-import type { PlanPoiRow } from "../types/planPoi";
+import type { PlanPoiCreatePayload, PlanPoiRow, PlanPoiUpdatePayload } from "../types/planPoi";
 import {
 	normalizeScheduleMarkerMemos,
 	upsertScheduleMarkerMemo,
@@ -36,9 +36,9 @@ import {
 	type TrackPoint,
 } from "./ElevationProfile";
 import KakaoMap, { type RideWithGPSRoute } from "./KakaoMap";
+import { PlanPoiDialog } from "./KakaoMap/PlanPoiDialog";
 import { PlanListPane } from "./PlanListPane";
 import { PlanStagesPane } from "./PlanStagesPane";
-import { PoiEditDialog } from "./PoiEditDialog";
 import {
 	RouteOfficialSpecsDialog,
 	type RouteOfficialSpecsSavePayload,
@@ -584,14 +584,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	}, [route?.id, route?.track_points]);
 
 	const handleCreatePlanPoi = useCallback(
-		async (payload: {
-			kakao_place_id: string | null;
-			name: string;
-			poi_type: string;
-			memo: string | null;
-			lat: number;
-			lng: number;
-		}) => {
+		async (payload: PlanPoiCreatePayload) => {
 			if (!activePlanId) return null;
 			if (isGuestMode) {
 				const now = new Date().toISOString();
@@ -604,6 +597,16 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					memo: payload.memo,
 					lat: payload.lat,
 					lng: payload.lng,
+					assignment_mode: payload.assignment_mode,
+					stage_id: payload.stage_id,
+					intent: payload.intent,
+					phone: payload.phone,
+					address_name: payload.address_name,
+					place_url: payload.place_url,
+					naver_place_url: payload.naver_place_url,
+					booking_method: payload.booking_method,
+					booking_url: payload.booking_url,
+					booking_checked_at: payload.booking_checked_at,
 					created_at: now,
 					updated_at: now,
 				};
@@ -691,7 +694,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 	}, []);
 
 	const handleUpdatePlanPoi = useCallback(
-		async (poiId: string, payload: { name: string; poi_type: string; memo: string | null }) => {
+		async (poiId: string, payload: PlanPoiUpdatePayload) => {
 			if (!activePlanId) return null;
 			if (isGuestMode) {
 				const updated: PlanPoiRow = {
@@ -703,6 +706,16 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					memo: payload.memo,
 					lat: 0,
 					lng: 0,
+					assignment_mode: payload.assignment_mode,
+					stage_id: payload.stage_id,
+					intent: payload.intent,
+					phone: null,
+					address_name: null,
+					place_url: null,
+					naver_place_url: null,
+					booking_method: payload.booking_method,
+					booking_url: payload.booking_url,
+					booking_checked_at: payload.booking_checked_at,
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				};
@@ -714,6 +727,12 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 									name: payload.name,
 									poi_type: payload.poi_type,
 									memo: payload.memo,
+									assignment_mode: payload.assignment_mode,
+									stage_id: payload.stage_id,
+									intent: payload.intent,
+									booking_method: payload.booking_method,
+									booking_url: payload.booking_url,
+									booking_checked_at: payload.booking_checked_at,
 									updated_at: updated.updated_at,
 								}
 							: poi,
@@ -1128,20 +1147,6 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 		[activePlanId, activePlanRow, isGuestMode],
 	);
 
-	const handleSavePoiFromDialog = useCallback(
-		async (payload: { name: string; memo: string }) => {
-			if (!poiEditSnap) return;
-			const row = planPois.find((p) => p.id === poiEditSnap.id);
-			if (!row) return;
-			await handleUpdatePlanPoi(poiEditSnap.id, {
-				name: payload.name,
-				poi_type: row.poi_type,
-				memo: payload.memo || null,
-			});
-		},
-		[poiEditSnap, planPois, handleUpdatePlanPoi],
-	);
-
 	const handlePlanSelect = useCallback(
 		(planId: string) => {
 			setStageEndExplorerOpen(false);
@@ -1265,10 +1270,14 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 				const newName = `Copy of ${plan.name}`;
 				if (isGuestMode) {
 					const nowIso = new Date().toISOString();
-					const createdStages = ((plan.stages ?? []) as DbStage[]).map((stage) => ({
+					const sourceStages = (plan.stages ?? []) as DbStage[];
+					const createdStages = sourceStages.map((stage) => ({
 						...stage,
 						id: crypto.randomUUID(),
 					}));
+					const clonedStageIdBySourceId = new Map(
+						sourceStages.map((stage, index) => [stage.id, createdStages[index]?.id]),
+					);
 					const guestRoute = getRouteById(routeId);
 					const sourcePlanPois = guestRoute?.plan_pois_by_plan_id?.[plan.id] ?? [];
 					const newPlan = {
@@ -1284,13 +1293,23 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					const clonedMemos = normalizeScheduleMarkerMemos(
 						(sourcePlanRow as { schedule_marker_memos?: unknown }).schedule_marker_memos,
 					);
-					const clonedPlanPois = sourcePlanPois.map((poi) => ({
-						...poi,
-						id: crypto.randomUUID(),
-						plan_id: newPlan.id,
-						created_at: nowIso,
-						updated_at: nowIso,
-					}));
+					const clonedPlanPois = sourcePlanPois.map((poi) => {
+						const clonedStageId = poi.stage_id
+							? (clonedStageIdBySourceId.get(poi.stage_id) ?? null)
+							: null;
+						return {
+							...poi,
+							id: crypto.randomUUID(),
+							plan_id: newPlan.id,
+							assignment_mode:
+								poi.assignment_mode === "stage" && !clonedStageId
+									? "distance"
+									: poi.assignment_mode,
+							stage_id: clonedStageId,
+							created_at: nowIso,
+							updated_at: nowIso,
+						};
+					});
 					setDbRoute((prev: any) => ({
 						...prev,
 						plans: [
@@ -1316,6 +1335,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 				const newPlan = await planRes.json();
 
 				const rawStages = (plan.stages ?? []) as {
+					id: string;
 					start_distance: number;
 					end_distance: number;
 					elevation_gain?: number | null;
@@ -1325,6 +1345,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 				}[];
 				const sortedStages = [...rawStages].sort((a, b) => a.start_distance - b.start_distance);
 				const createdStages: DbStage[] = [];
+				const clonedStageIdBySourceId = new Map<string, string>();
 				for (const s of sortedStages) {
 					const stageRes = await fetch("/api/stages", {
 						method: "POST",
@@ -1340,13 +1361,18 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 						}),
 					});
 					if (!stageRes.ok) throw new Error("Stage creation failed");
-					createdStages.push(await stageRes.json());
+					const createdStage = (await stageRes.json()) as DbStage;
+					createdStages.push(createdStage);
+					clonedStageIdBySourceId.set(s.id, createdStage.id);
 				}
 
 				const sourcePoiRes = await fetch(`/api/plans/${plan.id}/pois`);
 				const sourcePois = sourcePoiRes.ok ? ((await sourcePoiRes.json()) as PlanPoiRow[]) : [];
 				const clonedPois: PlanPoiRow[] = [];
 				for (const poi of sourcePois) {
+					const clonedStageId = poi.stage_id
+						? (clonedStageIdBySourceId.get(poi.stage_id) ?? null)
+						: null;
 					const poiRes = await fetch(`/api/plans/${newPlan.id}/pois`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
@@ -1357,6 +1383,19 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 							memo: poi.memo,
 							lat: poi.lat,
 							lng: poi.lng,
+							assignment_mode:
+								poi.assignment_mode === "stage" && !clonedStageId
+									? "distance"
+									: poi.assignment_mode,
+							stage_id: clonedStageId,
+							intent: poi.intent,
+							phone: poi.phone,
+							address_name: poi.address_name,
+							place_url: poi.place_url,
+							naver_place_url: poi.naver_place_url ?? null,
+							booking_method: poi.booking_method ?? "unconfirmed",
+							booking_url: poi.booking_url ?? null,
+							booking_checked_at: poi.booking_checked_at ?? null,
 						}),
 					});
 					if (!poiRes.ok) throw new Error("Plan POI copy failed");
@@ -1882,14 +1921,34 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 				onSave={handleSaveOfficialSpecs}
 			/>
 
-			<PoiEditDialog
-				open={poiEditSnap != null}
-				poi={poiEditSnap}
-				onOpenChange={(open) => {
-					if (!open) setPoiEditSnap(null);
-				}}
-				onSave={handleSavePoiFromDialog}
-			/>
+			{poiEditSnap != null &&
+				(() => {
+					const row = planPois.find((poi) => poi.id === poiEditSnap.id);
+					if (!row) return null;
+					const assignedStage = stages.find(
+						(stage) =>
+							poiEditSnap.distanceKm >= stage.startDistanceKm &&
+							poiEditSnap.distanceKm <= stage.endDistanceKm,
+					);
+					return (
+						<PlanPoiDialog
+							mode="edit"
+							open
+							row={row}
+							stages={stages.map((stage) => ({
+								id: stage.id,
+								dayNumber: stage.dayNumber,
+							}))}
+							distanceAssignmentLabel={
+								assignedStage ? `스테이지 ${assignedStage.dayNumber}` : null
+							}
+							onOpenChange={(open) => {
+								if (!open) setPoiEditSnap(null);
+							}}
+							onSave={(payload) => handleUpdatePlanPoi(row.id, payload)}
+						/>
+					);
+				})()}
 		</>
 	);
 }

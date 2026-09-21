@@ -25,8 +25,7 @@ export function WaypointListMarkerIcon({
   row: StageScheduleWaypoint;
   density?: "compact" | "comfortable";
 }) {
-  const iconClass =
-    density === "comfortable" ? MARKER_ICON_COMFORTABLE : MARKER_ICON_COMPACT;
+  const iconClass = density === "comfortable" ? MARKER_ICON_COMFORTABLE : MARKER_ICON_COMPACT;
   if (row.markerKind === "cp") {
     return <SquareCheckBig className={iconClass} aria-hidden />;
   }
@@ -70,22 +69,29 @@ export type StageScheduleWaypointListProps = {
   renderRowEnd?: (row: StageScheduleWaypoint) => ReactNode;
 };
 
-function StatsLine({
-  row,
-  className,
-}: {
-  row: StageScheduleWaypoint;
-  className?: string;
-}) {
+function StatsLine({ row, className }: { row: StageScheduleWaypoint; className?: string }) {
   return (
     <span
       className={cn("tabular-nums text-muted-foreground", className)}
       title="구간 거리 · 해발 고도 · 일차 시작~지점 누적 상승"
     >
-      {row.distanceFromStageStartKm.toFixed(1)}km · {row.elevationM}m{" · "}
+      {row.stageLocationLabel ?? `${row.distanceFromStageStartKm.toFixed(1)}km`} · {row.elevationM}m
+      {" · "}
       <span className="text-muted-foreground/70">
         +{row.elevationGainFromStageStartM.toLocaleString()}m
       </span>
+    </span>
+  );
+}
+
+function PoiIntentBadge({ row }: { row: StageScheduleWaypoint }) {
+  if (row.markerKind !== "plan_poi") return null;
+  const label =
+    row.planPoiIntent === "candidate" ? "후보" : row.planPoiIntent === "confirmed" ? "확정" : null;
+  if (!label) return null;
+  return (
+    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+      {label}
     </span>
   );
 }
@@ -105,18 +111,16 @@ function WaypointRowMain({
         {comfortable ? (
           <>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-sm font-medium text-foreground">
-                {row.name}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {row.categoryLabel}
-              </span>
+              <span className="text-sm font-medium text-foreground">{row.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{row.categoryLabel}</span>
+              <PoiIntentBadge row={row} />
             </div>
             <StatsLine row={row} className="mt-1 block text-sm" />
+            {row.markerKind === "plan_poi" && row.addressName ? (
+              <p className="mt-1 text-xs text-muted-foreground">{row.addressName}</p>
+            ) : null}
             {row.memo?.trim() ? (
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                {row.memo}
-              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{row.memo}</p>
             ) : null}
           </>
         ) : (
@@ -124,14 +128,11 @@ function WaypointRowMain({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span className="font-medium text-foreground">{row.name}</span>
               <StatsLine row={row} className="text-xs" />
-              <span className="text-[10px] text-muted-foreground">
-                {row.categoryLabel}
-              </span>
+              <span className="text-[10px] text-muted-foreground">{row.categoryLabel}</span>
+              <PoiIntentBadge row={row} />
             </div>
             {row.memo?.trim() ? (
-              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-                {row.memo}
-              </p>
+              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{row.memo}</p>
             ) : null}
           </>
         )}
@@ -157,9 +158,7 @@ export function StageScheduleWaypointList({
   const rowGap = comfortable ? "gap-3" : "gap-2";
   const listGap = comfortable ? "space-y-4" : "space-y-0";
   const rowText = comfortable ? "text-sm" : "text-xs";
-  const buttonHover = comfortable
-    ? "hover:bg-muted/50 py-1"
-    : "hover:bg-muted/50 py-2";
+  const buttonHover = comfortable ? "hover:bg-muted/50 py-1" : "hover:bg-muted/50 py-2";
   const useWaypointRowButtons = onWaypointRowClick != null;
 
   return (
@@ -181,15 +180,11 @@ export function StageScheduleWaypointList({
             row.markerKind === "plan_poi" &&
             row.planPoiId != null &&
             onPlanPoiRowClick != null;
-          const isRowSelected =
-            selectedRowKey != null && row.rowKey === selectedRowKey;
+          const isRowSelected = selectedRowKey != null && row.rowKey === selectedRowKey;
           const end = renderRowEnd?.(row);
 
           return (
-            <li
-              key={row.rowKey}
-              className={cn("flex items-start", rowGap, rowText)}
-            >
+            <li key={row.rowKey} className={cn("flex items-start", rowGap, rowText)}>
               {useWaypointRowButtons ? (
                 <button
                   type="button"
@@ -226,12 +221,7 @@ export function StageScheduleWaypointList({
                 </div>
               )}
               {end != null ? (
-                <span
-                  className={cn(
-                    "inline-flex shrink-0",
-                    comfortable ? "pt-1" : "pt-0.5",
-                  )}
-                >
+                <span className={cn("inline-flex shrink-0", comfortable ? "pt-1" : "pt-0.5")}>
                   {end}
                 </span>
               ) : null}

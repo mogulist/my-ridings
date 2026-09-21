@@ -3,13 +3,21 @@
 import {
 	calibrateThreshold,
 	computeTrackElevationGainLoss,
-	snapPlanPoisToTrack,
+	planPoiBelongsToStage,
 	type SnappedPlanPoi,
+	snapPlanPoisToTrack,
 	stageDayLabel,
 } from "@my-ridings/plan-geometry";
-import { parseSummitScheduleRowKey, summitScheduleRowKey } from "@/lib/rwgps-plan-markers";
 import { Badge, cn } from "@my-ridings/ui";
-import { ArrowUp, ChevronDown, ChevronUp, MapPin, Mountain } from "lucide-react";
+import {
+	ArrowUp,
+	ChevronDown,
+	ChevronUp,
+	ExternalLink,
+	MapPin,
+	Mountain,
+	Phone,
+} from "lucide-react";
 import {
 	cloneElement,
 	createContext,
@@ -23,9 +31,10 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { parseSummitScheduleRowKey, summitScheduleRowKey } from "@/lib/rwgps-plan-markers";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
-import type { PlanPoiRow } from "../types/planPoi";
+import { type PlanPoiRow, safePlanPoiExternalUrl } from "../types/planPoi";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type {
 	StageScheduleMarkerKind,
@@ -71,7 +80,7 @@ export function itemsInStage<T extends DistanceAlongRoute>(items: T[], stage: St
 }
 
 export function poisForStage(snapped: SnappedPlanPoi[], stage: Stage): SnappedPlanPoi[] {
-	return itemsInStage(snapped, stage);
+	return snapped.filter((poi) => planPoiBelongsToStage(poi, stage));
 }
 
 const POI_TYPE_LABEL_KO: Record<string, string> = {
@@ -105,6 +114,12 @@ function waypointRowForAbsoluteKm(
 		markerKind: StageScheduleMarkerKind;
 		planPoiType?: string;
 		planPoiId?: string;
+		planPoiIntent?: "candidate" | "planned" | "confirmed";
+		planPoiAssignmentMode?: "stage" | "distance" | "plan";
+		phone?: string | null;
+		addressName?: string | null;
+		placeUrl?: string | null;
+		naverPlaceUrl?: string | null;
 	},
 ): StageScheduleWaypoint {
 	const distanceFromStageStartKm =
@@ -136,22 +151,48 @@ export function stageScheduleWaypoints(
 	calibratedThreshold: number,
 	scheduleMarkerMemos?: ScheduleMarkerMemos | null,
 ): StageScheduleWaypoint[] {
-	const fromPois: StageScheduleWaypoint[] = itemsInStage(snappedPois, stage).map((p) =>
-		waypointRowForAbsoluteKm(stage, trackPoints, p.distanceKm, p.elevation, calibratedThreshold, {
-			rowKey: `plan-poi:${p.id}`,
-			name: p.name,
-			categoryLabel: planPoiTypeLabelKo(p.poiType),
-			memo: p.memo,
-			markerKind: "plan_poi",
-			planPoiType: p.poiType,
-			planPoiId: p.id,
-		}),
-	);
+	const fromPois: StageScheduleWaypoint[] = poisForStage(snappedPois, stage).map((p) => {
+		const row = waypointRowForAbsoluteKm(
+			stage,
+			trackPoints,
+			p.distanceKm,
+			p.elevation,
+			calibratedThreshold,
+			{
+				rowKey: `plan-poi:${p.id}`,
+				name: p.name,
+				categoryLabel: planPoiTypeLabelKo(p.poiType),
+				memo: p.memo,
+				markerKind: "plan_poi",
+				planPoiType: p.poiType,
+				planPoiId: p.id,
+				planPoiIntent: p.intent,
+				planPoiAssignmentMode: p.assignmentMode,
+				phone: p.phone,
+				addressName: p.addressName,
+				placeUrl: p.placeUrl,
+				naverPlaceUrl: p.naverPlaceUrl,
+			},
+		);
+		if (p.assignmentMode !== "stage") return row;
+		if (p.distanceKm > stage.endDistanceKm) {
+			return {
+				...row,
+				stageLocationLabel: `종료 후 ${(p.distanceKm - stage.endDistanceKm).toFixed(1)}km`,
+			};
+		}
+		if (p.distanceKm < stage.startDistanceKm) {
+			return {
+				...row,
+				stageLocationLabel: `시작 전 ${(stage.startDistanceKm - p.distanceKm).toFixed(1)}km`,
+			};
+		}
+		return row;
+	});
 	const fromCp: StageScheduleWaypoint[] = itemsInStage(cpMarkers, stage).map((c) => {
 		const rowKey = `cp:${c.id}`;
 		const rawMemo = scheduleMarkerMemos?.[rowKey];
-		const memo =
-			typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
+		const memo = typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
 		return waypointRowForAbsoluteKm(
 			stage,
 			trackPoints,
@@ -170,8 +211,7 @@ export function stageScheduleWaypoints(
 	const fromSummit: StageScheduleWaypoint[] = itemsInStage(summitMarkers, stage).map((s) => {
 		const rowKey = summitScheduleRowKey(s);
 		const rawMemo = scheduleMarkerMemos?.[rowKey];
-		const memo =
-			typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
+		const memo = typeof rawMemo === "string" && rawMemo.trim().length > 0 ? rawMemo.trim() : null;
 		return waypointRowForAbsoluteKm(
 			stage,
 			trackPoints,
@@ -393,6 +433,40 @@ export function InlineStageCard({
 								rows={stageWaypoints}
 								selectedRowKey={selectedWaypointListRowKey ?? undefined}
 								onWaypointRowClick={onWaypointRowClick}
+								renderRowEnd={(row) =>
+									row.markerKind === "plan_poi" &&
+									(row.phone ||
+										safePlanPoiExternalUrl(row.naverPlaceUrl) ||
+										safePlanPoiExternalUrl(row.placeUrl)) ? (
+										<span className="flex items-center gap-1">
+											{row.phone ? (
+												<a
+													href={`tel:${row.phone}`}
+													className="rounded p-1 text-primary"
+													aria-label={`${row.name} 전화`}
+												>
+													<Phone className="size-4" />
+												</a>
+											) : null}
+											{safePlanPoiExternalUrl(row.naverPlaceUrl) ||
+											safePlanPoiExternalUrl(row.placeUrl) ? (
+												<a
+													href={
+														safePlanPoiExternalUrl(row.naverPlaceUrl) ??
+														safePlanPoiExternalUrl(row.placeUrl) ??
+														undefined
+													}
+													target="_blank"
+													rel="noreferrer"
+													className="rounded p-1 text-primary"
+													aria-label={`${row.name} 네이버 지도에서 보기`}
+												>
+													<ExternalLink className="size-4" />
+												</a>
+											) : null}
+										</span>
+									) : null
+								}
 							/>
 						) : null}
 					</div>

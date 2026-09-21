@@ -7,6 +7,7 @@ describe("shouldUnpinElevationTooltipOnEscape", () => {
 		isPinned: true,
 		isStageEndBoundaryOverlayActive: false,
 		hasOpenDialog: false,
+		isPointerOverElevationProfile: true,
 	};
 
 	test("Escape unpins when tooltip is pinned and no overlay is open", () => {
@@ -32,6 +33,15 @@ describe("shouldUnpinElevationTooltipOnEscape", () => {
 			shouldUnpinElevationTooltipOnEscape({
 				...pinnedIdle,
 				isStageEndBoundaryOverlayActive: true,
+			}),
+		).toBe(false);
+	});
+
+	test("does not unpin when the pointer is outside the elevation profile", () => {
+		expect(
+			shouldUnpinElevationTooltipOnEscape({
+				...pinnedIdle,
+				isPointerOverElevationProfile: false,
 			}),
 		).toBe(false);
 	});

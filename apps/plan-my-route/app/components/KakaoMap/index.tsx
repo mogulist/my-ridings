@@ -14,8 +14,15 @@ import {
 	type PlaceReviewRow,
 	type ReviewState,
 } from "@/app/types/placeReview";
-import type { PlanPoiRow } from "@/app/types/planPoi";
+import {
+	PLAN_POI_BOOKING_METHOD_LABELS,
+	type PlanPoiCreatePayload,
+	type PlanPoiRow,
+	type PlanPoiUpdatePayload,
+	safePlanPoiExternalUrl,
+} from "@/app/types/planPoi";
 import type { SummitCatalogRow } from "@/app/types/summitCatalog";
+import { buildNaverPlaceSearchQuery } from "@/lib/naver-map";
 import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
@@ -181,6 +188,22 @@ function findNearestIndexByLatLng(points: TrackPoint[], lat: number, lng: number
 	return bestIdx;
 }
 
+function distanceAssignedStageLabel(
+	lat: number,
+	lng: number,
+	trackPoints: TrackPoint[],
+	stages: Stage[],
+): string | null {
+	const index = findNearestIndexByLatLng(trackPoints, lat, lng);
+	const distanceM = index >= 0 ? trackPoints[index]?.d : null;
+	if (distanceM == null) return null;
+	const distanceKm = distanceM / 1000;
+	const stage = stages.find(
+		(item) => distanceKm >= item.startDistanceKm && distanceKm <= item.endDistanceKm,
+	);
+	return stage ? `스테이지 ${stage.dayNumber}` : null;
+}
+
 /** track_points를 거리 기준으로 구간 분할 */
 function slicePointsByDistance(points: TrackPoint[], startKm: number, endKm: number): TrackPoint[] {
 	const startM = startKm * 1000;
@@ -307,6 +330,7 @@ type KakaoPlaceDoc = {
 	place_name: string;
 	place_url: string;
 	address_name?: string;
+	phone?: string;
 	x: string;
 	y: string;
 };
@@ -523,12 +547,13 @@ function buildNaverMapUrls(
 	lat: string,
 	lng: string,
 ): { webUrl: string; appSchemeUrl: string } | null {
-	const query = (placeName || addressName || "").trim();
+	const query = buildNaverPlaceSearchQuery(placeName, addressName);
 	if (!query) return null;
-	const encoded = encodeURIComponent(query);
-	const webUrl = `https://map.naver.com/p/search/${encoded}`;
+	const encodedQuery = encodeURIComponent(query);
+	const encodedPlaceName = encodeURIComponent(placeName.trim() || query);
+	const webUrl = `https://map.naver.com/p/search/${encodedQuery}`;
 	const appname = typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
-	const appSchemeUrl = `nmap://place?lat=${lat}&lng=${lng}&name=${encoded}&appname=${appname}`;
+	const appSchemeUrl = `nmap://place?lat=${lat}&lng=${lng}&name=${encodedPlaceName}&appname=${appname}`;
 	return { webUrl, appSchemeUrl };
 }
 
@@ -552,6 +577,32 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 	const memoInner = hasMemo ? esc(row.memo ?? "") : esc("메모 없음");
 	const memoColor = hasMemo ? "#374151" : "#9ca3af";
 	const memoStyle = `margin-top:6px;font-size:12px;color:${memoColor};line-height:1.45;min-height:2.9em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;white-space:pre-line;`;
+	const linkStyle =
+		"display:inline-block;padding:3px 8px;font-size:11px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;border-radius:4px;text-decoration:none;line-height:1.3;";
+	const generatedNaverUrls = buildNaverMapUrls(
+		row.name,
+		row.address_name ?? undefined,
+		String(row.lat),
+		String(row.lng),
+	);
+	const naverWebUrl = safePlanPoiExternalUrl(row.naver_place_url) ?? generatedNaverUrls?.webUrl;
+	const bookingUrl = safePlanPoiExternalUrl(row.booking_url);
+	const naverLink = naverWebUrl
+		? `<a href="${esc(naverWebUrl)}" class="open-naver-map" target="_blank" rel="noopener noreferrer" data-naver-web-url="${esc(naverWebUrl)}" data-naver-app-url="${esc(generatedNaverUrls?.appSchemeUrl ?? "")}" style="${linkStyle}">네이버맵</a>`
+		: "";
+	const bookingLink = bookingUrl
+		? `<a href="${esc(bookingUrl)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}">예약 페이지</a>`
+		: "";
+	const linksHtml =
+		naverLink || bookingLink
+			? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${naverLink}${bookingLink}</div>`
+			: "";
+	const bookingMeta =
+		row.poi_type === "accommodation" &&
+		row.booking_method &&
+		row.booking_method !== "unconfirmed"
+			? `<div style="margin-top:6px;font-size:11px;color:#6b7280;">${esc(PLAN_POI_BOOKING_METHOD_LABELS[row.booking_method] ?? "예약 정보")}${row.booking_checked_at ? ` · ${esc(new Date(row.booking_checked_at).toLocaleDateString("ko-KR"))} 확인` : ""}</div>`
+			: "";
 	const btnStyle =
 		"padding:3px 10px;font-size:11px;border:1px solid #d1d5db;background:#fff;color:#6b7280;border-radius:4px;cursor:pointer;line-height:1.3;box-sizing:border-box;flex-shrink:0;";
 	const actionsHtml = showActions
@@ -559,7 +610,7 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 		: "";
 	const rootStyle =
 		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
-	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div><div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
+	return `<div class="kakao-map-info-window plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div>${linksHtml}${bookingMeta}<div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
 }
 
 function buildOfficialSummitInfoWindowHtml(row: SummitCatalogRow, showActions: boolean): string {
@@ -578,7 +629,7 @@ function buildOfficialSummitInfoWindowHtml(row: SummitCatalogRow, showActions: b
 		: "";
 	const rootStyle =
 		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
-	return `<div class="official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
+	return `<div class="kakao-map-info-window official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
 }
 
 /** "경로 132km 지점 · 이탈 2.3km" 처럼 코스 대비 위치를 한 줄로 요약한다. */
@@ -624,7 +675,7 @@ function buildAccommodationTooltipHtml(
 	const detourBlock = options?.routeDetourLabel
 		? `<div style="margin-bottom:6px;font-size:11px;font-weight:500;color:#6b7280;">🚲 ${esc(options.routeDetourLabel)}</div>`
 		: "";
-	return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
+	return `<div class="kakao-map-info-window accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
   ${detourBlock}
   ${linksBlock}
@@ -771,17 +822,10 @@ interface KakaoMapProps {
 		elevation_m: number | null;
 	}) => Promise<SummitCatalogRow | null>;
 	onDeleteOfficialSummit?: (summitId: string) => Promise<boolean>;
-	onCreatePlanPoi?: (payload: {
-		kakao_place_id: string | null;
-		name: string;
-		poi_type: string;
-		memo: string | null;
-		lat: number;
-		lng: number;
-	}) => Promise<PlanPoiRow | null>;
+	onCreatePlanPoi?: (payload: PlanPoiCreatePayload) => Promise<PlanPoiRow | null>;
 	onUpdatePlanPoi?: (
 		poiId: string,
-		payload: { name: string; poi_type: string; memo: string | null },
+		payload: PlanPoiUpdatePayload,
 	) => Promise<PlanPoiRow | null>;
 	onDeletePlanPoi?: (poiId: string) => Promise<boolean>;
 	/** 공유 뷰 등: 주변 검색·북마크·POI 추가 비활성 */
@@ -911,6 +955,7 @@ export default function KakaoMap({
 }: KakaoMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const openInfoWindowRef = useRef<KakaoInfoWindow | null>(null);
+	const isPointerOverMapRef = useRef(false);
 	const focusPlanPoiAnchorRef = useRef<KakaoMarker | null>(null);
 	const mapInstanceRef = useRef<unknown>(null);
 	const lastRouteIdRef = useRef<number | null>(null);
@@ -973,6 +1018,17 @@ export default function KakaoMap({
 		open: boolean;
 		row: PlanPoiRow | null;
 	}>({ open: false, row: null });
+	const addPoiDistanceAssignmentLabel = addPoiDialog.doc
+		? distanceAssignedStageLabel(
+				Number(addPoiDialog.doc.y),
+				Number(addPoiDialog.doc.x),
+				trackPoints,
+				stages,
+			)
+		: null;
+	const editPoiDistanceAssignmentLabel = editPoiDialog.row
+		? distanceAssignedStageLabel(editPoiDialog.row.lat, editPoiDialog.row.lng, trackPoints, stages)
+		: null;
 	const onReviewChangeRef = useRef<((placeId: string, review: PlaceReviewRow) => void) | null>(
 		null,
 	);
@@ -989,6 +1045,19 @@ export default function KakaoMap({
 	reviewContextRef.current = reviewContext;
 	const readOnlyRef = useRef(readOnly);
 	readOnlyRef.current = readOnly;
+
+	useEffect(() => {
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || !isPointerOverMapRef.current) return;
+			if (document.querySelector('[role="dialog"], [aria-modal="true"]') != null) return;
+			openInfoWindowRef.current?.close();
+			openInfoWindowRef.current = null;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		};
+		document.addEventListener("keydown", handleEscape, true);
+		return () => document.removeEventListener("keydown", handleEscape, true);
+	}, []);
 	const activePlanIdRef = useRef(activePlanId);
 	activePlanIdRef.current = activePlanId;
 	const planPoisRef = useRef(planPois);
@@ -1362,7 +1431,7 @@ export default function KakaoMap({
 							poi.poi_type_name,
 						)}</div>`
 					: "";
-				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;max-width:200px;line-height:1.4;box-sizing:border-box;">📍 ${esc(poi.name)}${typeLine}</div>`;
+				const infoContent = `<div class="kakao-map-info-window" style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;max-width:200px;line-height:1.4;box-sizing:border-box;">📍 ${esc(poi.name)}${typeLine}</div>`;
 				const infoWindow = new maps.InfoWindow({
 					content: infoContent,
 					removable: true,
@@ -1697,6 +1766,7 @@ export default function KakaoMap({
 							place_name: d.place_name,
 							place_url: d.place_url ?? "",
 							address_name: d.address_name,
+							phone: d.phone,
 							x: d.x,
 							y: d.y,
 						});
@@ -2628,15 +2698,28 @@ export default function KakaoMap({
 	};
 
 	return (
-		<div className="relative h-full w-full overflow-hidden">
+		<div
+			className="kakao-map-root relative h-full w-full overflow-hidden"
+			onPointerEnter={() => {
+				isPointerOverMapRef.current = true;
+			}}
+			onPointerLeave={() => {
+				isPointerOverMapRef.current = false;
+			}}
+		>
 			<Script
 				src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`}
 				onLoad={handleScriptLoad}
 				strategy="afterInteractive"
 			/>
+			<style>{`
+				.kakao-map-root:has(.kakao-map-info-window) .nearby-reload-button {
+					display: none;
+				}
+			`}</style>
 			<div ref={containerCallbackRef} className="h-full w-full" />
 			{mapReady && showMapControls && (
-				<div className="pointer-events-none absolute inset-0 z-10">
+				<div className="pointer-events-none absolute inset-0 z-20">
 					<div className="pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-2rem)] flex-nowrap items-center gap-1">
 						<button
 							type="button"
@@ -2662,7 +2745,7 @@ export default function KakaoMap({
 						activeCategory != null &&
 						hasMapMovedSinceSearch &&
 						!isNearbySearchDisabled && (
-							<div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
+							<div className="nearby-reload-button pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
 								<button
 									type="button"
 									onClick={() => void handleReloadNearby(activeCategory, nearbySearchMode)}
@@ -2942,6 +3025,20 @@ export default function KakaoMap({
 					kakaoPlaceId={addPoiDialog.doc.id}
 					lat={Number(addPoiDialog.doc.y)}
 					lng={Number(addPoiDialog.doc.x)}
+					phone={addPoiDialog.doc.phone?.trim() || null}
+					addressName={addPoiDialog.doc.address_name?.trim() || null}
+					placeUrl={addPoiDialog.doc.place_url?.trim() || null}
+					naverPlaceUrl={
+						buildNaverMapUrls(
+							addPoiDialog.doc.place_name,
+							addPoiDialog.doc.address_name,
+							addPoiDialog.doc.y,
+							addPoiDialog.doc.x,
+						)?.webUrl ?? null
+					}
+					stages={stages.map((stage) => ({ id: stage.id, dayNumber: stage.dayNumber }))}
+					currentStageId={reviewContext.stageId}
+					distanceAssignmentLabel={addPoiDistanceAssignmentLabel}
 					hasActivePlan={Boolean(activePlanId)}
 					onSave={onCreatePlanPoi}
 				/>
@@ -2958,6 +3055,8 @@ export default function KakaoMap({
 						}))
 					}
 					row={editPoiDialog.row}
+					stages={stages.map((stage) => ({ id: stage.id, dayNumber: stage.dayNumber }))}
+					distanceAssignmentLabel={editPoiDistanceAssignmentLabel}
 					onSave={async (payload) => {
 						const id = editPoiDialog.row?.id;
 						if (!id) return null;
