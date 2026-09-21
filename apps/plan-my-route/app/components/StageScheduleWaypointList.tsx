@@ -12,7 +12,7 @@ import {
   Utensils,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { isPlanPoiType } from "../types/planPoi";
+import { isPlanPoiType, PLAN_POI_INTENT_LABELS } from "../types/planPoi";
 import type { StageScheduleWaypoint } from "../types/stageScheduleWaypoint";
 
 const MARKER_ICON_COMPACT = "mt-0.5 size-3.5 shrink-0 text-muted-foreground";
@@ -66,6 +66,7 @@ export type StageScheduleWaypointListProps = {
   /** `onWaypointRowClick`과 함께 사용 — 선택된 행 강조 */
   selectedRowKey?: string;
   onPlanPoiRowClick?: (poiId: string) => void;
+  renderRowPrefix?: (row: StageScheduleWaypoint) => ReactNode;
   renderRowEnd?: (row: StageScheduleWaypoint) => ReactNode;
 };
 
@@ -86,8 +87,8 @@ function StatsLine({ row, className }: { row: StageScheduleWaypoint; className?:
 
 function PoiIntentBadge({ row }: { row: StageScheduleWaypoint }) {
   if (row.markerKind !== "plan_poi") return null;
-  const label =
-    row.planPoiIntent === "candidate" ? "후보" : row.planPoiIntent === "confirmed" ? "확정" : null;
+  if (row.planPoiIntent === "planned" && row.planPoiType !== "accommodation") return null;
+  const label = row.planPoiIntent ? PLAN_POI_INTENT_LABELS[row.planPoiIntent] : null;
   if (!label) return null;
   return (
     <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
@@ -99,13 +100,16 @@ function PoiIntentBadge({ row }: { row: StageScheduleWaypoint }) {
 function WaypointRowMain({
   row,
   density,
+  prefix,
 }: {
   row: StageScheduleWaypoint;
   density: StageScheduleWaypointListDensity;
+  prefix?: ReactNode;
 }) {
   const comfortable = density === "comfortable";
   return (
     <>
+      {prefix}
       <WaypointListMarkerIcon row={row} density={density} />
       <div className="min-w-0 flex-1">
         {comfortable ? (
@@ -150,6 +154,7 @@ export function StageScheduleWaypointList({
   onWaypointRowClick,
   selectedRowKey,
   onPlanPoiRowClick,
+  renderRowPrefix,
   renderRowEnd,
 }: StageScheduleWaypointListProps) {
   if (rows.length === 0) return null;
@@ -181,6 +186,7 @@ export function StageScheduleWaypointList({
             row.planPoiId != null &&
             onPlanPoiRowClick != null;
           const isRowSelected = selectedRowKey != null && row.rowKey === selectedRowKey;
+          const prefix = renderRowPrefix?.(row);
           const end = renderRowEnd?.(row);
 
           return (
@@ -197,7 +203,7 @@ export function StageScheduleWaypointList({
                   )}
                   onClick={() => onWaypointRowClick(row)}
                 >
-                  <WaypointRowMain row={row} density={density} />
+                  <WaypointRowMain row={row} density={density} prefix={prefix} />
                 </button>
               ) : isClickablePoi ? (
                 <button
@@ -213,11 +219,11 @@ export function StageScheduleWaypointList({
                     if (id) onPlanPoiRowClick(id);
                   }}
                 >
-                  <WaypointRowMain row={row} density={density} />
+                  <WaypointRowMain row={row} density={density} prefix={prefix} />
                 </button>
               ) : (
                 <div className={cn("flex min-w-0 flex-1 items-start", rowGap)}>
-                  <WaypointRowMain row={row} density={density} />
+                  <WaypointRowMain row={row} density={density} prefix={prefix} />
                 </div>
               )}
               {end != null ? (

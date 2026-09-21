@@ -14,6 +14,12 @@ export type PlanPoiAssignmentMode = (typeof PLAN_POI_ASSIGNMENT_MODES)[number];
 export const PLAN_POI_INTENTS = ["candidate", "planned", "confirmed"] as const;
 export type PlanPoiIntent = (typeof PLAN_POI_INTENTS)[number];
 
+export const PLAN_POI_INTENT_LABELS: Record<PlanPoiIntent, string> = {
+  candidate: "후보",
+  planned: "선택",
+  confirmed: "확정",
+};
+
 export const PLAN_POI_BOOKING_METHODS = [
   "unconfirmed",
   "naver",
@@ -47,6 +53,7 @@ export type PlanPoiUpdatePayload = {
   booking_method: PlanPoiBookingMethod;
   booking_url: string | null;
   booking_checked_at: string | null;
+  candidate_sort_order?: number | null;
 };
 
 export type PlanPoiCreatePayload = PlanPoiUpdatePayload & {
@@ -78,6 +85,7 @@ export type PlanPoiRow = {
   booking_method: PlanPoiBookingMethod;
   booking_url: string | null;
   booking_checked_at: string | null;
+  candidate_sort_order: number | null;
   created_at: string;
   updated_at: string;
 };

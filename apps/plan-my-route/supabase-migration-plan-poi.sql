@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS public.plan_poi (
         CHECK (booking_method IN ('unconfirmed', 'naver', 'secretmall', 'yeogi', 'agoda', 'phone', 'walk_in', 'other')),
     booking_url text,
     booking_checked_at timestamp with time zone,
+    candidate_sort_order integer CHECK (candidate_sort_order IS NULL OR candidate_sort_order >= 0),
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT plan_poi_pkey PRIMARY KEY (id),

@@ -1,14 +1,23 @@
 "use client";
 
 import { type SnappedPlanPoi, snapPlanPoisToTrack } from "@my-ridings/plan-geometry";
-import { ExternalLinkIcon, PencilIcon, PhoneIcon, TrashIcon, XIcon } from "lucide-react";
+import {
+	ArrowDownIcon,
+	ArrowUpIcon,
+	ExternalLinkIcon,
+	PencilIcon,
+	PhoneIcon,
+	TrashIcon,
+	XIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
+import { groupAccommodationCandidates } from "@/lib/accommodation-candidate-groups";
 import type { Stage } from "../types/plan";
 import { getStageColor } from "../types/plan";
 import { type PlanPoiRow, safePlanPoiExternalUrl } from "../types/planPoi";
 import type { ScheduleMarkerMemos } from "../types/scheduleMarkerMemos";
 import type { StageScheduleWaypoint } from "../types/stageScheduleWaypoint";
-import { DotsMenu } from "./DotsMenu";
+import { DotsMenu, type DotsMenuEntry } from "./DotsMenu";
 import type { CPOnRoute, SummitOnRoute, TrackPoint } from "./ElevationProfile";
 import { maxElevationInStageRange, stageScheduleWaypoints } from "./MobileSharedPlanStagesTab";
 import { ScheduleMarkerMemoDialog } from "./ScheduleMarkerMemoDialog";
@@ -31,6 +40,7 @@ type StageDetailPanelProps = {
 	onPoiRowClick: (poiId: string) => void;
 	onEditPoi: (poi: SnappedPlanPoi) => void;
 	onDeletePoi: (poiId: string) => void;
+	onAccommodationOrderChange?: (orderedPoiIds: string[]) => Promise<boolean>;
 	/** 공유 뷰 등: 수정·삭제 UI 숨김 */
 	readOnly?: boolean;
 };
@@ -55,11 +65,13 @@ export function StageDetailPanel({
 	onPoiRowClick,
 	onEditPoi,
 	onDeletePoi,
+	onAccommodationOrderChange,
 	readOnly = false,
 }: StageDetailPanelProps) {
 	const [scheduleMemoEditRow, setScheduleMemoEditRow] = useState<StageScheduleWaypoint | null>(
 		null,
 	);
+	const [isReorderingAccommodation, setIsReorderingAccommodation] = useState(false);
 
 	const snapped = useMemo(
 		() => snapPlanPoisToTrack(planPois, trackPoints),
@@ -92,19 +104,109 @@ export function StageDetailPanel({
 		return maxElevationInStageRange(trackPoints, stage.startDistanceKm, stage.endDistanceKm);
 	}, [trackPoints, stage]);
 
+	const planPoiById = new Map(planPois.map((poi) => [poi.id, poi]));
+	const accommodationRows = waypointRows.filter(
+		(row) => row.markerKind === "plan_poi" && row.planPoiType === "accommodation",
+	);
 	const candidateRows = waypointRows.filter(
-		(row) => row.markerKind === "plan_poi" && row.planPoiIntent === "candidate",
+		(row) =>
+			row.markerKind === "plan_poi" &&
+			row.planPoiType !== "accommodation" &&
+			row.planPoiIntent === "candidate",
 	);
 	const itineraryRows = waypointRows.filter(
-		(row) => !(row.markerKind === "plan_poi" && row.planPoiIntent === "candidate"),
+		(row) =>
+			!(
+				row.markerKind === "plan_poi" &&
+				(row.planPoiType === "accommodation" || row.planPoiIntent === "candidate")
+			),
+	);
+	const accommodationGroups = groupAccommodationCandidates(
+		accommodationRows.flatMap((row) => {
+			if (!row.planPoiId) return [];
+			return [
+				{
+					id: row.planPoiId,
+					distanceKm: row.distanceAlongRouteKm,
+					sortOrder: planPoiById.get(row.planPoiId)?.candidate_sort_order ?? null,
+					row,
+				},
+			];
+		}),
 	);
 
-	const renderRowEnd = (row: StageScheduleWaypoint) => {
+	const moveAccommodation = async (
+		orderedPoiIds: string[],
+		poiId: string,
+		direction: -1 | 1,
+	) => {
+		if (!onAccommodationOrderChange || isReorderingAccommodation) return;
+		const currentIndex = orderedPoiIds.indexOf(poiId);
+		const targetIndex = currentIndex + direction;
+		if (currentIndex < 0 || targetIndex < 0 || targetIndex >= orderedPoiIds.length) return;
+		const nextIds = [...orderedPoiIds];
+		[nextIds[currentIndex], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[currentIndex]];
+		setIsReorderingAccommodation(true);
+		try {
+			await onAccommodationOrderChange(nextIds);
+		} finally {
+			setIsReorderingAccommodation(false);
+		}
+	};
+
+	const renderRowEnd = (row: StageScheduleWaypoint, accommodationPoiIds?: string[]) => {
 		if (row.markerKind === "plan_poi" && row.planPoiId) {
-			const snap = snapped.find((s) => s.id === row.planPoiId);
+			const planPoiId = row.planPoiId;
+			const snap = snapped.find((s) => s.id === planPoiId);
 			if (!snap) return null;
 			const safePlaceUrl =
 				safePlanPoiExternalUrl(row.naverPlaceUrl) ?? safePlanPoiExternalUrl(row.placeUrl);
+			const entries: DotsMenuEntry[] = [
+				{
+					type: "item",
+					key: "edit",
+					label: "편집",
+					icon: <PencilIcon className="h-4 w-4" />,
+					onSelect: () => onEditPoi(snap),
+				},
+			];
+			const accommodationIndex = accommodationPoiIds?.indexOf(planPoiId) ?? -1;
+			if (!readOnly && accommodationPoiIds && accommodationIndex > 0) {
+				entries.push({
+					type: "item",
+					key: "priority-up",
+					label: "우선순위 올리기",
+					icon: <ArrowUpIcon className="h-4 w-4" />,
+					onSelect: () => void moveAccommodation(accommodationPoiIds, planPoiId, -1),
+				});
+			}
+			if (
+				!readOnly &&
+				accommodationPoiIds &&
+				accommodationIndex >= 0 &&
+				accommodationIndex < accommodationPoiIds.length - 1
+			) {
+				entries.push({
+					type: "item",
+					key: "priority-down",
+					label: "우선순위 내리기",
+					icon: <ArrowDownIcon className="h-4 w-4" />,
+					onSelect: () => void moveAccommodation(accommodationPoiIds, planPoiId, 1),
+				});
+			}
+			entries.push(
+				{ type: "separator", key: "sep" },
+				{
+					type: "item",
+					key: "delete",
+					label: "삭제",
+					icon: <TrashIcon className="h-4 w-4" />,
+					variant: "destructive",
+					onSelect: () => {
+						if (window.confirm("이 경유지를 삭제할까요?")) onDeletePoi(snap.id);
+					},
+				},
+			);
 			return (
 				<div className="flex items-center gap-1">
 					{row.phone ? (
@@ -128,30 +230,7 @@ export function StageDetailPanel({
 							<ExternalLinkIcon className="h-4 w-4" />
 						</a>
 					) : null}
-					{readOnly ? null : (
-						<DotsMenu
-							entries={[
-								{
-									type: "item",
-									key: "edit",
-									label: "편집",
-									icon: <PencilIcon className="h-4 w-4" />,
-									onSelect: () => onEditPoi(snap),
-								},
-								{ type: "separator", key: "sep" },
-								{
-									type: "item",
-									key: "delete",
-									label: "삭제",
-									icon: <TrashIcon className="h-4 w-4" />,
-									variant: "destructive",
-									onSelect: () => {
-										if (window.confirm("이 경유지를 삭제할까요?")) onDeletePoi(snap.id);
-									},
-								},
-							]}
-						/>
-					)}
+					{readOnly ? null : <DotsMenu entries={entries} />}
 				</div>
 			);
 		}
@@ -292,10 +371,69 @@ export function StageDetailPanel({
 						/>
 					)}
 				</section>
+				{accommodationGroups.length > 0 ? (
+					<section
+						className="mt-6 border-t border-zinc-200 pt-5 dark:border-zinc-700"
+						aria-busy={isReorderingAccommodation}
+					>
+						<div className="mb-4 flex items-baseline justify-between gap-2">
+							<h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+								숙박 선택지 {accommodationRows.length}곳
+							</h4>
+							<span className="text-[11px] text-zinc-400">거리순 · 지역별 우선순위</span>
+						</div>
+						<div className="space-y-6">
+							{accommodationGroups.map((group, groupIndex) => {
+								const orderedPoiIds = group.items.map((item) => item.id);
+								const stageDistances = group.items.map(
+									(item) => item.row.distanceFromStageStartKm,
+								);
+								const startKm = Math.min(...stageDistances);
+								const endKm = Math.max(...stageDistances);
+								const distanceLabel =
+									Math.abs(endKm - startKm) < 0.05
+										? `${startKm.toFixed(1)}km`
+										: `${startKm.toFixed(1)}–${endKm.toFixed(1)}km`;
+								return (
+									<div
+										key={group.items[0]?.id}
+										className="border-l-2 border-orange-200 pl-3 dark:border-orange-900"
+									>
+										<div className="mb-3 flex items-center justify-between gap-2">
+											<div className="flex items-baseline gap-2">
+												<span className="font-semibold text-sm text-zinc-800 dark:text-zinc-100">
+													선택지 {groupIndex + 1}
+												</span>
+												<span className="tabular-nums text-xs text-zinc-500">{distanceLabel}</span>
+											</div>
+											{group.additionalDistanceKm != null ? (
+												<span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+													+{group.additionalDistanceKm.toFixed(1)}km 더 달리기
+												</span>
+											) : null}
+										</div>
+										<StageScheduleWaypointList
+											density="comfortable"
+											showHeading={false}
+											rows={group.items.map((item) => item.row)}
+											onPlanPoiRowClick={onPoiRowClick}
+											renderRowPrefix={(row) => (
+												<span className="mt-0.5 w-4 shrink-0 text-center text-xs font-semibold tabular-nums text-orange-600 dark:text-orange-400">
+													{group.items.findIndex((item) => item.row.rowKey === row.rowKey) + 1}
+												</span>
+											)}
+											renderRowEnd={(row) => renderRowEnd(row, orderedPoiIds)}
+										/>
+									</div>
+								);
+							})}
+						</div>
+					</section>
+				) : null}
 				{candidateRows.length > 0 ? (
 					<section className="mt-6 border-t border-zinc-200 pt-5 dark:border-zinc-700">
 						<h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-							후보 장소 {candidateRows.length}곳
+							다른 후보 장소 {candidateRows.length}곳
 						</h4>
 						<StageScheduleWaypointList
 							density="comfortable"
