@@ -610,7 +610,7 @@ function buildPlanPoiInfoWindowHtml(row: PlanPoiRow, showActions: boolean): stri
 		: "";
 	const rootStyle =
 		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
-	return `<div class="plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div>${linksHtml}${bookingMeta}<div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
+	return `<div class="kakao-map-info-window plan-poi-tooltip" data-poi-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${typeStyle}">${esc(planPoiTypeLabelKo(row.poi_type))}</div>${linksHtml}${bookingMeta}<div style="${memoStyle}">${memoInner}</div>${actionsHtml}</div>`;
 }
 
 function buildOfficialSummitInfoWindowHtml(row: SummitCatalogRow, showActions: boolean): string {
@@ -629,7 +629,7 @@ function buildOfficialSummitInfoWindowHtml(row: SummitCatalogRow, showActions: b
 		: "";
 	const rootStyle =
 		"box-sizing:border-box;margin:0;padding:12px 14px;min-width:200px;max-width:280px;line-height:1.4;color:#111827;";
-	return `<div class="official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
+	return `<div class="kakao-map-info-window official-summit-tooltip" data-summit-id="${esc(row.id)}" style="${rootStyle}"><div style="${titleStyle}">${esc(row.name)}</div><div style="${badgeStyle}">공식 Summit</div><div style="${detailStyle}">${esc(elevationText)}</div>${actionsHtml}</div>`;
 }
 
 /** "경로 132km 지점 · 이탈 2.3km" 처럼 코스 대비 위치를 한 줄로 요약한다. */
@@ -675,7 +675,7 @@ function buildAccommodationTooltipHtml(
 	const detourBlock = options?.routeDetourLabel
 		? `<div style="margin-bottom:6px;font-size:11px;font-weight:500;color:#6b7280;">🚲 ${esc(options.routeDetourLabel)}</div>`
 		: "";
-	return `<div class="accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
+	return `<div class="kakao-map-info-window accommodation-tooltip" data-place-id="${esc(doc.id)}" data-place-name="${esc(doc.place_name)}" data-place-url="${esc(doc.place_url ?? "")}" data-address="${esc(doc.address_name ?? "")}" data-lat="${doc.y}" data-lng="${doc.x}" data-place-kind="${esc(placeKind)}" data-current-state="${state}" style="padding:12px 14px;min-width:200px;max-width:280px;line-height:1.45;color:#111827;">
   <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${esc(doc.place_name)}</div>
   ${detourBlock}
   ${linksBlock}
@@ -1431,7 +1431,7 @@ export default function KakaoMap({
 							poi.poi_type_name,
 						)}</div>`
 					: "";
-				const infoContent = `<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;max-width:200px;line-height:1.4;box-sizing:border-box;">📍 ${esc(poi.name)}${typeLine}</div>`;
+				const infoContent = `<div class="kakao-map-info-window" style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;max-width:200px;line-height:1.4;box-sizing:border-box;">📍 ${esc(poi.name)}${typeLine}</div>`;
 				const infoWindow = new maps.InfoWindow({
 					content: infoContent,
 					removable: true,
@@ -2699,7 +2699,7 @@ export default function KakaoMap({
 
 	return (
 		<div
-			className="relative h-full w-full overflow-hidden"
+			className="kakao-map-root relative h-full w-full overflow-hidden"
 			onPointerEnter={() => {
 				isPointerOverMapRef.current = true;
 			}}
@@ -2712,6 +2712,11 @@ export default function KakaoMap({
 				onLoad={handleScriptLoad}
 				strategy="afterInteractive"
 			/>
+			<style>{`
+				.kakao-map-root:has(.kakao-map-info-window) .nearby-reload-button {
+					display: none;
+				}
+			`}</style>
 			<div ref={containerCallbackRef} className="h-full w-full" />
 			{mapReady && showMapControls && (
 				<div className="pointer-events-none absolute inset-0 z-20">
@@ -2740,7 +2745,7 @@ export default function KakaoMap({
 						activeCategory != null &&
 						hasMapMovedSinceSearch &&
 						!isNearbySearchDisabled && (
-							<div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
+							<div className="nearby-reload-button pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
 								<button
 									type="button"
 									onClick={() => void handleReloadNearby(activeCategory, nearbySearchMode)}
