@@ -1,11 +1,12 @@
 import { stageDayLabel } from "@my-ridings/plan-geometry";
 import { HeaderButton } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PlanStageHud } from "@/components/plan-stage-hud";
@@ -16,7 +17,13 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/icon";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
-import type { MobilePlanStageRow, PlanDetail } from "@/features/api/plan-my-route";
+import {
+	type MobilePlanStageRow,
+	patchPlanPoi,
+	type PlanDetail,
+	putStage,
+} from "@/features/api/plan-my-route";
+import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
 import { AccommodationChoices } from "@/features/plan-my-route/components/accommodation-choices";
 import {
 	type StageFocus,
@@ -24,7 +31,11 @@ import {
 } from "@/features/plan-my-route/components/stage-focus-tabs";
 import { SupplyStops } from "@/features/plan-my-route/components/supply-stops";
 import { removeSummitsDuplicatedByCheckpoints } from "@/features/plan-my-route/dedupe-route-markers";
-import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
+import {
+	planDetailQueryKey,
+	usePlanDetailQuery,
+} from "@/features/plan-my-route/plan-detail-query";
+import { buildStageFinishPlan } from "@/features/plan-my-route/stage-finish";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -199,8 +210,10 @@ function StageSummaryBody({
 	onMessage,
 }: StageSummaryBodyProps) {
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	const theme = useTheme();
 	const [focus, setFocus] = useState<StageFocus>("ride");
+	const [isFinishing, setIsFinishing] = useState(false);
 	const routeLabel = stageRouteLine(stage);
 	const distanceKm = stageDistanceKm(stage);
 	const gainM = Math.round(Number(stage.elevation_gain) || 0);
@@ -224,6 +237,63 @@ function StageSummaryBody({
 		detail.summitMarkers,
 		detail.cpMarkers,
 	);
+	const finishPlan =
+		location.currentKm == null
+			? null
+			: buildStageFinishPlan(
+					detail.stages,
+					stage.id,
+					location.currentKm,
+					detail.planPois,
+					detail.trackPoints,
+				);
+
+	const finishStage = async () => {
+		if (!finishPlan || isFinishing) return;
+		const apiOrigin = getApiOrigin();
+		if (!apiOrigin) {
+			onMessage("앱 서버 주소가 설정되지 않았습니다.");
+			return;
+		}
+		const accessToken = await getStoredAccessToken();
+		if (!accessToken) {
+			onMessage("다시 로그인해 주세요.");
+			return;
+		}
+
+		setIsFinishing(true);
+		try {
+			for (const poiId of finishPlan.poiIdsToMove) {
+				await patchPlanPoi(apiOrigin, accessToken, detail.plan.id, poiId, {
+					assignment_mode: "stage",
+					stage_id: finishPlan.nextStage.id,
+				});
+			}
+			await putStage(apiOrigin, accessToken, finishPlan.currentStage.id, finishPlan.currentUpdate);
+			await putStage(apiOrigin, accessToken, finishPlan.nextStage.id, finishPlan.nextUpdate);
+			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(detail.plan.id) });
+			onMessage(
+				`현재 위치에서 종료했습니다. 다음 스테이지로 POI ${finishPlan.poiIdsToMove.length}곳을 옮겼습니다.`,
+			);
+		} catch (error) {
+			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(detail.plan.id) });
+			onMessage(error instanceof Error ? error.message : "스테이지 종료를 저장하지 못했습니다.");
+		} finally {
+			setIsFinishing(false);
+		}
+	};
+
+	const confirmFinishStage = () => {
+		if (!finishPlan || location.currentKm == null) return;
+		Alert.alert(
+			"여기서 스테이지를 종료할까요?",
+			`${location.currentKm.toFixed(1)}km 지점을 오늘의 종료점과 다음 스테이지의 시작점으로 변경합니다. 뒤에 남은 POI도 다음 스테이지로 이동합니다.`,
+			[
+				{ text: "취소", style: "cancel" },
+				{ text: "스테이지 종료", style: "destructive", onPress: () => void finishStage() },
+			],
+		);
+	};
 
 	return (
 		<>
@@ -301,6 +371,25 @@ function StageSummaryBody({
 						scrollRef={scrollRef}
 						onlyUpcoming
 					/>
+
+					{finishPlan ? (
+						<Pressable
+							accessibilityRole="button"
+							accessibilityLabel="현재 위치에서 스테이지 종료"
+							disabled={isFinishing}
+							style={({ pressed }) => [
+								styles.finishButton,
+								{ borderColor: theme.danger },
+								(pressed || isFinishing) && styles.pressed,
+							]}
+							onPress={confirmFinishStage}
+						>
+							<AppIcon name="flag.checkered" size={17} tintColor={theme.danger} />
+							<ThemedText type="smallBold" themeColor="danger">
+								{isFinishing ? "종료 저장 중…" : "여기서 스테이지 종료"}
+							</ThemedText>
+						</Pressable>
+					) : null}
 				</>
 			) : focus === "stay" ? (
 				<AccommodationChoices
@@ -491,6 +580,15 @@ const styles = StyleSheet.create({
 	},
 	mapButton: {
 		minHeight: 48,
+		borderWidth: 1,
+		borderRadius: Radius.md,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+	},
+	finishButton: {
+		minHeight: 44,
 		borderWidth: 1,
 		borderRadius: Radius.md,
 		flexDirection: "row",

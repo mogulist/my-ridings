@@ -274,6 +274,10 @@ export type PutStageBody = {
 	memo?: string | null;
 	start_name?: string | null;
 	end_name?: string | null;
+	start_distance?: number;
+	end_distance?: number;
+	elevation_gain?: number;
+	elevation_loss?: number;
 };
 
 export const putStage = async (
@@ -311,6 +315,8 @@ export const patchPlanPoi = async (
 		memo?: string | null;
 		intent?: PlanPoiRow["intent"];
 		is_candidate_excluded?: boolean;
+		assignment_mode?: PlanPoiRow["assignment_mode"];
+		stage_id?: string | null;
 	},
 ): Promise<PlanPoiRow> => {
 	const response = await fetch(`${apiOrigin}/api/plans/${planId}/pois/${poiId}`, {
