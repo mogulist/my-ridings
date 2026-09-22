@@ -16,7 +16,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/icon";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
-import type { MobilePlanStageRow, PlanDetail, TrackPoint } from "@/features/api/plan-my-route";
+import type { MobilePlanStageRow, PlanDetail } from "@/features/api/plan-my-route";
 import { AccommodationChoices } from "@/features/plan-my-route/components/accommodation-choices";
 import {
 	type StageFocus,
@@ -72,13 +72,6 @@ export default function StageDetailScreen() {
 	const location = useCurrentLocationKm(detail?.trackPoints ?? null);
 
 	const datePart = detail != null ? stageDayLabel(dayNumber, detail.plan.start_date) : "";
-
-	const maxElevationM = useMemo(() => {
-		if (!detail?.trackPoints?.length || !stage) return null;
-		const startKm = (stage.start_distance ?? 0) / 1000;
-		const endKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
-		return maxElevationInStageRange(detail.trackPoints, startKm, endKm);
-	}, [detail?.trackPoints, stage]);
 
 	const headerTitle =
 		datePart.trim() !== "" ? `Stage ${dayNumber} · ${datePart}` : `Stage ${dayNumber}`;
@@ -173,7 +166,7 @@ export default function StageDetailScreen() {
 								<StageSummaryBody
 									detail={detail}
 									stage={stage}
-									maxElevationM={maxElevationM}
+									routeId={routeId ?? ""}
 									location={location}
 									scrollRef={scrollRef}
 									onMessage={setSnackbarMessage}
@@ -191,7 +184,7 @@ export default function StageDetailScreen() {
 type StageSummaryBodyProps = {
 	detail: PlanDetail;
 	stage: MobilePlanStageRow;
-	maxElevationM: number | null;
+	routeId: string;
 	location: ReturnType<typeof useCurrentLocationKm>;
 	scrollRef: React.RefObject<ScrollView | null>;
 	onMessage: (message: string) => void;
@@ -200,11 +193,12 @@ type StageSummaryBodyProps = {
 function StageSummaryBody({
 	detail,
 	stage,
-	maxElevationM,
+	routeId,
 	location,
 	scrollRef,
 	onMessage,
 }: StageSummaryBodyProps) {
+	const router = useRouter();
 	const theme = useTheme();
 	const [focus, setFocus] = useState<StageFocus>("ride");
 	const routeLabel = stageRouteLine(stage);
@@ -252,7 +246,9 @@ function StageSummaryBody({
 			<ThemedText type="caption" themeColor="textSecondary" selectable>
 				{focus === "ride"
 					? "주행 현황과 앞으로 남은 경유지를 확인합니다."
-					: "도착 구간의 숙소를 거리와 우선순위로 비교합니다."}
+					: focus === "stay"
+						? "도착 구간의 숙소를 거리와 우선순위로 비교합니다."
+						: "멈춰서 경로와 고도 프로필을 자세히 확인합니다."}
 			</ThemedText>
 
 			{focus === "ride" ? (
@@ -286,32 +282,12 @@ function StageSummaryBody({
 								전체 획득고도 (m)
 							</ThemedText>
 						</View>
-						{maxElevationM != null ? (
-							<>
-								<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
-								<View style={styles.metricItem}>
-									<AppIcon name="mountain.2.fill" size={18} tintColor={theme.tint} />
-									<ThemedText type="metricSm" style={styles.metricNum}>
-										{maxElevationM.toLocaleString()}
-									</ThemedText>
-									<ThemedText type="caption" themeColor="textSecondary">
-										최고점 (m)
-									</ThemedText>
-								</View>
-							</>
-						) : null}
 					</View>
 
 					<PlanStageHud
 						stage={stage}
 						trackPoints={detail.trackPoints}
 						summitMarkers={visibleSummits}
-						currentRelKm={currentRelKm}
-					/>
-
-					<PlanStageMiniElevation
-						stage={stage}
-						trackPoints={detail.trackPoints}
 						currentRelKm={currentRelKm}
 					/>
 
@@ -326,7 +302,7 @@ function StageSummaryBody({
 						onlyUpcoming
 					/>
 				</>
-			) : (
+			) : focus === "stay" ? (
 				<AccommodationChoices
 					stage={stage}
 					planPois={detail.planPois}
@@ -334,6 +310,34 @@ function StageSummaryBody({
 					currentKm={location.currentKm}
 					onMessage={onMessage}
 				/>
+			) : (
+				<View style={styles.routeTools}>
+					<PlanStageMiniElevation
+						stage={stage}
+						trackPoints={detail.trackPoints}
+						currentRelKm={currentRelKm}
+					/>
+					<Pressable
+						accessibilityRole="button"
+						accessibilityLabel="전체 경로 지도 열기"
+						style={({ pressed }) => [
+							styles.mapButton,
+							{ borderColor: theme.tint },
+							pressed && styles.pressed,
+						]}
+						onPress={() =>
+							router.push({
+								pathname: "/routes/[routeId]/plans/[planId]/map",
+								params: { routeId, planId: detail.plan.id },
+							})
+						}
+					>
+						<AppIcon name="map.fill" size={18} tintColor={theme.tint} />
+						<ThemedText type="smallBold" themeColor="tint">
+							전체 경로 지도 열기
+						</ThemedText>
+					</Pressable>
+				</View>
 			)}
 		</>
 	);
@@ -481,28 +485,24 @@ const styles = StyleSheet.create({
 	locationRefreshButtonDisabled: {
 		opacity: 0.5,
 	},
+	routeTools: {
+		gap: Spacing.three,
+	},
+	mapButton: {
+		minHeight: 48,
+		borderWidth: 1,
+		borderRadius: Radius.md,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: Spacing.two,
+	},
 });
 
 function stageDistanceKm(stage: MobilePlanStageRow): number {
 	const startM = stage.start_distance ?? 0;
 	const endM = stage.end_distance ?? startM;
 	return (endM - startM) / 1000;
-}
-
-/** 웹 `MobileSharedPlanStagesTab.maxElevationInStageRange`와 동일 */
-function maxElevationInStageRange(
-	trackPoints: TrackPoint[],
-	startKm: number,
-	endKm: number,
-): number | null {
-	const withEle = trackPoints.filter((p) => p.e != null && p.d != null);
-	if (withEle.length === 0) return null;
-	let max = -Infinity;
-	for (const p of withEle) {
-		const km = (p.d as number) / 1000;
-		if (km >= startKm && km <= endKm && (p.e as number) > max) max = p.e as number;
-	}
-	return Number.isFinite(max) ? Math.round(max) : null;
 }
 
 /** `StageDetailPanel`과 동일: 출발·도착 이름이 모두 있을 때만 표시 */

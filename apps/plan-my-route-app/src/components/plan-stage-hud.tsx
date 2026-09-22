@@ -28,7 +28,6 @@ export function PlanStageHud({
 }: PlanStageHudProps) {
 	const theme = useTheme();
 	const gainColor = theme.gain;
-	const lossColor = theme.loss;
 
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
@@ -53,9 +52,13 @@ export function PlanStageHud({
 		return {
 			name: next.name,
 			deltaKm: next.distanceKm - currentAbsKm,
-			elevation: next.elevation,
+			climbGain: computeTrackElevationGainLoss(
+				trackPoints,
+				currentAbsKm,
+				next.distanceKm,
+			).gain,
 		};
-	}, [currentRelKm, stageEndKm, stageStartKm, summitMarkers]);
+	}, [currentRelKm, stageEndKm, stageStartKm, summitMarkers, trackPoints]);
 
 	if (currentRelKm == null) return null;
 
@@ -130,8 +133,8 @@ export function PlanStageHud({
 									km
 								</ThemedText>
 							</View>
-							<ThemedText type="metricSm" style={[styles.gainCell, { color: lossColor }]}>
-								↑ {Math.round(nextSummit.elevation).toLocaleString()} m
+							<ThemedText type="metricSm" style={[styles.gainCell, { color: gainColor }]}>
+								+{Math.round(nextSummit.climbGain).toLocaleString()} m
 							</ThemedText>
 						</>
 					) : (

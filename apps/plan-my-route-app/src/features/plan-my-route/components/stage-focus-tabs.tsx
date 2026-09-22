@@ -6,7 +6,7 @@ import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { Radius, Shadow, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
-export type StageFocus = "ride" | "stay";
+export type StageFocus = "ride" | "stay" | "route";
 
 export type StageFocusTabsProps = {
 	value: StageFocus;
@@ -16,6 +16,7 @@ export type StageFocusTabsProps = {
 const TABS: { value: StageFocus; label: string; icon: string }[] = [
 	{ value: "ride", label: "라이딩", icon: "bicycle" },
 	{ value: "stay", label: "숙박", icon: "bed.double.fill" },
+	{ value: "route", label: "경로", icon: "map.fill" },
 ];
 
 export function StageFocusTabs({ value, onChange }: StageFocusTabsProps) {
