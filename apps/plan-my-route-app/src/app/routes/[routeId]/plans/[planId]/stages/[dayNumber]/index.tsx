@@ -353,6 +353,11 @@ function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 			>
 				{location.permission === "denied" ? "위치 권한이 거부되어 있어요." : `현재 ${kmText}`}
 			</ThemedText>
+			{location.isWatching ? (
+				<ThemedText type="caption" themeColor="success">
+					자동
+				</ThemedText>
+			) : null}
 			{location.error ? (
 				<ThemedText type="caption" style={{ color: theme.danger }}>
 					{location.error}
