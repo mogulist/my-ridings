@@ -608,6 +608,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					booking_url: payload.booking_url,
 					booking_checked_at: payload.booking_checked_at,
 					candidate_sort_order: payload.candidate_sort_order ?? null,
+					is_candidate_excluded: payload.is_candidate_excluded ?? false,
 					created_at: now,
 					updated_at: now,
 				};
@@ -718,6 +719,7 @@ export default function RouteViewer({ routeId, mode = "db" }: RouteViewerProps) 
 					booking_url: payload.booking_url,
 					booking_checked_at: payload.booking_checked_at,
 					candidate_sort_order: payload.candidate_sort_order ?? null,
+					is_candidate_excluded: payload.is_candidate_excluded ?? false,
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				};

@@ -304,6 +304,7 @@ function StageSummaryBody({
 				</>
 			) : focus === "stay" ? (
 				<AccommodationChoices
+					planId={detail.plan.id}
 					stage={stage}
 					planPois={detail.planPois}
 					trackPoints={detail.trackPoints}

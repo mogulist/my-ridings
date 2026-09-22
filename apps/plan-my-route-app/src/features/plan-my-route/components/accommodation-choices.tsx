@@ -3,6 +3,7 @@ import {
 	planPoiBelongsToStage,
 	snapPlanPoisToTrack,
 } from "@my-ridings/plan-geometry";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -16,6 +17,9 @@ import type {
 	PlanPoiRow,
 	TrackPoint,
 } from "@/features/api/plan-my-route";
+import { patchPlanPoi } from "@/features/api/plan-my-route";
+import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
+import { planDetailQueryKey } from "@/features/plan-my-route/plan-detail-query";
 import { useTheme } from "@/hooks/use-theme";
 
 const PASSED_TOLERANCE_KM = 1;
@@ -45,6 +49,7 @@ type AccommodationChoiceItem = {
 };
 
 type AccommodationChoicesProps = {
+	planId: string;
 	stage: MobilePlanStageRow;
 	planPois: PlanPoiRow[];
 	trackPoints: TrackPoint[];
@@ -53,6 +58,7 @@ type AccommodationChoicesProps = {
 };
 
 export function AccommodationChoices({
+	planId,
 	stage,
 	planPois,
 	trackPoints,
@@ -60,7 +66,9 @@ export function AccommodationChoices({
 	onMessage,
 }: AccommodationChoicesProps) {
 	const theme = useTheme();
-	const groups = useMemo(() => {
+	const queryClient = useQueryClient();
+	const [savingId, setSavingId] = useState<string | null>(null);
+	const { groups, excluded } = useMemo(() => {
 		const poiById = new Map(planPois.map((poi) => [poi.id, poi]));
 		const snapped = snapPlanPoisToTrack(planPois, trackPoints);
 		const stageRange = {
@@ -69,8 +77,7 @@ export function AccommodationChoices({
 			endDistanceKm: (stage.end_distance ?? stage.start_distance ?? 0) / 1000,
 		};
 
-		return groupAccommodationCandidates(
-			snapped.flatMap((snappedPoi) => {
+		const items = snapped.flatMap((snappedPoi) => {
 				const poi = poiById.get(snappedPoi.id);
 				if (
 					!poi ||
@@ -87,8 +94,16 @@ export function AccommodationChoices({
 						poi,
 					},
 				];
-			}),
-		);
+			});
+
+		return {
+			groups: groupAccommodationCandidates(
+				items.filter((item) => !item.poi.is_candidate_excluded),
+			),
+			excluded: items
+				.filter((item) => item.poi.is_candidate_excluded)
+				.sort((a, b) => a.distanceKm - b.distanceKm),
+		};
 	}, [planPois, stage, trackPoints]);
 
 	const activeGroupIndex = findActiveGroupIndex(groups, currentKm);
@@ -98,7 +113,34 @@ export function AccommodationChoices({
 		if (activeGroupIndex >= 0) setExpandedGroupIndex(activeGroupIndex);
 	}, [activeGroupIndex]);
 
-	if (groups.length === 0) return null;
+	if (groups.length === 0 && excluded.length === 0) return null;
+
+	const setExcluded = async (item: AccommodationChoiceItem, value: boolean) => {
+		if (savingId) return;
+		const apiOrigin = getApiOrigin();
+		if (!apiOrigin) {
+			onMessage("앱 서버 주소가 설정되지 않았습니다.");
+			return;
+		}
+		const accessToken = await getStoredAccessToken();
+		if (!accessToken) {
+			onMessage("다시 로그인해 주세요.");
+			return;
+		}
+
+		setSavingId(item.poi.id);
+		try {
+			await patchPlanPoi(apiOrigin, accessToken, planId, item.poi.id, {
+				is_candidate_excluded: value,
+			});
+			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(planId) });
+			onMessage(value ? `${item.poi.name}: 방 없음` : `${item.poi.name}: 후보로 복원`);
+		} catch (error) {
+			onMessage(error instanceof Error ? error.message : "숙소 상태를 저장하지 못했습니다.");
+		} finally {
+			setSavingId(null);
+		}
+	};
 
 	const activeGroup = activeGroupIndex >= 0 ? groups[activeGroupIndex] : null;
 	const activeFirst = activeGroup?.items[0];
@@ -126,7 +168,7 @@ export function AccommodationChoices({
 				</ThemedText>
 			</View>
 
-			<View
+			{groups.length > 0 ? <View
 				style={[
 					styles.nextCard,
 					{
@@ -195,7 +237,7 @@ export function AccommodationChoices({
 						)}
 					</>
 				) : null}
-			</View>
+			</View> : null}
 
 			<View style={styles.groupList}>
 				{groups.map((group, groupIndex) => {
@@ -242,11 +284,13 @@ export function AccommodationChoices({
 							{expanded ? (
 								<View style={[styles.hotelList, { borderTopColor: theme.separator }]}>
 									{group.items.map((item, itemIndex) => (
-										<AccommodationRow
+						<AccommodationRow
 											key={item.id}
 											item={item}
 											priority={itemIndex + 1}
-											onMessage={onMessage}
+							onMessage={onMessage}
+							disabled={Boolean(savingId)}
+							onExclude={() => void setExcluded(item, true)}
 										/>
 									))}
 								</View>
@@ -255,6 +299,37 @@ export function AccommodationChoices({
 					);
 				})}
 			</View>
+
+			{excluded.length > 0 ? (
+				<View style={styles.excludedSection}>
+					<ThemedText type="smallBold" themeColor="textSecondary">
+						제외한 숙소 {excluded.length}곳
+					</ThemedText>
+					{excluded.map((item) => (
+						<View
+							key={`excluded-${item.id}`}
+							style={[styles.excludedRow, { borderColor: theme.separator }]}
+						>
+							<ThemedText type="small" numberOfLines={1} style={styles.excludedName}>
+								{item.poi.name}
+							</ThemedText>
+							<ThemedText type="caption" themeColor="danger">
+								방 없음
+							</ThemedText>
+							<PressableHaptic
+								accessibilityRole="button"
+								accessibilityLabel={`${item.poi.name} 후보로 복원`}
+								disabled={Boolean(savingId)}
+								onPress={() => void setExcluded(item, false)}
+							>
+								<ThemedText type="caption" themeColor="tint">
+									복원
+								</ThemedText>
+							</PressableHaptic>
+						</View>
+					))}
+				</View>
+			) : null}
 		</View>
 	);
 }
@@ -263,10 +338,14 @@ function AccommodationRow({
 	item,
 	priority,
 	onMessage,
+	disabled,
+	onExclude,
 }: {
 	item: AccommodationChoiceItem;
 	priority: number;
 	onMessage: (message: string) => void;
+	disabled: boolean;
+	onExclude: () => void;
 }) {
 	const theme = useTheme();
 	const { poi } = item;
@@ -307,6 +386,17 @@ function AccommodationRow({
 					</ThemedText>
 				) : null}
 				<QuickActions poi={poi} onMessage={onMessage} />
+				<PressableHaptic
+					accessibilityRole="button"
+					accessibilityLabel={`${poi.name} 방 없음으로 제외`}
+					disabled={disabled}
+					style={[styles.unavailableButton, { borderColor: theme.danger }]}
+					onPress={onExclude}
+				>
+					<ThemedText type="caption" themeColor="danger">
+						방 없음
+					</ThemedText>
+				</PressableHaptic>
 			</View>
 		</View>
 	);
@@ -599,6 +689,31 @@ const styles = StyleSheet.create({
 		borderRadius: Radius.pill,
 		paddingHorizontal: Spacing.two,
 		paddingVertical: Spacing.half,
+	},
+	unavailableButton: {
+		alignSelf: "flex-start",
+		minHeight: 34,
+		justifyContent: "center",
+		borderWidth: 1,
+		borderRadius: Radius.pill,
+		paddingHorizontal: Spacing.two,
+	},
+	excludedSection: {
+		gap: Spacing.one,
+	},
+	excludedRow: {
+		minHeight: 44,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.two,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderRadius: Radius.sm,
+		paddingHorizontal: Spacing.three,
+	},
+	excludedName: {
+		flex: 1,
+		minWidth: 0,
+		textDecorationLine: "line-through",
 	},
 	actions: {
 		flexDirection: "row",

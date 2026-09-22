@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.plan_poi (
     booking_url text,
     booking_checked_at timestamp with time zone,
     candidate_sort_order integer CHECK (candidate_sort_order IS NULL OR candidate_sort_order >= 0),
+    is_candidate_excluded boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT plan_poi_pkey PRIMARY KEY (id),

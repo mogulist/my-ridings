@@ -93,6 +93,7 @@ export type PlanPoiRow = {
 	booking_url: string | null;
 	booking_checked_at: string | null;
 	candidate_sort_order: number | null;
+	is_candidate_excluded: boolean;
 	created_at: string;
 	updated_at: string;
 };
@@ -306,7 +307,11 @@ export const patchPlanPoi = async (
 	accessToken: string,
 	planId: string,
 	poiId: string,
-	body: { memo?: string | null; intent?: PlanPoiRow["intent"] },
+	body: {
+		memo?: string | null;
+		intent?: PlanPoiRow["intent"];
+		is_candidate_excluded?: boolean;
+	},
 ): Promise<PlanPoiRow> => {
 	const response = await fetch(`${apiOrigin}/api/plans/${planId}/pois/${poiId}`, {
 		method: "PATCH",
