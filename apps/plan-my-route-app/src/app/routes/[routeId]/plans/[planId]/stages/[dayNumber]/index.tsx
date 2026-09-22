@@ -22,6 +22,7 @@ import {
 	type StageFocus,
 	StageFocusTabs,
 } from "@/features/plan-my-route/components/stage-focus-tabs";
+import { SupplyStops } from "@/features/plan-my-route/components/supply-stops";
 import { removeSummitsDuplicatedByCheckpoints } from "@/features/plan-my-route/dedupe-route-markers";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
@@ -256,6 +257,15 @@ function StageSummaryBody({
 
 			{focus === "ride" ? (
 				<>
+					<SupplyStops
+						planId={detail.plan.id}
+						stage={stage}
+						planPois={detail.planPois}
+						trackPoints={detail.trackPoints}
+						currentKm={location.currentKm}
+						onMessage={onMessage}
+					/>
+
 					<View style={[styles.metricsRow, { borderColor: theme.separator }]}>
 						<View style={styles.metricItem}>
 							<AppIcon name="figure.outdoor.cycle" size={18} tintColor={theme.tint} />

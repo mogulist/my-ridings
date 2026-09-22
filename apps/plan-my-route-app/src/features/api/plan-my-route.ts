@@ -306,7 +306,7 @@ export const patchPlanPoi = async (
 	accessToken: string,
 	planId: string,
 	poiId: string,
-	body: { memo?: string | null },
+	body: { memo?: string | null; intent?: PlanPoiRow["intent"] },
 ): Promise<PlanPoiRow> => {
 	const response = await fetch(`${apiOrigin}/api/plans/${planId}/pois/${poiId}`, {
 		method: "PATCH",
