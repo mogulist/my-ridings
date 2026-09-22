@@ -105,6 +105,17 @@ export default function LoginScreen() {
 						</Text>
 					</Pressable>
 
+					{__DEV__ ? (
+						<Pressable
+							onPress={() => router.push("/lock-screen-poc")}
+							style={({ pressed }) => [styles.pocButton, pressed && styles.pressed]}
+						>
+							<ThemedText type="small" style={styles.pocButtonLabel}>
+								로그인 없이 잠금 화면 PoC 열기
+							</ThemedText>
+						</Pressable>
+					) : null}
+
 					{errorMessage ? (
 						<ThemedText type="small" style={styles.errorText}>
 							{errorMessage}
@@ -178,6 +189,16 @@ const styles = StyleSheet.create({
 	},
 	buttonDisabled: {
 		opacity: 0.5,
+	},
+	pocButton: {
+		minHeight: 44,
+		alignItems: "center",
+		justifyContent: "center",
+		paddingHorizontal: Spacing.three,
+	},
+	pocButtonLabel: {
+		color: "#2563EB",
+		fontWeight: "600",
 	},
 	errorText: {
 		color: "#D64545",
