@@ -44,6 +44,7 @@ type TimelineMilestone = {
 	title: string;
 	sub?: string;
 	memo?: string | null;
+	poiType?: string;
 };
 
 export type PlanStageTimelineStaticProps = {
@@ -66,6 +67,9 @@ const CURRENT_DOT_SIZE = 14;
 const BAR_WIDTH = 2;
 const SCROLL_LEAD_PX = 100;
 const SCROLL_THROTTLE_MS = 800;
+const CP_COLOR = "#FF9500";
+const SUMMIT_COLOR = "#AF52DE";
+const SUPPLY_COLOR = "#34C759";
 
 /** 세로 간격은 거리 비례가 아니라 고정(스크롤 부담 완화). 거리 숫자는 좌측 라벨에만 표시 */
 const FIXED_SEGMENT_GAP_PX = 10;
@@ -143,6 +147,7 @@ export function PlanStageTimelineStatic({
 				title: p.name?.trim() || "POI",
 				sub: poiTypeLabel(p.poiType),
 				memo: p.memo?.trim() || null,
+				poiType: p.poiType,
 			})),
 			...cpRows,
 			...summitRows,
@@ -253,7 +258,7 @@ export function PlanStageTimelineStatic({
 						themeColor="textSecondary"
 						style={[styles.leftColHeader, { width: LEFT_KM_WIDTH }]}
 					>
-						거리
+						km
 					</ThemedText>
 					<View style={{ width: AXIS_WIDTH }} />
 					<ThemedText type="caption" themeColor="textSecondary" style={styles.rightColHeader}>
@@ -267,6 +272,7 @@ export function PlanStageTimelineStatic({
 						const passed = isWaypoint && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 						const segmentPassed = currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 						const tintMuted = hexToRgba(theme.tint, 0.22);
+						const markerColor = milestoneColor(m, theme.tint);
 
 						const milestoneRow = (
 							<View style={styles.milestoneRow}>
@@ -285,17 +291,17 @@ export function PlanStageTimelineStatic({
 										<AppIcon
 											name="flag.checkered"
 											size={16}
-											tintColor={passed ? theme.tint : theme.separator}
+											tintColor={markerColor}
 										/>
 									) : m.kind === "summit" ? (
 										<AppIcon
 											name="mountain.2.fill"
 											size={16}
-											tintColor={passed ? theme.tint : theme.separator}
+											tintColor={markerColor}
 										/>
 									) : m.kind === "poi" ? (
 										passed ? (
-											<View style={[styles.poiDot, { backgroundColor: theme.tint }]} />
+											<View style={[styles.poiDot, { backgroundColor: markerColor }]} />
 										) : (
 											<View
 												style={[
@@ -303,7 +309,7 @@ export function PlanStageTimelineStatic({
 													{
 														backgroundColor: "transparent",
 														borderWidth: 2,
-														borderColor: theme.separator,
+														borderColor: markerColor,
 													},
 												]}
 											/>
@@ -502,7 +508,19 @@ function kindOrder(k: TimelineKind): number {
 function formatStageKm(relKm: number): string {
 	const rounded = Math.round(relKm * 10) / 10;
 	const n = Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
-	return `${n}km`;
+	return n;
+}
+
+function milestoneColor(milestone: TimelineMilestone, defaultColor: string): string {
+	if (milestone.kind === "cp") return CP_COLOR;
+	if (milestone.kind === "summit") return SUMMIT_COLOR;
+	if (
+		milestone.kind === "poi" &&
+		(milestone.poiType === "convenience" || milestone.poiType === "mart")
+	) {
+		return SUPPLY_COLOR;
+	}
+	return defaultColor;
 }
 
 type MaybeAutoScrollArgs = {

@@ -22,6 +22,7 @@ import {
 	type StageFocus,
 	StageFocusTabs,
 } from "@/features/plan-my-route/components/stage-focus-tabs";
+import { removeSummitsDuplicatedByCheckpoints } from "@/features/plan-my-route/dedupe-route-markers";
 import { usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
 import { useTheme } from "@/hooks/use-theme";
@@ -224,6 +225,10 @@ function StageSummaryBody({
 		() => detail.planPois.filter((poi) => poi.poi_type !== "accommodation"),
 		[detail.planPois],
 	);
+	const visibleSummits = removeSummitsDuplicatedByCheckpoints(
+		detail.summitMarkers,
+		detail.cpMarkers,
+	);
 
 	return (
 		<>
@@ -290,7 +295,7 @@ function StageSummaryBody({
 					<PlanStageHud
 						stage={stage}
 						trackPoints={detail.trackPoints}
-						summitMarkers={detail.summitMarkers}
+						summitMarkers={visibleSummits}
 						currentRelKm={currentRelKm}
 					/>
 
@@ -303,7 +308,7 @@ function StageSummaryBody({
 					<PlanStageTimelineStatic
 						planPois={nonAccommodationPois}
 						cpMarkers={detail.cpMarkers}
-						summitMarkers={detail.summitMarkers}
+						summitMarkers={visibleSummits}
 						stage={stage}
 						trackPoints={detail.trackPoints}
 						currentRelKm={currentRelKm}
