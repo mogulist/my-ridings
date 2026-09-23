@@ -12,11 +12,7 @@ import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
 import { PressableHaptic } from "@/components/ui/pressable-haptic";
 import { Radius, Shadow, Spacing } from "@/constants/theme";
-import type {
-	MobilePlanStageRow,
-	PlanPoiRow,
-	TrackPoint,
-} from "@/features/api/plan-my-route";
+import type { MobilePlanStageRow, PlanPoiRow, TrackPoint } from "@/features/api/plan-my-route";
 import { patchPlanPoi } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
 import { planDetailQueryKey } from "@/features/plan-my-route/plan-detail-query";
@@ -78,28 +74,26 @@ export function AccommodationChoices({
 		};
 
 		const items = snapped.flatMap((snappedPoi) => {
-				const poi = poiById.get(snappedPoi.id);
-				if (
-					!poi ||
-					poi.poi_type !== "accommodation" ||
-					!planPoiBelongsToStage(snappedPoi, stageRange)
-				) {
-					return [];
-				}
-				return [
-					{
-						id: poi.id,
-						distanceKm: snappedPoi.distanceKm,
-						sortOrder: poi.candidate_sort_order,
-						poi,
-					},
-				];
-			});
+			const poi = poiById.get(snappedPoi.id);
+			if (
+				!poi ||
+				poi.poi_type !== "accommodation" ||
+				!planPoiBelongsToStage(snappedPoi, stageRange)
+			) {
+				return [];
+			}
+			return [
+				{
+					id: poi.id,
+					distanceKm: snappedPoi.distanceKm,
+					sortOrder: poi.candidate_sort_order,
+					poi,
+				},
+			];
+		});
 
 		return {
-			groups: groupAccommodationCandidates(
-				items.filter((item) => !item.poi.is_candidate_excluded),
-			),
+			groups: groupAccommodationCandidates(items.filter((item) => !item.poi.is_candidate_excluded)),
 			excluded: items
 				.filter((item) => item.poi.is_candidate_excluded)
 				.sort((a, b) => a.distanceKm - b.distanceKm),
@@ -164,89 +158,98 @@ export function AccommodationChoices({
 					</ThemedText>
 				</View>
 				<ThemedText type="caption" themeColor="textSecondary" selectable>
-					{groups.length}개 구간 · 숙소 {groups.reduce((sum, group) => sum + group.items.length, 0)}곳
+					{groups.length}개 구간 · 숙소 {groups.reduce((sum, group) => sum + group.items.length, 0)}
+					곳
 				</ThemedText>
 			</View>
 
-			{groups.length > 0 ? <View
-				style={[
-					styles.nextCard,
-					{
-						backgroundColor: theme.surfaceElevated,
-						borderColor: theme.warning,
-						boxShadow: Shadow.card,
-					},
-				]}
-			>
-				{allPassed ? (
-					<>
-						<ThemedText type="smallBold" style={{ color: theme.warning }} selectable>
-							등록한 숙박 선택지를 모두 지났어요
-						</ThemedText>
-						<ThemedText type="small" themeColor="textSecondary" selectable>
-							아래에서 지나온 숙소를 다시 확인할 수 있습니다.
-						</ThemedText>
-					</>
-				) : activeGroup && activeFirst ? (
-					<>
-						<View style={styles.nextCardTop}>
-							<View style={styles.nextCardTitleBlock}>
-								<ThemedText type="caption" style={{ color: theme.warning }} selectable>
-									다음 숙박 선택지 {activeGroupIndex + 1}
-								</ThemedText>
-								<ThemedText type="metricSm" selectable>
-									{formatRemainingDistance(currentKm, activeGroup.startDistanceKm)}
-								</ThemedText>
-							</View>
-							<View style={[styles.countPill, { backgroundColor: `${theme.warning}18` }]}>
-								<ThemedText type="smallBold" style={{ color: theme.warning }} selectable>
-									숙소 {activeGroup.items.length}곳
-								</ThemedText>
-							</View>
-						</View>
-						{approachGainM > 0 ? (
-							<ThemedText type="caption" themeColor="textSecondary" selectable>
-								선택지까지 남은 오르막 +{approachGainM.toLocaleString()}m
+			{groups.length > 0 ? (
+				<View
+					style={[
+						styles.nextCard,
+						{
+							backgroundColor: theme.surfaceElevated,
+							borderColor: theme.warning,
+							boxShadow: Shadow.card,
+						},
+					]}
+				>
+					{allPassed ? (
+						<>
+							<ThemedText type="smallBold" style={{ color: theme.warning }} selectable>
+								등록한 숙박 선택지를 모두 지났어요
 							</ThemedText>
-						) : null}
-						<View style={[styles.nextDivider, { backgroundColor: theme.separator }]} />
-						<View style={styles.nextHotelRow}>
-							<View style={styles.priorityCircle}>
-								<ThemedText type="caption" style={styles.priorityText} selectable>
-									1
-								</ThemedText>
-							</View>
-							<View style={styles.nextHotelText}>
-								<ThemedText type="smallBold" numberOfLines={1} selectable>
-									{activeFirst.poi.name}
-								</ThemedText>
-								<ThemedText type="caption" themeColor="textSecondary" numberOfLines={1} selectable>
-									{formatIntent(activeFirst.poi.intent)} · 경로 {activeFirst.distanceKm.toFixed(1)}km
-								</ThemedText>
-							</View>
-							<QuickActions poi={activeFirst.poi} compact onMessage={onMessage} />
-						</View>
-						{nextGroup ? (
-							<ThemedText type="caption" themeColor="textSecondary" selectable>
-								다음 선택지는 여기서 {formatKm(nextGroup.startDistanceKm - activeGroup.startDistanceKm)} 더
+							<ThemedText type="small" themeColor="textSecondary" selectable>
+								아래에서 지나온 숙소를 다시 확인할 수 있습니다.
 							</ThemedText>
-						) : (
-							<ThemedText type="caption" themeColor="textSecondary" selectable>
-								이 스테이지의 마지막 숙박 선택지입니다.
-							</ThemedText>
-						)}
-					</>
-				) : null}
-			</View> : null}
+						</>
+					) : activeGroup && activeFirst ? (
+						<>
+							<View style={styles.nextCardTop}>
+								<View style={styles.nextCardTitleBlock}>
+									<ThemedText type="caption" style={{ color: theme.warning }} selectable>
+										다음 숙박 선택지 {activeGroupIndex + 1}
+									</ThemedText>
+									<ThemedText type="metricSm" selectable>
+										{formatRemainingDistance(currentKm, activeGroup.startDistanceKm)}
+									</ThemedText>
+								</View>
+								<View style={[styles.countPill, { backgroundColor: `${theme.warning}18` }]}>
+									<ThemedText type="smallBold" style={{ color: theme.warning }} selectable>
+										숙소 {activeGroup.items.length}곳
+									</ThemedText>
+								</View>
+							</View>
+							{approachGainM > 0 ? (
+								<ThemedText type="caption" themeColor="textSecondary" selectable>
+									선택지까지 남은 오르막 +{approachGainM.toLocaleString()}m
+								</ThemedText>
+							) : null}
+							<View style={[styles.nextDivider, { backgroundColor: theme.separator }]} />
+							<View style={styles.nextHotelRow}>
+								<View style={styles.priorityCircle}>
+									<ThemedText type="caption" style={styles.priorityText} selectable>
+										1
+									</ThemedText>
+								</View>
+								<View style={styles.nextHotelText}>
+									<ThemedText type="smallBold" numberOfLines={1} selectable>
+										{activeFirst.poi.name}
+									</ThemedText>
+									<ThemedText
+										type="caption"
+										themeColor="textSecondary"
+										numberOfLines={1}
+										selectable
+									>
+										{formatIntent(activeFirst.poi.intent)} · 경로{" "}
+										{activeFirst.distanceKm.toFixed(1)}km
+									</ThemedText>
+								</View>
+								<QuickActions poi={activeFirst.poi} compact onMessage={onMessage} />
+							</View>
+							{nextGroup ? (
+								<ThemedText type="caption" themeColor="textSecondary" selectable>
+									다음 선택지는 여기서{" "}
+									{formatKm(nextGroup.startDistanceKm - activeGroup.startDistanceKm)} 더
+								</ThemedText>
+							) : (
+								<ThemedText type="caption" themeColor="textSecondary" selectable>
+									이 스테이지의 마지막 숙박 선택지입니다.
+								</ThemedText>
+							)}
+						</>
+					) : null}
+				</View>
+			) : null}
 
 			<View style={styles.groupList}>
 				{groups.map((group, groupIndex) => {
-					const passed =
-						currentKm != null && group.endDistanceKm < currentKm - PASSED_TOLERANCE_KM;
+					const passed = currentKm != null && group.endDistanceKm < currentKm - PASSED_TOLERANCE_KM;
 					const expanded = expandedGroupIndex === groupIndex;
 					return (
 						<View
-							key={`accommodation-group-${groupIndex}`}
+							key={group.items.map((item) => item.id).join(":")}
 							style={[styles.group, { borderColor: theme.separator }, passed && styles.passedGroup]}
 						>
 							<PressableHaptic
@@ -271,7 +274,8 @@ export function AccommodationChoices({
 										) : null}
 									</View>
 									<ThemedText type="caption" themeColor="textSecondary" selectable>
-										{formatGroupRange(group.startDistanceKm, group.endDistanceKm)} · 숙소 {group.items.length}곳
+										{formatGroupRange(group.startDistanceKm, group.endDistanceKm)} · 숙소{" "}
+										{group.items.length}곳
 									</ThemedText>
 								</View>
 								<AppIcon
@@ -284,13 +288,13 @@ export function AccommodationChoices({
 							{expanded ? (
 								<View style={[styles.hotelList, { borderTopColor: theme.separator }]}>
 									{group.items.map((item, itemIndex) => (
-						<AccommodationRow
+										<AccommodationRow
 											key={item.id}
 											item={item}
 											priority={itemIndex + 1}
-							onMessage={onMessage}
-							disabled={Boolean(savingId)}
-							onExclude={() => void setExcluded(item, true)}
+											onMessage={onMessage}
+											disabled={Boolean(savingId)}
+											onExclude={() => void setExcluded(item, true)}
 										/>
 									))}
 								</View>
@@ -385,18 +389,20 @@ function AccommodationRow({
 						예약 정보 {formatCheckedAt(poi.booking_checked_at)} 확인
 					</ThemedText>
 				) : null}
-				<QuickActions poi={poi} onMessage={onMessage} />
-				<PressableHaptic
-					accessibilityRole="button"
-					accessibilityLabel={`${poi.name} 방 없음으로 제외`}
-					disabled={disabled}
-					style={[styles.unavailableButton, { borderColor: theme.danger }]}
-					onPress={onExclude}
-				>
-					<ThemedText type="caption" themeColor="danger">
-						방 없음
-					</ThemedText>
-				</PressableHaptic>
+				<View style={styles.hotelActions}>
+					<QuickActions poi={poi} compact onMessage={onMessage} />
+					<PressableHaptic
+						accessibilityRole="button"
+						accessibilityLabel={`${poi.name} 방 없음으로 제외`}
+						disabled={disabled}
+						style={[styles.unavailableButton, { borderColor: theme.danger }]}
+						onPress={onExclude}
+					>
+						<ThemedText type="caption" themeColor="danger">
+							방 없음
+						</ThemedText>
+					</PressableHaptic>
+				</View>
 			</View>
 		</View>
 	);
@@ -467,8 +473,13 @@ function ActionButton({
 }) {
 	return (
 		<PressableHaptic
+			accessibilityRole="button"
 			accessibilityLabel={accessibilityLabel}
-			style={[styles.actionButton, compact && styles.compactActionButton, { borderColor: `${color}40` }]}
+			style={[
+				styles.actionButton,
+				compact && styles.compactActionButton,
+				{ borderColor: `${color}40` },
+			]}
 			onPress={onPress}
 		>
 			<AppIcon name={icon} size={compact ? 18 : 15} tintColor={color} />
@@ -691,12 +702,17 @@ const styles = StyleSheet.create({
 		paddingVertical: Spacing.half,
 	},
 	unavailableButton: {
-		alignSelf: "flex-start",
-		minHeight: 34,
+		minHeight: 40,
 		justifyContent: "center",
 		borderWidth: 1,
 		borderRadius: Radius.pill,
 		paddingHorizontal: Spacing.two,
+	},
+	hotelActions: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.two,
+		paddingTop: Spacing.one,
 	},
 	excludedSection: {
 		gap: Spacing.one,
