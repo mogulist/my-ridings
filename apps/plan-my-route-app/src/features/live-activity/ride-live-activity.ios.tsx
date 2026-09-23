@@ -1,12 +1,5 @@
-import { HStack, Image, ProgressView, Spacer, Text, VStack } from "@expo/ui/swift-ui";
-import {
-  font,
-  foregroundStyle,
-  frame,
-  padding,
-  progressViewStyle,
-  tint,
-} from "@expo/ui/swift-ui/modifiers";
+import { HStack, Image, Spacer, Text, VStack } from "@expo/ui/swift-ui";
+import { font, foregroundStyle, frame, padding } from "@expo/ui/swift-ui/modifiers";
 import { createLiveActivity } from "expo-widgets";
 
 import type { RideLiveActivityProps } from "./mock-ride-snapshots";
@@ -18,73 +11,105 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
     banner: (
       <VStack
         alignment="leading"
-        spacing={9}
-        modifiers={[padding({ horizontal: 16, vertical: 13 }), frame({ maxWidth: Infinity })]}
+        spacing={5}
+        modifiers={[
+          padding({ horizontal: 16, vertical: 10 }),
+          frame({ maxWidth: Infinity, maxHeight: 160, alignment: "topLeading" }),
+        ]}
       >
-        <HStack spacing={7}>
-          <Image systemName="bicycle" color="#0A84FF" />
-          <Text modifiers={[font({ size: 14, weight: "semibold", design: "rounded" })]}>
-            {props.stageLabel} · {props.phaseLabel}
-          </Text>
-          <Spacer />
-          <Text
-            modifiers={[
-              font({ size: 13, weight: "medium", design: "rounded" }),
-              foregroundStyle({ type: "hierarchical", style: "secondary" }),
-            ]}
-          >
-            {props.progressLabel}
-          </Text>
-        </HStack>
-
-        <ProgressView
-          value={props.progress}
-          modifiers={[progressViewStyle("linear"), tint("#0A84FF"), frame({ maxWidth: Infinity })]}
-        />
-
-        <HStack spacing={10} alignment="firstTextBaseline">
-          <VStack alignment="leading" spacing={2}>
+        <HStack spacing={8} alignment="center">
+          {props.nextSupplyName ? (
+            <Image systemName="1.circle.fill" color={props.accentColor} />
+          ) : null}
+          <VStack alignment="leading" spacing={1}>
             <Text
               modifiers={[
-                font({ size: 12, weight: "semibold" }),
+                font({ size: 11, weight: "semibold" }),
                 foregroundStyle(props.accentColor),
               ]}
             >
               {props.primaryLabel}
             </Text>
-            <Text modifiers={[font({ size: 19, weight: "bold", design: "rounded" })]}>
+            <Text modifiers={[font({ size: 18, weight: "bold", design: "rounded" })]}>
               {props.primaryName}
             </Text>
           </VStack>
           <Spacer />
-          <Text
-            modifiers={[
-              font({ size: 20, weight: "bold", design: "rounded" }),
-              foregroundStyle(props.accentColor),
-            ]}
-          >
-            {props.primaryDistance}
-          </Text>
+          <VStack alignment="trailing" spacing={1}>
+            <Text
+              modifiers={[
+                font({ size: 19, weight: "bold", design: "rounded" }),
+                foregroundStyle(props.accentColor),
+              ]}
+            >
+              {props.primaryDistance}
+            </Text>
+            <Text
+              modifiers={[
+                font({ size: 12, weight: "semibold", design: "rounded" }),
+                foregroundStyle({ type: "hierarchical", style: "secondary" }),
+              ]}
+            >
+              {props.primaryAscent}
+            </Text>
+          </VStack>
         </HStack>
 
-        <HStack spacing={8}>
-          <Image
-            systemName={props.phase === "lodging" ? "bed.double.fill" : "mountain.2.fill"}
-            color="#8E8E93"
-          />
-          <Text
-            modifiers={[
-              font({ size: 13, weight: "medium" }),
-              foregroundStyle({ type: "hierarchical", style: "secondary" }),
-            ]}
-          >
-            {props.secondaryLabel}
-          </Text>
-          <Spacer />
-          <Text modifiers={[font({ size: 13, weight: "semibold", design: "rounded" })]}>
-            {props.secondaryValue}
-          </Text>
-        </HStack>
+        {props.nextSupplyName && props.nextSupplyDistance && props.nextSupplyAscent ? (
+          <HStack spacing={8} alignment="center">
+            <Image systemName="2.circle.fill" color="#8E8E93" />
+            <Text modifiers={[font({ size: 15, weight: "semibold", design: "rounded" })]}>
+              {props.nextSupplyName}
+            </Text>
+            <Spacer />
+            <VStack alignment="trailing" spacing={0}>
+              <Text
+                modifiers={[
+                  font({ size: 15, weight: "semibold", design: "rounded" }),
+                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
+                ]}
+              >
+                {props.nextSupplyDistance}
+              </Text>
+              <Text
+                modifiers={[
+                  font({ size: 12, weight: "semibold", design: "rounded" }),
+                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
+                ]}
+              >
+                {props.nextSupplyAscent}
+              </Text>
+            </VStack>
+          </HStack>
+        ) : null}
+
+        {props.thirdSupplyName && props.thirdSupplyDistance && props.thirdSupplyAscent ? (
+          <HStack spacing={8} alignment="center">
+            <Image systemName="3.circle.fill" color="#8E8E93" />
+            <Text modifiers={[font({ size: 15, weight: "semibold", design: "rounded" })]}>
+              {props.thirdSupplyName}
+            </Text>
+            <Spacer />
+            <VStack alignment="trailing" spacing={0}>
+              <Text
+                modifiers={[
+                  font({ size: 15, weight: "semibold", design: "rounded" }),
+                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
+                ]}
+              >
+                {props.thirdSupplyDistance}
+              </Text>
+              <Text
+                modifiers={[
+                  font({ size: 12, weight: "semibold", design: "rounded" }),
+                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
+                ]}
+              >
+                {props.thirdSupplyAscent}
+              </Text>
+            </VStack>
+          </HStack>
+        ) : null}
       </VStack>
     ),
     compactLeading: <Image systemName="bicycle" color="#0A84FF" />,

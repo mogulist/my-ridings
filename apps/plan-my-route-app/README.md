@@ -80,6 +80,22 @@ bun run build:debug:android
 bun run start:debug
 ```
 
+`start:debug`는 개발 앱 전용 스킴(`planmyrouteapp-dev`)을 사용합니다.
+기존 앱이 함께 설치되어 있어도 Metro의 실행 링크는 `(Dev)` 앱을 엽니다.
+
+`@expo/ui`, `expo-widgets`, AsyncStorage 등 네이티브 패키지를 추가하거나
+업데이트했다면 **Metro 재시작만으로는 반영되지 않습니다.** 시뮬레이터와
+iPhone 각각 새 Development Build를 설치한 뒤 Metro에 연결하세요.
+`Cannot find native module` 오류가 나면 실행 중인 앱의 빌드부터 확인합니다.
+
+시뮬레이터용 개발 앱을 다시 만들 때:
+
+```bash
+APP_VARIANT=development bunx expo prebuild --platform ios
+APP_VARIANT=development bunx expo run:ios --no-bundler
+bun run start:debug
+```
+
 ### B. 로컬 빌드 사용(선택)
 
 ```bash

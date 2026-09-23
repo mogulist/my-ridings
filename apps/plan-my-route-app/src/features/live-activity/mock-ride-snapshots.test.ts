@@ -19,4 +19,25 @@ describe("mock ride Live Activity snapshots", () => {
       expect(snapshot.primaryDistance.length).toBeGreaterThan(0);
     }
   });
+
+  test("shows three upcoming supply stops while riding", () => {
+    for (const phase of ["ride", "supply"] as const) {
+      const snapshot = getMockRideSnapshot(phase);
+      expect(snapshot.nextSupplyName).toBeTruthy();
+      expect(snapshot.nextSupplyDistance).toBeTruthy();
+      expect(snapshot.nextSupplyAscent).toBeTruthy();
+      expect(snapshot.thirdSupplyName).toBeTruthy();
+      expect(snapshot.thirdSupplyDistance).toBeTruthy();
+      expect(snapshot.thirdSupplyAscent).toBeTruthy();
+      expect(snapshot.primaryAscent).toBeTruthy();
+    }
+
+    const lodging = getMockRideSnapshot("lodging");
+    expect(lodging.nextSupplyName).toBeNull();
+    expect(lodging.nextSupplyDistance).toBeNull();
+    expect(lodging.nextSupplyAscent).toBeNull();
+    expect(lodging.thirdSupplyName).toBeNull();
+    expect(lodging.thirdSupplyDistance).toBeNull();
+    expect(lodging.thirdSupplyAscent).toBeNull();
+  });
 });
