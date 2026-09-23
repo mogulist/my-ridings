@@ -1,22 +1,34 @@
 import {
-	planPoiBelongsToStage,
 	type PlanPoiSnapInput,
+	planPoiBelongsToStage,
 	snapPlanPoisToTrack,
 } from "@my-ridings/plan-geometry";
-import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { Animated, Easing, type ScrollView, StyleSheet, View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+	ActionSheetIOS,
+	Alert,
+	Animated,
+	Easing,
+	type ScrollView,
+	StyleSheet,
+	View,
+} from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { AppIcon } from "@/components/ui/icon";
 import { PressableHaptic } from "@/components/ui/pressable-haptic";
-import { Fonts, Spacing } from "@/constants/theme";
-import type {
-	CpMarkerOnRoute,
-	MobilePlanStageRow,
-	PlanPoiRow,
-	SummitMarkerOnRoute,
-	TrackPoint,
+import { Fonts, Radius, Spacing } from "@/constants/theme";
+import {
+	type CpMarkerOnRoute,
+	type MobilePlanStageRow,
+	type PlanPoiRow,
+	patchPlanPoi,
+	type SummitMarkerOnRoute,
+	type TrackPoint,
 } from "@/features/api/plan-my-route";
+import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
+import { planDetailQueryKey } from "@/features/plan-my-route/plan-detail-query";
 import { useTheme } from "@/hooks/use-theme";
 
 /** 웹 `PoiEditDialog` / 공유 탭과 동일 라벨 세트 */
@@ -45,9 +57,12 @@ type TimelineMilestone = {
 	sub?: string;
 	memo?: string | null;
 	poiType?: string;
+	poiId?: string;
+	poiIntent?: PlanPoiRow["intent"];
 };
 
 export type PlanStageTimelineStaticProps = {
+	planId: string;
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
 	planPois: PlanPoiRow[];
@@ -58,6 +73,7 @@ export type PlanStageTimelineStaticProps = {
 	scrollRef: RefObject<ScrollView | null>;
 	/** 현위치가 있으면 이미 지나간 경유지를 숨기고 앞으로의 일정에 집중한다. */
 	onlyUpcoming?: boolean;
+	onMessage: (message: string) => void;
 };
 
 const LEFT_KM_WIDTH = 56;
@@ -75,6 +91,7 @@ const SUPPLY_COLOR = "#34C759";
 const FIXED_SEGMENT_GAP_PX = 10;
 
 export function PlanStageTimelineStatic({
+	planId,
 	stage,
 	trackPoints,
 	planPois,
@@ -83,8 +100,11 @@ export function PlanStageTimelineStatic({
 	currentRelKm,
 	scrollRef,
 	onlyUpcoming = false,
+	onMessage,
 }: PlanStageTimelineStaticProps) {
 	const theme = useTheme();
+	const queryClient = useQueryClient();
+	const [savingPoiId, setSavingPoiId] = useState<string | null>(null);
 	const pulse = useRef(new Animated.Value(1)).current;
 	const currentRowRef = useRef<View>(null);
 	const lastScrollAtRef = useRef(0);
@@ -148,6 +168,8 @@ export function PlanStageTimelineStatic({
 				sub: poiTypeLabel(p.poiType),
 				memo: p.memo?.trim() || null,
 				poiType: p.poiType,
+				poiId: p.id,
+				poiIntent: p.intent,
 			})),
 			...cpRows,
 			...summitRows,
@@ -173,9 +195,7 @@ export function PlanStageTimelineStatic({
 			onlyUpcoming && currentRelKm != null
 				? rows.filter(
 						(row) =>
-							row.kind === "current" ||
-							row.kind === "end" ||
-							row.relKm >= currentRelKm - 1e-6,
+							row.kind === "current" || row.kind === "end" || row.relKm >= currentRelKm - 1e-6,
 					)
 				: rows;
 
@@ -246,11 +266,72 @@ export function PlanStageTimelineStatic({
 		});
 	};
 
+	const updateSupplyIntent = async (milestone: TimelineMilestone, intent: PlanPoiRow["intent"]) => {
+		if (!milestone.poiId || savingPoiId) return;
+		const apiOrigin = getApiOrigin();
+		if (!apiOrigin) {
+			onMessage("앱 서버 주소가 설정되지 않았습니다.");
+			return;
+		}
+		const accessToken = await getStoredAccessToken();
+		if (!accessToken) {
+			onMessage("다시 로그인해 주세요.");
+			return;
+		}
+
+		setSavingPoiId(milestone.poiId);
+		try {
+			await patchPlanPoi(apiOrigin, accessToken, planId, milestone.poiId, { intent });
+			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(planId) });
+			onMessage(`${milestone.title}: ${supplyIntentLabel(intent)}`);
+		} catch (error) {
+			onMessage(error instanceof Error ? error.message : "보급 상태를 저장하지 못했습니다.");
+		} finally {
+			setSavingPoiId(null);
+		}
+	};
+
+	const openSupplyStatusMenu = (milestone: TimelineMilestone) => {
+		if (!isSupplyMilestone(milestone) || savingPoiId) return;
+		const actions = supplyMenuActions(milestone.poiIntent);
+
+		if (process.env.EXPO_OS === "ios") {
+			ActionSheetIOS.showActionSheetWithOptions(
+				{
+					options: ["취소", ...actions.map((action) => action.label)],
+					cancelButtonIndex: 0,
+					title: milestone.title,
+					message: "보급 상태 변경",
+				},
+				(buttonIndex) => {
+					const action = actions[buttonIndex - 1];
+					if (action) void updateSupplyIntent(milestone, action.intent);
+				},
+			);
+			return;
+		}
+
+		Alert.alert(milestone.title, "보급 상태 변경", [
+			{ text: "취소", style: "cancel" },
+			...actions.map((action) => ({
+				text: action.label,
+				onPress: () => void updateSupplyIntent(milestone, action.intent),
+			})),
+		]);
+	};
+
+	const hasSupplyPoi = milestones.some(isSupplyMilestone);
+
 	return (
 		<View style={styles.wrap}>
 			<ThemedText type="smallBold" style={styles.sectionTitle}>
 				{onlyUpcoming ? "앞으로 남은 경유 포인트" : "경유 포인트"}
 			</ThemedText>
+			{hasSupplyPoi ? (
+				<ThemedText type="caption" themeColor="textSecondary">
+					편의점·마트를 길게 눌러 보급 상태를 변경하세요
+				</ThemedText>
+			) : null}
 			<View style={styles.timelineContainer}>
 				<View style={styles.columnHeader}>
 					<ThemedText
@@ -269,13 +350,18 @@ export function PlanStageTimelineStatic({
 				<View style={styles.timelineBody} collapsable={false}>
 					{milestones.map((m, index) => {
 						const isWaypoint = m.kind === "poi" || m.kind === "cp" || m.kind === "summit";
+						const isSupply = isSupplyMilestone(m);
 						const passed = isWaypoint && currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 						const segmentPassed = currentRelKm != null && currentRelKm + 1e-6 >= m.relKm;
 						const tintMuted = hexToRgba(theme.tint, 0.22);
 						const markerColor = milestoneColor(m, theme.tint);
+						const statusLabel = isSupply ? supplyStatusBadgeLabel(m.poiIntent) : null;
+						const statusColor = m.poiIntent === "confirmed" ? theme.success : theme.tint;
 
 						const milestoneRow = (
-							<View style={styles.milestoneRow}>
+							<View
+								style={[styles.milestoneRow, m.poiIntent === "confirmed" && styles.confirmedRow]}
+							>
 								<ThemedText
 									type="caption"
 									style={[
@@ -288,17 +374,9 @@ export function PlanStageTimelineStatic({
 
 								<View style={[styles.axisSlot, { width: AXIS_WIDTH }]}>
 									{m.kind === "cp" ? (
-										<AppIcon
-											name="flag.checkered"
-											size={16}
-											tintColor={markerColor}
-										/>
+										<AppIcon name="flag.checkered" size={16} tintColor={markerColor} />
 									) : m.kind === "summit" ? (
-										<AppIcon
-											name="mountain.2.fill"
-											size={16}
-											tintColor={markerColor}
-										/>
+										<AppIcon name="mountain.2.fill" size={16} tintColor={markerColor} />
 									) : m.kind === "poi" ? (
 										passed ? (
 											<View style={[styles.poiDot, { backgroundColor: markerColor }]} />
@@ -334,9 +412,23 @@ export function PlanStageTimelineStatic({
 								</View>
 
 								<View style={styles.labelBlock}>
-									<ThemedText type="smallBold" numberOfLines={2}>
-										{m.title}
-									</ThemedText>
+									<View style={styles.titleRow}>
+										<ThemedText type="smallBold" numberOfLines={2} style={styles.titleText}>
+											{m.title}
+										</ThemedText>
+										{statusLabel ? (
+											<View
+												style={[
+													styles.statusBadge,
+													{ backgroundColor: hexToRgba(statusColor, 0.14) },
+												]}
+											>
+												<ThemedText type="caption" style={{ color: statusColor }}>
+													{statusLabel}
+												</ThemedText>
+											</View>
+										) : null}
+									</View>
 									{m.sub ? (
 										<ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
 											{m.sub}
@@ -380,8 +472,16 @@ export function PlanStageTimelineStatic({
 									</View>
 								) : null}
 
-								{isWaypoint ? (
-									<PressableHaptic onPress={() => {}}>{milestoneRow}</PressableHaptic>
+								{isSupply ? (
+									<PressableHaptic
+										accessibilityLabel={`${m.title} 보급 상태 변경`}
+										accessibilityHint="길게 눌러 보급 후보 또는 들림 상태를 변경합니다"
+										delayLongPress={350}
+										disabled={savingPoiId === m.poiId}
+										onLongPress={() => openSupplyStatusMenu(m)}
+									>
+										{milestoneRow}
+									</PressableHaptic>
 								) : (
 									milestoneRow
 								)}
@@ -474,6 +574,23 @@ const styles = StyleSheet.create({
 		minWidth: 0,
 		gap: 2,
 	},
+	titleRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.one,
+	},
+	titleText: {
+		flexShrink: 1,
+	},
+	statusBadge: {
+		flexShrink: 0,
+		borderRadius: Radius.pill,
+		paddingHorizontal: Spacing.two,
+		paddingVertical: 2,
+	},
+	confirmedRow: {
+		opacity: 0.58,
+	},
 	memoText: {
 		marginTop: 2,
 		lineHeight: 16,
@@ -485,6 +602,57 @@ const styles = StyleSheet.create({
 		opacity: 0.95,
 	},
 });
+
+type SupplyMilestone = TimelineMilestone & {
+	poiId: string;
+	poiType: "convenience" | "mart";
+	poiIntent: PlanPoiRow["intent"];
+};
+
+type SupplyMenuAction = {
+	label: string;
+	intent: PlanPoiRow["intent"];
+};
+
+function isSupplyMilestone(milestone: TimelineMilestone): milestone is SupplyMilestone {
+	return (
+		milestone.kind === "poi" &&
+		Boolean(milestone.poiId) &&
+		Boolean(milestone.poiIntent) &&
+		(milestone.poiType === "convenience" || milestone.poiType === "mart")
+	);
+}
+
+function supplyStatusBadgeLabel(intent: PlanPoiRow["intent"]): string | null {
+	if (intent === "planned") return "보급 후보";
+	if (intent === "confirmed") return "들림";
+	return null;
+}
+
+function supplyIntentLabel(intent: PlanPoiRow["intent"]): string {
+	if (intent === "planned") return "보급 후보";
+	if (intent === "confirmed") return "들림";
+	return "보급 후보 해제";
+}
+
+function supplyMenuActions(intent: PlanPoiRow["intent"]): SupplyMenuAction[] {
+	if (intent === "planned") {
+		return [
+			{ label: "보급 후보 해제", intent: "candidate" },
+			{ label: "들림으로 표시", intent: "confirmed" },
+		];
+	}
+	if (intent === "confirmed") {
+		return [
+			{ label: "보급 후보로 변경", intent: "planned" },
+			{ label: "들림 취소", intent: "candidate" },
+		];
+	}
+	return [
+		{ label: "보급 후보로 지정", intent: "planned" },
+		{ label: "들림으로 표시", intent: "confirmed" },
+	];
+}
 
 function hexToRgba(hex: string, alpha: number): string {
 	if (hex.startsWith("#") && hex.length === 7) {

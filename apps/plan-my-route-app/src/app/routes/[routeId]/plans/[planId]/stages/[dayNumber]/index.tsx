@@ -9,7 +9,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PlanStageHud } from "@/components/plan-stage-hud";
 import { PlanStageMiniElevation } from "@/components/plan-stage-mini-elevation";
 import { PlanStageTimelineStatic } from "@/components/plan-stage-timeline-static";
 import { Snackbar } from "@/components/snackbar";
@@ -32,7 +31,6 @@ import {
 	type StageFocus,
 	StageFocusTabs,
 } from "@/features/plan-my-route/components/stage-focus-tabs";
-import { SupplyStops } from "@/features/plan-my-route/components/supply-stops";
 import { removeSummitsDuplicatedByCheckpoints } from "@/features/plan-my-route/dedupe-route-markers";
 import {
 	planDetailQueryKey,
@@ -218,8 +216,6 @@ function StageSummaryBody({
 	const [focus, setFocus] = useState<StageFocus>("ride");
 	const [isFinishing, setIsFinishing] = useState(false);
 	const routeLabel = stageRouteLine(stage);
-	const distanceKm = stageDistanceKm(stage);
-	const gainM = Math.round(Number(stage.elevation_gain) || 0);
 	const memo = stage.memo?.trim() || null;
 
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
@@ -328,45 +324,8 @@ function StageSummaryBody({
 
 			{focus === "ride" ? (
 				<>
-					<SupplyStops
-						planId={detail.plan.id}
-						stage={stage}
-						planPois={detail.planPois}
-						trackPoints={detail.trackPoints}
-						currentKm={location.currentKm}
-						onMessage={onMessage}
-					/>
-
-					<View style={[styles.metricsRow, { borderColor: theme.separator }]}>
-						<View style={styles.metricItem}>
-							<AppIcon name="figure.outdoor.cycle" size={18} tintColor={theme.tint} />
-							<ThemedText type="metricSm" style={styles.metricNum}>
-								{distanceKm.toFixed(1)}
-							</ThemedText>
-							<ThemedText type="caption" themeColor="textSecondary">
-								오늘 거리 (km)
-							</ThemedText>
-						</View>
-						<View style={[styles.metricSep, { backgroundColor: theme.separator }]} />
-						<View style={styles.metricItem}>
-							<AppIcon name="arrow.up.forward" size={18} tintColor={theme.gain} />
-							<ThemedText type="metricSm" style={[styles.metricNum, { color: theme.gain }]}>
-								+{gainM.toLocaleString()}
-							</ThemedText>
-							<ThemedText type="caption" themeColor="textSecondary">
-								전체 획득고도 (m)
-							</ThemedText>
-						</View>
-					</View>
-
-					<PlanStageHud
-						stage={stage}
-						trackPoints={detail.trackPoints}
-						summitMarkers={visibleSummits}
-						currentRelKm={currentRelKm}
-					/>
-
 					<PlanStageTimelineStatic
+						planId={detail.plan.id}
 						planPois={nonAccommodationPois}
 						cpMarkers={detail.cpMarkers}
 						summitMarkers={visibleSummits}
@@ -375,6 +334,7 @@ function StageSummaryBody({
 						currentRelKm={currentRelKm}
 						scrollRef={scrollRef}
 						onlyUpcoming
+						onMessage={onMessage}
 					/>
 
 					{finishPlan ? (
@@ -518,28 +478,6 @@ const styles = StyleSheet.create({
 	routeLabel: {
 		marginTop: Spacing.half,
 	},
-	metricsRow: {
-		flexDirection: "row",
-		alignItems: "stretch",
-		borderWidth: StyleSheet.hairlineWidth,
-		borderRadius: 12,
-		borderCurve: "continuous",
-		overflow: "hidden",
-		paddingVertical: Spacing.three,
-	},
-	metricItem: {
-		flex: 1,
-		alignItems: "center",
-		gap: Spacing.half,
-		minWidth: 0,
-	},
-	metricSep: {
-		width: StyleSheet.hairlineWidth,
-		marginVertical: Spacing.one,
-	},
-	metricNum: {
-		fontVariant: ["tabular-nums"],
-	},
 	loadingBlock: {
 		flexDirection: "row",
 		gap: Spacing.two,
@@ -602,12 +540,6 @@ const styles = StyleSheet.create({
 		gap: Spacing.two,
 	},
 });
-
-function stageDistanceKm(stage: MobilePlanStageRow): number {
-	const startM = stage.start_distance ?? 0;
-	const endM = stage.end_distance ?? startM;
-	return (endM - startM) / 1000;
-}
 
 /** `StageDetailPanel`과 동일: 출발·도착 이름이 모두 있을 때만 표시 */
 function stageRouteLine(stage: MobilePlanStageRow): string | null {
