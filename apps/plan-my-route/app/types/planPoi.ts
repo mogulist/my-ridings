@@ -54,6 +54,7 @@ export type PlanPoiUpdatePayload = {
   booking_url: string | null;
   booking_checked_at: string | null;
   candidate_sort_order?: number | null;
+  is_candidate_excluded?: boolean;
 };
 
 export type PlanPoiCreatePayload = PlanPoiUpdatePayload & {
@@ -86,6 +87,7 @@ export type PlanPoiRow = {
   booking_url: string | null;
   booking_checked_at: string | null;
   candidate_sort_order: number | null;
+  is_candidate_excluded: boolean;
   created_at: string;
   updated_at: string;
 };

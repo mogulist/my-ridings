@@ -11,7 +11,7 @@ import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const SELECT_COLS =
-  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, created_at, updated_at";
+  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, is_candidate_excluded, created_at, updated_at";
 
 async function stageBelongsToPlan(stageId: string, planId: string): Promise<boolean> {
   const { data } = await supabaseAdmin
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       booking_url = null,
       booking_checked_at = null,
       candidate_sort_order = null,
+      is_candidate_excluded = false,
     } = body;
 
     if (!name || typeof name !== "string") {
@@ -173,6 +174,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         { status: 400 },
       );
     }
+    if (typeof is_candidate_excluded !== "boolean") {
+      return NextResponse.json(
+        { error: "is_candidate_excluded must be a boolean" },
+        { status: 400 },
+      );
+    }
     const normalizedStageId = stage_id ? String(stage_id) : null;
     if (normalizedAssignmentMode === "stage") {
       if (!normalizedStageId || !(await stageBelongsToPlan(normalizedStageId, planId))) {
@@ -203,6 +210,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       booking_url: normalizedBookingUrl,
       booking_checked_at: normalizedBookingCheckedAt?.toISOString() ?? null,
       candidate_sort_order: normalizedCandidateSortOrder,
+      is_candidate_excluded,
       updated_at: new Date().toISOString(),
     };
 

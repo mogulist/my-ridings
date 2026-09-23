@@ -11,7 +11,7 @@ import { getAuthenticatedUser } from "@/lib/get-authenticated-user";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const SELECT_COLS =
-  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, created_at, updated_at";
+  "id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, is_candidate_excluded, created_at, updated_at";
 
 async function assertPlanOwner(
   planId: string,
@@ -63,6 +63,7 @@ export async function PATCH(
       booking_url,
       booking_checked_at,
       candidate_sort_order,
+      is_candidate_excluded,
     } = body;
 
     const updates: Record<string, unknown> = {
@@ -167,6 +168,15 @@ export async function PATCH(
         }
         updates.candidate_sort_order = order;
       }
+    }
+    if (is_candidate_excluded !== undefined) {
+      if (typeof is_candidate_excluded !== "boolean") {
+        return NextResponse.json(
+          { error: "is_candidate_excluded must be a boolean" },
+          { status: 400 },
+        );
+      }
+      updates.is_candidate_excluded = is_candidate_excluded;
     }
 
     if (Object.keys(updates).length <= 1) {

@@ -1,0 +1,5 @@
+[install]
+# Expo native autolinking must resolve the same physical package instance as
+# Metro. Bun's isolated workspace layout currently leaves duplicate Expo
+# native modules in this monorepo, so keep dependencies hoisted.
+linker = "hoisted"

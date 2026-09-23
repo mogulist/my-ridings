@@ -120,7 +120,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const { data: poiRows, error: poiError } = await supabaseAdmin
     .from("plan_poi")
     .select(
-			"id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, created_at, updated_at",
+			"id, plan_id, kakao_place_id, name, poi_type, memo, lat, lng, assignment_mode, stage_id, intent, phone, address_name, place_url, naver_place_url, booking_method, booking_url, booking_checked_at, candidate_sort_order, is_candidate_excluded, created_at, updated_at",
     )
     .eq("plan_id", publicPlan.id)
     .order("created_at", { ascending: true });

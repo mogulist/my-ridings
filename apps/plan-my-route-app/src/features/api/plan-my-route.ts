@@ -74,6 +74,26 @@ export type PlanPoiRow = {
 	memo: string | null;
 	lat: number;
 	lng: number;
+	assignment_mode: "stage" | "distance" | "plan";
+	stage_id: string | null;
+	intent: "candidate" | "planned" | "confirmed";
+	phone: string | null;
+	address_name: string | null;
+	place_url: string | null;
+	naver_place_url: string | null;
+	booking_method:
+		| "unconfirmed"
+		| "naver"
+		| "secretmall"
+		| "yeogi"
+		| "agoda"
+		| "phone"
+		| "walk_in"
+		| "other";
+	booking_url: string | null;
+	booking_checked_at: string | null;
+	candidate_sort_order: number | null;
+	is_candidate_excluded: boolean;
 	created_at: string;
 	updated_at: string;
 };
@@ -254,6 +274,10 @@ export type PutStageBody = {
 	memo?: string | null;
 	start_name?: string | null;
 	end_name?: string | null;
+	start_distance?: number;
+	end_distance?: number;
+	elevation_gain?: number;
+	elevation_loss?: number;
 };
 
 export const putStage = async (
@@ -287,7 +311,13 @@ export const patchPlanPoi = async (
 	accessToken: string,
 	planId: string,
 	poiId: string,
-	body: { memo?: string | null },
+	body: {
+		memo?: string | null;
+		intent?: PlanPoiRow["intent"];
+		is_candidate_excluded?: boolean;
+		assignment_mode?: PlanPoiRow["assignment_mode"];
+		stage_id?: string | null;
+	},
 ): Promise<PlanPoiRow> => {
 	const response = await fetch(`${apiOrigin}/api/plans/${planId}/pois/${poiId}`, {
 		method: "PATCH",
