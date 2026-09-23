@@ -246,6 +246,9 @@ function StageSummaryBody({
 					detail.planPois,
 					detail.trackPoints,
 				);
+	const finishUnavailableReason = finishPlan
+		? null
+		: stageFinishUnavailableReason(detail.stages, stage, location.currentKm);
 
 	const finishStage = async () => {
 		if (!finishPlan || isFinishing) return;
@@ -337,24 +340,42 @@ function StageSummaryBody({
 						onMessage={onMessage}
 					/>
 
-					{finishPlan ? (
+					<View style={styles.finishSection}>
 						<Pressable
 							accessibilityRole="button"
 							accessibilityLabel="현재 위치에서 스테이지 종료"
-							disabled={isFinishing}
+							accessibilityState={{ disabled: !finishPlan || isFinishing }}
+							disabled={!finishPlan || isFinishing}
 							style={({ pressed }) => [
 								styles.finishButton,
-								{ borderColor: theme.danger },
+								{ borderColor: finishPlan ? theme.danger : theme.separator },
+								!finishPlan && styles.finishButtonDisabled,
 								(pressed || isFinishing) && styles.pressed,
 							]}
 							onPress={confirmFinishStage}
 						>
-							<AppIcon name="flag.checkered" size={17} tintColor={theme.danger} />
-							<ThemedText type="smallBold" themeColor="danger">
-								{isFinishing ? "종료 저장 중…" : "여기서 스테이지 종료"}
+							<AppIcon
+								name="flag.checkered"
+								size={17}
+								tintColor={finishPlan ? theme.danger : theme.textSecondary}
+							/>
+							<ThemedText
+								type="smallBold"
+								themeColor={finishPlan ? "danger" : "textSecondary"}
+							>
+								{isFinishing
+									? "종료 저장 중…"
+									: finishPlan
+										? "여기서 스테이지 종료"
+										: "스테이지 종료"}
 							</ThemedText>
 						</Pressable>
-					) : null}
+						{finishUnavailableReason ? (
+							<ThemedText type="caption" themeColor="textSecondary" selectable>
+								{finishUnavailableReason}
+							</ThemedText>
+						) : null}
+					</View>
 				</>
 			) : focus === "stay" ? (
 				<AccommodationChoices
@@ -539,7 +560,38 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		gap: Spacing.two,
 	},
+	finishSection: {
+		gap: Spacing.one,
+	},
+	finishButtonDisabled: {
+		opacity: 0.55,
+	},
 });
+
+function stageFinishUnavailableReason(
+	stages: MobilePlanStageRow[],
+	stage: MobilePlanStageRow,
+	currentKm: number | null,
+): string {
+	if (currentKm == null || !Number.isFinite(currentKm)) {
+		return "현재 위치를 확인하면 사용할 수 있습니다.";
+	}
+
+	const stageIndex = stages.findIndex((item) => item.id === stage.id);
+	if (!stages[stageIndex + 1]) {
+		return "마지막 스테이지에는 이동할 다음 스테이지가 없습니다.";
+	}
+
+	const startKm = (stage.start_distance ?? 0) / 1000;
+	const endKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
+	if (currentKm <= startKm) {
+		return "스테이지 시작점보다 이동한 뒤 종료할 수 있습니다.";
+	}
+	if (currentKm >= endKm) {
+		return "계획된 스테이지 종료점에 도착한 상태입니다.";
+	}
+	return "현재 위치에서는 스테이지를 종료할 수 없습니다.";
+}
 
 /** `StageDetailPanel`과 동일: 출발·도착 이름이 모두 있을 때만 표시 */
 function stageRouteLine(stage: MobilePlanStageRow): string | null {
