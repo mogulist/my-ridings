@@ -103,12 +103,14 @@ export async function fetchNearbyAlongRoute(options: {
 	maxDetourM?: number;
 	/** 지도 탐색은 기본 8셀, 명시적인 구간 탐색은 더 많은 셀을 한 번에 처리할 수 있다. */
 	maxCells?: number;
+	/** 서버에서 검증한 전체 스테이지 검색 배치. */
+	cells?: GridCell[];
 	kakaoApiKey: string;
 }): Promise<NearbyResult> {
 	const { trackPoints, categoryId, bounds, kakaoApiKey } = options;
 	const maxDetourM = options.maxDetourM ?? DEFAULT_MAX_DETOUR_M;
 
-	const cells = routeCellsInViewport(trackPoints, bounds).slice(
+	const cells = (options.cells ?? routeCellsInViewport(trackPoints, bounds)).slice(
 		0,
 		options.maxCells ?? MAX_CELLS_PER_REQUEST,
 	);
@@ -120,11 +122,12 @@ export async function fetchNearbyAlongRoute(options: {
 	}
 	const cellKeys = cells.map((cell) => cell.key);
 
-	const { data: scannedRows } = await supabaseAdmin
+	const { data: scannedRows, error: scanError } = await supabaseAdmin
 		.from("nearby_scan_cell")
 		.select("cell_key, scanned_at")
 		.eq("category", categoryId)
 		.in("cell_key", cellKeys);
+	if (scanError) throw new Error(scanError.message);
 
 	const freshCutoff = Date.now() - SCAN_TTL_MS;
 	const freshKeys = new Set(
@@ -165,12 +168,13 @@ export async function fetchNearbyAlongRoute(options: {
 		});
 
 		if (placeRows.length > 0) {
-			await supabaseAdmin
+			const { error } = await supabaseAdmin
 				.from("nearby_place")
 				.upsert(placeRows, { onConflict: "provider,place_id,category" });
+			if (error) throw new Error(error.message);
 		}
 
-		await supabaseAdmin.from("nearby_scan_cell").upsert(
+		const { error: writeError } = await supabaseAdmin.from("nearby_scan_cell").upsert(
 			{
 				cell_key: cell.key,
 				category: categoryId,
@@ -180,6 +184,7 @@ export async function fetchNearbyAlongRoute(options: {
 			},
 			{ onConflict: "cell_key,category" },
 		);
+		if (writeError) throw new Error(writeError.message);
 	}
 
 	const { data: places, error } = await supabaseAdmin
@@ -214,18 +219,19 @@ export async function fetchNearbyAlongRoute(options: {
 		})
 		.sort((a, b) => (a.route_distance_m ?? 0) - (b.route_distance_m ?? 0));
 
-	const { data: servedScans } = await supabaseAdmin
+	const { data: servedScans, error: servedError } = await supabaseAdmin
 		.from("nearby_scan_cell")
 		.select("is_truncated")
 		.eq("category", categoryId)
 		.in("cell_key", cellKeys);
+	if (servedError) throw new Error(servedError.message);
 
 	return {
 		documents,
 		meta: {
 			scanned_cells: staleCells.length,
 			served_cells: cells.length,
-			is_truncated: (servedScans ?? []).some((row) => row.is_truncated),
+			is_truncated: (places?.length ?? 0) >= 1000 || (servedScans ?? []).some((row) => row.is_truncated),
 			kakao_requests: kakaoRequests,
 		},
 	};
