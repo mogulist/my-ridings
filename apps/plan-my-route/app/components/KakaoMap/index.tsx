@@ -24,6 +24,11 @@ import {
 import type { SummitCatalogRow } from "@/app/types/summitCatalog";
 import { buildNaverPlaceSearchQuery } from "@/lib/naver-map";
 import { pointAtRouteProgress } from "@/lib/route-point-at-progress";
+import {
+	type SupplyPlace,
+	supplyStageTrack,
+	supplyTrackIndexAtDistance,
+} from "@/lib/supply-planning";
 import type { Stage } from "../../types/plan";
 import { getStageColor, UNPLANNED_COLOR } from "../../types/plan";
 import type { NearbyCategoryId } from "./nearbyCategoryId";
@@ -38,6 +43,7 @@ import {
 	ROUTE_START_MARKER_LUCIDE_ICON_NODE,
 } from "./poiMarkerLucideNodes";
 import { getPoiRoundedRectMarkerImage, POI_ROUNDED_MARKER_FILL } from "./poiRoundedMarkerImage";
+import { SupplyPlanningPanel } from "./SupplyPlanningPanel";
 
 export type { PlaceReviewRow, ReviewState };
 
@@ -132,6 +138,7 @@ interface KakaoLatLng {
 }
 
 interface KakaoMapInstance {
+	relayout?: () => void;
 	setBounds: (bounds: unknown) => void;
 	setCenter?: (latLng: unknown) => void;
 	getCenter?: () => KakaoLatLng;
@@ -985,6 +992,14 @@ export default function KakaoMap({
 	const isCourseBriefingPlaying = isCourseBriefingActive && !isCourseBriefingComplete;
 	const [showMapControls, setShowMapControls] = useState(true);
 	const [showNearbyPlaces, setShowNearbyPlaces] = useState(false);
+	const [supplyPlanning, setSupplyPlanning] = useState(false);
+	const [supplyPlaces, setSupplyPlaces] = useState<SupplyPlace[]>([]);
+	const [focusedSupply, setFocusedSupply] = useState<SupplyPlace | null>(null);
+	// activeStageId는 지도·고도 프로필의 일시적인 hover 상태에도 사용된다.
+	// 보급 계획은 hover가 끝나도 유지되는 사용자의 스테이지 선택을 우선한다.
+	const supplyStage =
+		stages.find(stage => stage.dayNumber === selectedDayNumber) ??
+		stages.find(stage => stage.id === activeStageId);
 	const [loadingCategory, setLoadingCategory] = useState<NearbyCategoryId | null>(null);
 	const [activeCategory, setActiveCategory] = useState<NearbyCategoryId | null>(null);
 	const activeCategoryRef = useRef<NearbyCategoryId | null>(activeCategory);
@@ -1353,6 +1368,19 @@ export default function KakaoMap({
 		});
 	}, [drawRoute, route]);
 
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container || !mapReady) return;
+		const observer = new ResizeObserver(() => {
+			const map = mapInstanceRef.current as KakaoMapInstance | null;
+			const center = map?.getCenter?.();
+			map?.relayout?.();
+			if (center) map?.setCenter?.(center);
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [mapReady]);
+
 	const containerCallbackRef = useCallback(
 		(node: HTMLDivElement | null) => {
 			(containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
@@ -1625,6 +1653,87 @@ export default function KakaoMap({
 		[clearAccommodationMarkers, tooltipAddPoiOptions, route?.track_points],
 	);
 
+	useEffect(() => {
+		const maps = window.kakao?.maps;
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		if (!maps || !map || !mapReady || !supplyPlanning || !supplyStage) return;
+		const windows: KakaoInfoWindow[] = [];
+		const markers = supplyPlaces.map(place => {
+			const categoryId = place.kind === "convenience" ? "convenience" : "mart";
+			const selected = planPois.some(poi => poi.kakao_place_id === place.id);
+			const markerColor = selected
+				? "#ea580c"
+				: place.kind === "hanaro"
+					? "#15803d"
+					: categoryId === "convenience"
+						? "#2563eb"
+						: "#a16207";
+			const marker = new maps.Marker({
+				map: map as never,
+				position: new maps.LatLng(Number(place.y), Number(place.x)),
+				title: `${selected ? "등록됨 · " : ""}${place.place_name}`,
+				image: getNearbyCategoryMarkerImage(maps, markerColor, categoryId),
+			});
+			marker.setZIndex?.(selected ? PLACE_MARKER_Z_INDEX + 1 : PLACE_MARKER_Z_INDEX);
+			const tooltipMeta = { placeKind: categoryId, notePlaceholder: "영업시간, 보급 계획 등" };
+			const info = new maps.InfoWindow({
+				content: buildAccommodationTooltipHtml(
+					place,
+					placeReviewsMap[place.id] ?? null,
+					tooltipMeta,
+					{
+						...tooltipAddPoiOptions,
+						routeDetourLabel: `스테이지 ${((place.route_distance_m ?? 0) / 1000 - supplyStage.startDistanceKm).toFixed(1)}km · 직선 이탈 ${place.detour_m}m`,
+					},
+				),
+				removable: true,
+				zIndex: INFO_WINDOW_Z_INDEX,
+			});
+			windows.push(info);
+			const open = () => {
+				openInfoWindowRef.current?.close();
+				info.open(map, marker);
+				openInfoWindowRef.current = info;
+				activePlaceInfoRef.current = { doc: place, infoWindow: info, tooltipMeta };
+				const trackIndex = supplyTrackIndexAtDistance(trackPoints, place.route_distance_m);
+				if (trackIndex != null) onPositionChange?.(trackIndex);
+			};
+			maps.event.addListener(marker, "click", open);
+			if (focusedSupply?.id === place.id) {
+				map.setCenter?.(new maps.LatLng(Number(place.y), Number(place.x)));
+				map.setLevel?.(ZOOM_LEVEL_ON_MARKER);
+				open();
+			}
+			return marker;
+		});
+		return () => {
+			for (const marker of markers) marker.setMap?.(null);
+			for (const info of windows) info.close();
+		};
+	}, [
+		mapReady,
+		supplyPlanning,
+		supplyStage,
+		supplyPlaces,
+		focusedSupply,
+		planPois,
+		placeReviewsMap,
+		tooltipAddPoiOptions,
+		trackPoints,
+		onPositionChange,
+	]);
+
+	const focusSupplyRange = (startKm: number, endKm: number) => {
+		const maps = window.kakao?.maps;
+		const map = mapInstanceRef.current as KakaoMapInstance | null;
+		if (!maps || !map) return;
+		setFocusedSupply(null);
+		const points = supplyStageTrack(trackPoints, startKm, endKm);
+		const bounds = new maps.LatLngBounds();
+		for (const point of points) bounds.extend(new maps.LatLng(point.y, point.x));
+		if (points.length) map.setBounds?.(bounds);
+	};
+
 	const activeCategoryCacheMeta = activeCategory ? nearbyCacheMeta[activeCategory] : null;
 	const activeCategoryLabel = activeCategory
 		? (NEARBY_CATEGORIES.find((c) => c.id === activeCategory)?.label ?? "장소")
@@ -1871,7 +1980,7 @@ export default function KakaoMap({
 				setAddPoiDialog({
 					open: true,
 					doc: activeInfo.doc,
-					categoryId: activeCategoryRef.current ?? "accommodation",
+					categoryId: placeKindToCategory(activeInfo.tooltipMeta.placeKind),
 				});
 				return;
 			}
@@ -2717,10 +2826,34 @@ export default function KakaoMap({
 					display: none;
 				}
 			`}</style>
-			<div ref={containerCallbackRef} className="h-full w-full" />
+			<div
+				ref={containerCallbackRef}
+				className="w-full"
+				style={{ height: supplyPlanning && supplyStage && !readOnly ? "55%" : "100%" }}
+			/>
 			{mapReady && showMapControls && (
-				<div className="pointer-events-none absolute inset-0 z-20">
+				<div className="pointer-events-none absolute inset-0 z-20" style={{ bottom: supplyPlanning && supplyStage && !readOnly ? "45%" : 0 }}>
 					<div className="pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-2rem)] flex-nowrap items-center gap-1">
+						{!readOnly && reviewContext.routeId && activePlanId && (
+							<button
+								type="button"
+								disabled={!supplyStage}
+								title={supplyStage ? "스테이지 전체 보급소 찾기" : "먼저 스테이지를 선택하세요"}
+								aria-pressed={supplyPlanning}
+								className={`${supplyPlanning ? toggleBtnOn : toggleBtnOff} disabled:opacity-50`}
+								onClick={() => {
+									setSupplyPlanning(!supplyPlanning);
+									setShowNearbyPlaces(false);
+									setShowSearchPopover(false);
+									setFocusedSupply(null);
+									if (!supplyPlanning && supplyStage) {
+										focusSupplyRange(supplyStage.startDistanceKm, supplyStage.endDistanceKm);
+									}
+								}}
+							>
+								보급 계획
+							</button>
+						)}
 						<button
 							type="button"
 							onClick={() => setShowPoiOnMap((v) => !v)}
@@ -3013,6 +3146,34 @@ export default function KakaoMap({
 				<div className="absolute bottom-4 right-4 z-10 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 shadow dark:bg-zinc-800/90 dark:text-zinc-300">
 					줌 레벨 {zoomLevel}
 				</div>
+			)}
+			{mapReady && supplyPlanning && supplyStage && !readOnly && (
+				<SupplyPlanningPanel
+					key={`${activePlanId}-${supplyStage.id}`}
+					routeId={reviewContext.routeId}
+					stage={supplyStage}
+					trackPoints={trackPoints}
+					pois={planPois}
+					onPlaces={setSupplyPlaces}
+					onFocus={place => {
+						setFocusedSupply(place);
+						const trackIndex = supplyTrackIndexAtDistance(trackPoints, place.route_distance_m);
+						if (trackIndex != null) onPositionChange?.(trackIndex);
+					}}
+					onRange={focusSupplyRange}
+					onClose={() => {
+						setSupplyPlanning(false);
+						setSupplyPlaces([]);
+						setFocusedSupply(null);
+					}}
+					onAdd={place =>
+						setAddPoiDialog({
+							open: true,
+							doc: place,
+							categoryId: place.kind === "convenience" ? "convenience" : "mart",
+						})
+					}
+				/>
 			)}
 			{mapReady && addPoiDialog.open && addPoiDialog.doc && onCreatePlanPoi && !readOnly && (
 				<PlanPoiDialog
