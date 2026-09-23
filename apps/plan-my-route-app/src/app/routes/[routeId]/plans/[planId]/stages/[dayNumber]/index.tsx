@@ -18,8 +18,8 @@ import { AppIcon } from "@/components/ui/icon";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import {
 	type MobilePlanStageRow,
-	patchPlanPoi,
 	type PlanDetail,
+	patchPlanPoi,
 	putStage,
 } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
@@ -32,10 +32,7 @@ import {
 	StageFocusTabs,
 } from "@/features/plan-my-route/components/stage-focus-tabs";
 import { removeSummitsDuplicatedByCheckpoints } from "@/features/plan-my-route/dedupe-route-markers";
-import {
-	planDetailQueryKey,
-	usePlanDetailQuery,
-} from "@/features/plan-my-route/plan-detail-query";
+import { planDetailQueryKey, usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
 import { buildStageFinishPlan } from "@/features/plan-my-route/stage-finish";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
 import { useTheme } from "@/hooks/use-theme";
@@ -137,56 +134,56 @@ export default function StageDetailScreen() {
 	return (
 		<ThemedView style={styles.container}>
 			<SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
-				<ScrollView
-					ref={scrollRef}
-					contentContainerStyle={styles.scrollContent}
-					contentInsetAdjustmentBehavior="automatic"
-				>
-					<View style={styles.scrollInner}>
-						{showLoading ? (
-							<View style={styles.loadingBlock}>
-								<ActivityIndicator
-									accessibilityLabel="스테이지 정보 불러오는 중"
-									color={theme.tint}
-								/>
-								<ThemedText type="small" themeColor="textSecondary">
-									불러오는 중…
-								</ThemedText>
-							</View>
-						) : errorMessage ? (
-							<View style={styles.placeholderBlock}>
-								<ThemedText type="small" style={{ color: theme.danger }} selectable>
-									{errorMessage}
-								</ThemedText>
-								<Pressable
-									accessibilityRole="button"
-									accessibilityLabel="다시 시도"
-									style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-									onPress={() => void refetch()}
-								>
-									<ThemedText type="smallBold">다시 시도</ThemedText>
-								</Pressable>
-							</View>
-						) : !(detail && stage) ? (
-							<View style={styles.placeholderBlock}>
-								<ThemedText type="small" themeColor="textSecondary">
-									해당 일차 스테이지가 없습니다.
-								</ThemedText>
-							</View>
-						) : (
-							<>
-								<StageSummaryBody
-									detail={detail}
-									stage={stage}
-									routeId={routeId ?? ""}
-									location={location}
-									scrollRef={scrollRef}
-									onMessage={setSnackbarMessage}
-								/>
-							</>
-						)}
-					</View>
-				</ScrollView>
+				{detail && stage ? (
+					<StageSummaryBody
+						key={stage.id}
+						detail={detail}
+						stage={stage}
+						routeId={routeId ?? ""}
+						location={location}
+						scrollRef={scrollRef}
+						onMessage={setSnackbarMessage}
+					/>
+				) : (
+					<ScrollView
+						contentContainerStyle={styles.scrollContent}
+						contentInsetAdjustmentBehavior="automatic"
+					>
+						<View style={styles.scrollInner}>
+							{showLoading ? (
+								<View style={styles.loadingBlock}>
+									<ActivityIndicator
+										accessibilityLabel="스테이지 정보 불러오는 중"
+										color={theme.tint}
+									/>
+									<ThemedText type="small" themeColor="textSecondary">
+										불러오는 중…
+									</ThemedText>
+								</View>
+							) : errorMessage ? (
+								<View style={styles.placeholderBlock}>
+									<ThemedText type="small" style={{ color: theme.danger }} selectable>
+										{errorMessage}
+									</ThemedText>
+									<Pressable
+										accessibilityRole="button"
+										accessibilityLabel="다시 시도"
+										style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+										onPress={() => void refetch()}
+									>
+										<ThemedText type="smallBold">다시 시도</ThemedText>
+									</Pressable>
+								</View>
+							) : (
+								<View style={styles.placeholderBlock}>
+									<ThemedText type="small" themeColor="textSecondary">
+										해당 일차 스테이지가 없습니다.
+									</ThemedText>
+								</View>
+							)}
+						</View>
+					</ScrollView>
+				)}
 				<Snackbar message={snackbarMessage} onDismiss={() => setSnackbarMessage(null)} />
 			</SafeAreaView>
 		</ThemedView>
@@ -214,9 +211,12 @@ function StageSummaryBody({
 	const queryClient = useQueryClient();
 	const theme = useTheme();
 	const [focus, setFocus] = useState<StageFocus>("ride");
+	const [memoExpanded, setMemoExpanded] = useState(false);
 	const [isFinishing, setIsFinishing] = useState(false);
+	const tabsTopRef = useRef(0);
 	const routeLabel = stageRouteLine(stage);
 	const memo = stage.memo?.trim() || null;
+	const memoCanCollapse = Boolean(memo && (memo.length > 56 || memo.split(/\r?\n/).length > 2));
 
 	const stageStartKm = (stage.start_distance ?? 0) / 1000;
 	const stageEndKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
@@ -298,124 +298,176 @@ function StageSummaryBody({
 		);
 	};
 
+	const changeFocus = (nextFocus: StageFocus) => {
+		if (nextFocus === focus) return;
+		setFocus(nextFocus);
+		requestAnimationFrame(() => {
+			scrollRef.current?.scrollTo({ y: tabsTopRef.current, animated: true });
+		});
+	};
+
 	return (
-		<>
-			{memo ? (
-				<ThemedText type="small" themeColor="textSecondary" selectable style={styles.stageMemo}>
-					{memo}
-				</ThemedText>
-			) : null}
+		<ScrollView
+			ref={scrollRef}
+			contentContainerStyle={styles.stageScrollContent}
+			contentInsetAdjustmentBehavior="automatic"
+			stickyHeaderIndices={[1]}
+		>
+			<View style={styles.stageHeader}>
+				{routeLabel ? (
+					<ThemedText type="headline" selectable numberOfLines={2}>
+						{routeLabel}
+					</ThemedText>
+				) : null}
 
-			{routeLabel ? (
-				<ThemedText type="headline" selectable numberOfLines={2} style={styles.routeLabel}>
-					{routeLabel}
-				</ThemedText>
-			) : null}
-
-			<CurrentLocationKmLine location={location} />
-			<RideLiveActivityStatus planId={detail.plan.id} />
-
-			<StageFocusTabs value={focus} onChange={setFocus} />
-
-			<ThemedText type="caption" themeColor="textSecondary" selectable>
-				{focus === "ride"
-					? "주행 현황과 앞으로 남은 경유지를 확인합니다."
-					: focus === "stay"
-						? "도착 구간의 숙소를 거리와 우선순위로 비교합니다."
-						: "멈춰서 경로와 고도 프로필을 자세히 확인합니다."}
-			</ThemedText>
-
-			{focus === "ride" ? (
-				<>
-					<PlanStageTimelineStatic
-						planId={detail.plan.id}
-						planPois={nonAccommodationPois}
-						cpMarkers={detail.cpMarkers}
-						summitMarkers={visibleSummits}
-						stage={stage}
-						trackPoints={detail.trackPoints}
-						currentRelKm={currentRelKm}
-						scrollRef={scrollRef}
-						onlyUpcoming
-						onMessage={onMessage}
-					/>
-
-					<View style={styles.finishSection}>
-						<Pressable
-							accessibilityRole="button"
-							accessibilityLabel="현재 위치에서 스테이지 종료"
-							accessibilityState={{ disabled: !finishPlan || isFinishing }}
-							disabled={!finishPlan || isFinishing}
-							style={({ pressed }) => [
-								styles.finishButton,
-								{ borderColor: finishPlan ? theme.danger : theme.separator },
-								!finishPlan && styles.finishButtonDisabled,
-								(pressed || isFinishing) && styles.pressed,
-							]}
-							onPress={confirmFinishStage}
+				{memo ? (
+					<View style={styles.memoBlock}>
+						<ThemedText
+							type="small"
+							themeColor="textSecondary"
+							selectable
+							numberOfLines={memoCanCollapse && !memoExpanded ? 2 : undefined}
+							style={styles.stageMemo}
 						>
-							<AppIcon
-								name="flag.checkered"
-								size={17}
-								tintColor={finishPlan ? theme.danger : theme.textSecondary}
-							/>
-							<ThemedText
-								type="smallBold"
-								themeColor={finishPlan ? "danger" : "textSecondary"}
+							{memo}
+						</ThemedText>
+						{memoCanCollapse ? (
+							<Pressable
+								accessibilityRole="button"
+								accessibilityLabel={memoExpanded ? "스테이지 메모 접기" : "스테이지 메모 더 보기"}
+								style={({ pressed }) => [styles.memoToggle, pressed && styles.pressed]}
+								onPress={() => setMemoExpanded((expanded) => !expanded)}
 							>
-								{isFinishing
-									? "종료 저장 중…"
-									: finishPlan
-										? "여기서 스테이지 종료"
-										: "스테이지 종료"}
-							</ThemedText>
-						</Pressable>
-						{finishUnavailableReason ? (
-							<ThemedText type="caption" themeColor="textSecondary" selectable>
-								{finishUnavailableReason}
-							</ThemedText>
+								<ThemedText type="caption" themeColor="tint">
+									{memoExpanded ? "접기" : "더 보기"}
+								</ThemedText>
+								<AppIcon
+									name={memoExpanded ? "chevron.up" : "chevron.down"}
+									size={12}
+									tintColor={theme.tint}
+								/>
+							</Pressable>
 						) : null}
 					</View>
-				</>
-			) : focus === "stay" ? (
-				<AccommodationChoices
-					planId={detail.plan.id}
-					stage={stage}
-					planPois={detail.planPois}
-					trackPoints={detail.trackPoints}
-					currentKm={location.currentKm}
-					onMessage={onMessage}
-				/>
-			) : (
-				<View style={styles.routeTools}>
-					<PlanStageMiniElevation
-						stage={stage}
-						trackPoints={detail.trackPoints}
-						currentRelKm={currentRelKm}
-					/>
-					<Pressable
-						accessibilityRole="button"
-						accessibilityLabel="전체 경로 지도 열기"
-						style={({ pressed }) => [
-							styles.mapButton,
-							{ borderColor: theme.tint },
-							pressed && styles.pressed,
-						]}
-						onPress={() =>
-							router.push({
-								pathname: "/routes/[routeId]/plans/[planId]/map",
-								params: { routeId, planId: detail.plan.id },
-							})
-						}
-					>
-						<AppIcon name="map.fill" size={18} tintColor={theme.tint} />
-						<ThemedText type="smallBold" themeColor="tint">
-							전체 경로 지도 열기
+				) : null}
+			</View>
+
+			<View
+				style={[
+					styles.stickyTabs,
+					{ backgroundColor: theme.background, borderBottomColor: theme.separator },
+				]}
+				onLayout={(event) => {
+					tabsTopRef.current = event.nativeEvent.layout.y;
+				}}
+			>
+				<StageFocusTabs value={focus} onChange={changeFocus} />
+			</View>
+
+			<View style={styles.stageContent}>
+				{focus === "ride" ? (
+					<>
+						<CurrentLocationKmLine location={location} />
+						<RideLiveActivityStatus planId={detail.plan.id} />
+						<ThemedText type="caption" themeColor="textSecondary" selectable>
+							주행 현황과 앞으로 남은 경유지를 확인합니다.
 						</ThemedText>
-					</Pressable>
-				</View>
-			)}
-		</>
+
+						<PlanStageTimelineStatic
+							planId={detail.plan.id}
+							planPois={nonAccommodationPois}
+							cpMarkers={detail.cpMarkers}
+							summitMarkers={visibleSummits}
+							stage={stage}
+							trackPoints={detail.trackPoints}
+							currentRelKm={currentRelKm}
+							scrollRef={scrollRef}
+							onlyUpcoming
+							onMessage={onMessage}
+						/>
+
+						<View style={styles.finishSection}>
+							<Pressable
+								accessibilityRole="button"
+								accessibilityLabel="현재 위치에서 스테이지 종료"
+								accessibilityState={{ disabled: !finishPlan || isFinishing }}
+								disabled={!finishPlan || isFinishing}
+								style={({ pressed }) => [
+									styles.finishButton,
+									{ borderColor: finishPlan ? theme.danger : theme.separator },
+									!finishPlan && styles.finishButtonDisabled,
+									(pressed || isFinishing) && styles.pressed,
+								]}
+								onPress={confirmFinishStage}
+							>
+								<AppIcon
+									name="flag.checkered"
+									size={17}
+									tintColor={finishPlan ? theme.danger : theme.textSecondary}
+								/>
+								<ThemedText type="smallBold" themeColor={finishPlan ? "danger" : "textSecondary"}>
+									{isFinishing
+										? "종료 저장 중…"
+										: finishPlan
+											? "여기서 스테이지 종료"
+											: "스테이지 종료"}
+								</ThemedText>
+							</Pressable>
+							{finishUnavailableReason ? (
+								<ThemedText type="caption" themeColor="textSecondary" selectable>
+									{finishUnavailableReason}
+								</ThemedText>
+							) : null}
+						</View>
+					</>
+				) : focus === "stay" ? (
+					<>
+						<ThemedText type="caption" themeColor="textSecondary" selectable>
+							도착 구간의 숙소를 거리와 우선순위로 비교합니다.
+						</ThemedText>
+						<AccommodationChoices
+							planId={detail.plan.id}
+							stage={stage}
+							planPois={detail.planPois}
+							trackPoints={detail.trackPoints}
+							currentKm={location.currentKm}
+							onMessage={onMessage}
+						/>
+					</>
+				) : (
+					<View style={styles.routeTools}>
+						<ThemedText type="caption" themeColor="textSecondary" selectable>
+							멈춰서 경로와 고도 프로필을 자세히 확인합니다.
+						</ThemedText>
+						<PlanStageMiniElevation
+							stage={stage}
+							trackPoints={detail.trackPoints}
+							currentRelKm={currentRelKm}
+						/>
+						<Pressable
+							accessibilityRole="button"
+							accessibilityLabel="전체 경로 지도 열기"
+							style={({ pressed }) => [
+								styles.mapButton,
+								{ borderColor: theme.tint },
+								pressed && styles.pressed,
+							]}
+							onPress={() =>
+								router.push({
+									pathname: "/routes/[routeId]/plans/[planId]/map",
+									params: { routeId, planId: detail.plan.id },
+								})
+							}
+						>
+							<AppIcon name="map.fill" size={18} tintColor={theme.tint} />
+							<ThemedText type="smallBold" themeColor="tint">
+								전체 경로 지도 열기
+							</ThemedText>
+						</Pressable>
+					</View>
+				)}
+			</View>
+		</ScrollView>
 	);
 }
 
@@ -425,8 +477,9 @@ type CurrentLocationKmLineProps = {
 
 function CurrentLocationKmLine({ location }: CurrentLocationKmLineProps) {
 	const theme = useTheme();
-	const hasKm = location.currentKm != null;
-	const kmText = hasKm ? `${location.currentKm!.toFixed(1)} km (경로 기준)` : "위치 없음";
+	const currentKm = location.currentKm;
+	const hasKm = currentKm != null;
+	const kmText = hasKm ? `${currentKm.toFixed(1)} km (경로 기준)` : "위치 없음";
 
 	return (
 		<View style={styles.locationRow}>
@@ -493,11 +546,38 @@ const styles = StyleSheet.create({
 	scrollInner: {
 		gap: Spacing.three,
 	},
+	stageScrollContent: {
+		paddingBottom: Spacing.four,
+	},
+	stageHeader: {
+		paddingHorizontal: Spacing.four,
+		paddingTop: Spacing.three,
+		paddingBottom: Spacing.two,
+		gap: Spacing.two,
+	},
+	stickyTabs: {
+		paddingHorizontal: Spacing.four,
+		paddingVertical: Spacing.two,
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		zIndex: 1,
+	},
+	stageContent: {
+		paddingHorizontal: Spacing.four,
+		paddingTop: Spacing.two,
+		gap: Spacing.three,
+	},
+	memoBlock: {
+		gap: Spacing.one,
+	},
 	stageMemo: {
 		lineHeight: 20,
 	},
-	routeLabel: {
-		marginTop: Spacing.half,
+	memoToggle: {
+		alignSelf: "flex-start",
+		minHeight: 28,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.one,
 	},
 	loadingBlock: {
 		flexDirection: "row",
