@@ -7,6 +7,9 @@ import { ListItemCard } from "@/components/ui/list-item-card";
 import { ListRow } from "@/components/ui/list-row";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { clearStoredAccessToken } from "@/features/auth/session";
+import { RideLiveActivityStatus } from "@/features/live-activity/ride-live-activity-status";
+import { syncRideTracking } from "@/features/live-activity/ride-tracking";
+import { finishActiveRide } from "@/features/navigation/active-ride";
 import { useTheme } from "@/hooks/use-theme";
 
 export default function SettingsScreen() {
@@ -20,6 +23,7 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         contentInsetAdjustmentBehavior="automatic"
       >
+        <RideLiveActivityStatus />
         <ThemedText type="subtitle" style={styles.sectionTitle}>
           실험실
         </ThemedText>
@@ -40,6 +44,8 @@ export default function SettingsScreen() {
         <Pressable
           style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           onPress={async () => {
+            await syncRideTracking(null);
+            await finishActiveRide();
             await clearStoredAccessToken();
             router.replace("/login");
           }}

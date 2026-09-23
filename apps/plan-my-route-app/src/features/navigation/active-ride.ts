@@ -15,6 +15,12 @@ export type ActiveRide = {
 };
 
 let didClaimInitialRoute = false;
+const rideListeners = new Set<() => void>();
+
+export function subscribeActiveRide(listener: () => void): () => void {
+  rideListeners.add(listener);
+  return () => { rideListeners.delete(listener); };
+}
 
 function belongsToRide(pathname: string, ride: Pick<ActiveRide, "routeId" | "planId">): boolean {
 	return pathname.startsWith(`/routes/${ride.routeId}/plans/${ride.planId}/`);
@@ -76,8 +82,11 @@ export async function startActiveRide(input: {
 	routeName: string;
 	planName: string;
 }): Promise<ActiveRide> {
+	const existing = await getActiveRide();
+	if (existing?.planId === input.planId && existing.routeId === input.routeId) return existing;
 	const ride = buildActiveRide(input);
 	await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(ride));
+	rideListeners.forEach((listener) => listener());
 	return ride;
 }
 
@@ -92,6 +101,7 @@ export async function rememberActiveRideRoute(pathname: string): Promise<void> {
 
 export async function finishActiveRide(): Promise<void> {
 	await Promise.all([AsyncStorage.removeItem(STORAGE_KEY), forgetLastReviewRoute()]);
+	rideListeners.forEach((listener) => listener());
 }
 
 /** 앱 프로세스마다 한 번만 라이딩 화면을 복원한다. */

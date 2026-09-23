@@ -6,6 +6,7 @@ import { AppState, type AppStateStatus, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { SUPABASE } from "@/features/auth/supabase-client";
+import { RideLiveActivityController } from "@/features/live-activity/ride-live-activity-controller";
 import { rememberActiveRideRoute } from "@/features/navigation/active-ride";
 import { rememberLastReviewRoute } from "@/features/navigation/last-review-route";
 import { assertPlanGeometryPackageLinked } from "@/features/plan/workspace-package-check";
@@ -47,6 +48,7 @@ export default function TabLayout() {
 
 	return (
 		<QueryClientProvider client={queryClient}>
+			<RideLiveActivityController />
 			<ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
 				<ReviewRouteTracker />
 				<AnimatedSplashOverlay />

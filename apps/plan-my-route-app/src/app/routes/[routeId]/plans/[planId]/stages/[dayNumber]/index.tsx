@@ -24,6 +24,9 @@ import {
 	putStage,
 } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
+import { RideLiveActivityStatus } from "@/features/live-activity/ride-live-activity-status";
+import { pauseRideTracking } from "@/features/live-activity/ride-tracking";
+import { getRideTrackingStatus } from "@/features/live-activity/ride-tracking-state";
 import { AccommodationChoices } from "@/features/plan-my-route/components/accommodation-choices";
 import {
 	type StageFocus,
@@ -271,6 +274,7 @@ function StageSummaryBody({
 			}
 			await putStage(apiOrigin, accessToken, finishPlan.currentStage.id, finishPlan.currentUpdate);
 			await putStage(apiOrigin, accessToken, finishPlan.nextStage.id, finishPlan.nextUpdate);
+			if (getRideTrackingStatus().planId === detail.plan.id) await pauseRideTracking();
 			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(detail.plan.id) });
 			onMessage(
 				`현재 위치에서 종료했습니다. 다음 스테이지로 POI ${finishPlan.poiIdsToMove.length}곳을 옮겼습니다.`,
@@ -310,6 +314,7 @@ function StageSummaryBody({
 			) : null}
 
 			<CurrentLocationKmLine location={location} />
+			<RideLiveActivityStatus planId={detail.plan.id} />
 
 			<StageFocusTabs value={focus} onChange={setFocus} />
 

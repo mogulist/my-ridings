@@ -1,9 +1,10 @@
-import { snapLatLngToTrack } from "@my-ridings/plan-geometry";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 
 import type { TrackPoint } from "@/features/api/plan-my-route";
+import { locateRide } from "@/features/live-activity/ride-supply-data";
+import { updateRideLocation } from "@/features/live-activity/ride-tracking";
 
 export type LocationPermissionStatus = "unknown" | "granted" | "denied";
 
@@ -46,8 +47,11 @@ export function useCurrentLocationKm(
 			const nextLng = loc.coords.longitude;
 			setLat(nextLat);
 			setLng(nextLng);
-			const snapped = snapLatLngToTrack(track, nextLat, nextLng);
-			setCurrentKm(snapped ? snapped.distanceKm : null);
+			const fix = { ...loc.coords, timestamp: loc.timestamp };
+			const result = locateRide(track, fix, null);
+			setCurrentKm(result.position?.km ?? null);
+			setError(result.reason);
+			void updateRideLocation(fix).catch(() => {});
 		},
 		[trackPoints],
 	);

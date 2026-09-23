@@ -6,6 +6,7 @@ import {
   type MockRidePhase,
 } from "./mock-ride-snapshots";
 import RideLiveActivity from "./ride-live-activity.ios";
+import { pauseRideTracking } from "./ride-tracking";
 
 export type LiveActivityActionResult = {
   supported: boolean;
@@ -16,6 +17,7 @@ export type LiveActivityActionResult = {
 let currentPhase: MockRidePhase = "ride";
 
 export async function startMockRideLiveActivity(): Promise<LiveActivityActionResult> {
+  await pauseRideTracking();
   for (const instance of RideLiveActivity.getInstances()) {
     await instance.end("immediate");
   }

@@ -1,5 +1,5 @@
 import { HStack, Image, Spacer, Text, VStack } from "@expo/ui/swift-ui";
-import { font, foregroundStyle, frame, padding } from "@expo/ui/swift-ui/modifiers";
+import { font, foregroundStyle, frame, lineLimit, padding } from "@expo/ui/swift-ui/modifiers";
 import { createLiveActivity } from "expo-widgets";
 
 import type { RideLiveActivityProps } from "./mock-ride-snapshots";
@@ -30,7 +30,7 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
             >
               {props.primaryLabel}
             </Text>
-            <Text modifiers={[font({ size: 18, weight: "bold", design: "rounded" })]}>
+            <Text modifiers={[font({ size: 18, weight: "bold", design: "rounded" }), lineLimit(1)]}>
               {props.primaryName}
             </Text>
           </VStack>
@@ -58,7 +58,9 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
         {props.nextSupplyName && props.nextSupplyDistance && props.nextSupplyAscent ? (
           <HStack spacing={8} alignment="center">
             <Image systemName="2.circle.fill" color="#8E8E93" />
-            <Text modifiers={[font({ size: 15, weight: "semibold", design: "rounded" })]}>
+            <Text
+              modifiers={[font({ size: 15, weight: "semibold", design: "rounded" }), lineLimit(1)]}
+            >
               {props.nextSupplyName}
             </Text>
             <Spacer />
@@ -86,7 +88,9 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
         {props.thirdSupplyName && props.thirdSupplyDistance && props.thirdSupplyAscent ? (
           <HStack spacing={8} alignment="center">
             <Image systemName="3.circle.fill" color="#8E8E93" />
-            <Text modifiers={[font({ size: 15, weight: "semibold", design: "rounded" })]}>
+            <Text
+              modifiers={[font({ size: 15, weight: "semibold", design: "rounded" }), lineLimit(1)]}
+            >
               {props.thirdSupplyName}
             </Text>
             <Spacer />

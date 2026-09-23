@@ -9,6 +9,7 @@ import { AppIcon } from "@/components/ui/icon";
 import { ListItemCard } from "@/components/ui/list-item-card";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
 import type { MockRidePhase } from "@/features/live-activity/mock-ride-snapshots";
+import { RideGpsTest } from "@/features/live-activity/ride-gps-test";
 import {
   advanceMockRideLiveActivity,
   endMockRideLiveActivity,
@@ -73,7 +74,7 @@ export default function LockScreenPocScreen() {
             </View>
 
             <ThemedText type="small" themeColor="textSecondary" selectable>
-              시작한 뒤 시뮬레이터를 잠그면 잠금화면 배너가 나타납니다. “다음 상태”를 누르면 라이딩
+              시작한 뒤 iPhone을 잠그면 잠금화면 배너가 나타납니다. “다음 상태”를 누르면 라이딩
               → 보급 도착 → 숙박 결정 순으로 내용이 바뀝니다.
             </ThemedText>
           </ListItemCard>
@@ -107,8 +108,9 @@ export default function LockScreenPocScreen() {
 
           <ThemedText type="caption" themeColor="textSecondary" selectable>
             PoC 범위: 잠금화면 배너와 Dynamic Island의 크기·정보 밀도 확인. 백그라운드 위치 추적과
-            실제 라이딩 연결은 포함하지 않습니다.
+            실제 라이딩과 별개입니다. 목 라이딩을 시작하면 실제 라이딩의 실시간 현황은 일시 정지됩니다.
           </ThemedText>
+          {__DEV__ ? <RideGpsTest /> : null}
         </View>
       </ScrollView>
       <Snackbar message={message} onDismiss={() => setMessage(null)} />
