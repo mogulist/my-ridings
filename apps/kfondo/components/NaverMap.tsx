@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useEffect, useRef, useState } from "react";
 import { Expand, Locate } from "lucide-react";
 import type { NaverMapInstance } from "@/types/naver-maps";
@@ -35,6 +37,8 @@ export function NaverMap({
   polylines,
   highlightPosition = null,
 }: NaverMapProps) {
+  const t = useTranslations();
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<NaverMapInstance | null>(null);
   const polylineInstancesRef = useRef<unknown[]>([]);
@@ -44,8 +48,7 @@ export function NaverMap({
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const clientId =
-      process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "YOUR_NAVER_CLIENT_ID";
+    const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "YOUR_NAVER_CLIENT_ID";
 
     if (typeof window !== "undefined" && window.naver?.maps) {
       initMap();
@@ -72,10 +75,7 @@ export function NaverMap({
     if (!mapRef.current || !window.naver?.maps) return;
     try {
       const map = new window.naver.maps.Map(mapRef.current, {
-        center: new window.naver.maps.LatLng(
-          DEFAULT_CENTER.lat,
-          DEFAULT_CENTER.lng
-        ),
+        center: new window.naver.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
         zoom: DEFAULT_ZOOM,
       } as Record<string, unknown>) as unknown as NaverMapInstance;
       mapInstanceRef.current = map;
@@ -99,9 +99,7 @@ export function NaverMap({
     if (polylines?.length) {
       polylines.forEach((path) => {
         if (path.length === 0) return;
-        const latlngs = path.map(
-          ([lat, lng]) => new maps.LatLng(lat, lng) as unknown
-        );
+        const latlngs = path.map(([lat, lng]) => new maps.LatLng(lat, lng) as unknown);
         const polyline = new maps.Polyline({
           path: latlngs,
           map: map as unknown,
@@ -156,7 +154,11 @@ export function NaverMap({
       const size = HIGHLIGHT_MARKER_SIZE;
       const anchor = size / 2;
       const Point = (maps as { Point?: new (x: number, y: number) => unknown }).Point;
-      const markerOptions: { position: unknown; map: unknown; icon?: { content: string; anchor: unknown } } = {
+      const markerOptions: {
+        position: unknown;
+        map: unknown;
+        icon?: { content: string; anchor: unknown };
+      } = {
         position,
         map: map as unknown,
       };
@@ -166,9 +168,7 @@ export function NaverMap({
           anchor: new Point(anchor, anchor),
         };
       }
-      const marker = new maps.Marker(
-        markerOptions as { position: unknown; map: unknown }
-      );
+      const marker = new maps.Marker(markerOptions as { position: unknown; map: unknown });
       highlightMarkerRef.current = marker;
     }
   }, [isMapLoaded, highlightPosition]);
@@ -177,8 +177,7 @@ export function NaverMap({
     if (!isMapLoaded || !mapRef.current || !mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
     const observer = new ResizeObserver(() => {
-      if (!map?.getZoom || !map?.setZoom || !map?.getCenter || !map?.setCenter)
-        return;
+      if (!map?.getZoom || !map?.setZoom || !map?.getCenter || !map?.setCenter) return;
       const zoom = map.getZoom();
       const center = map.getCenter();
       const autoResize = (map as { autoResize?: () => void }).autoResize;
@@ -257,7 +256,7 @@ export function NaverMap({
             type="button"
             onClick={handleZoomIn}
             className="w-9 h-9 flex items-center justify-center bg-white border border-gray-300 rounded shadow hover:bg-gray-50 text-gray-700"
-            aria-label="줌 인"
+            aria-label={t("map.zoomIn")}
           >
             <span className="text-lg font-medium leading-none">+</span>
           </button>
@@ -265,7 +264,7 @@ export function NaverMap({
             type="button"
             onClick={handleZoomOut}
             className="w-9 h-9 flex items-center justify-center bg-white border border-gray-300 rounded shadow hover:bg-gray-50 text-gray-700"
-            aria-label="줌 아웃"
+            aria-label={t("map.zoomOut")}
           >
             <span className="text-lg font-medium leading-none">−</span>
           </button>
@@ -274,7 +273,7 @@ export function NaverMap({
             onClick={handleCenterOnMarker}
             disabled={!highlightPosition}
             className="w-9 h-9 flex items-center justify-center bg-white border border-gray-300 rounded shadow hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-            aria-label="마커로 이동"
+            aria-label={t("map.goToMarker")}
           >
             <Locate className="size-4" />
           </button>
@@ -283,7 +282,7 @@ export function NaverMap({
             onClick={handleFitCourse}
             disabled={!polylines?.length}
             className="w-9 h-9 flex items-center justify-center bg-white border border-gray-300 rounded shadow hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-            aria-label="전체 코스 보기"
+            aria-label={t("map.fitCourse")}
           >
             <Expand className="size-4" />
           </button>
@@ -291,7 +290,7 @@ export function NaverMap({
       )}
       {!isMapLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-          <span className="text-gray-600">지도를 로딩 중...</span>
+          <span className="text-gray-600">{t("map.loading")}</span>
         </div>
       )}
     </div>

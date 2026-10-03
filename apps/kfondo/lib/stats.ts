@@ -1,20 +1,11 @@
 import path from "path";
 import fs from "fs";
-import type {
-  Event,
-  EventYearStats,
-  EventYearStatsWithCourses,
-  RaceRecord,
-} from "./types";
+import type { Event, EventYearStats, EventYearStatsWithCourses, RaceRecord } from "./types";
 import { generateTimeDistributionFromRecords } from "./record-stats";
 import { parseJsonRecordsToRaceRecords } from "./race-records-parse";
 
 // 레코드 가져오기 (Blob URL 우선, 로컬 파일 폴백)
-async function fetchRecords(
-  event: Event,
-  year: number,
-  dataDir: string
-): Promise<RaceRecord[]> {
+async function fetchRecords(event: Event, year: number, dataDir: string): Promise<RaceRecord[]> {
   const blobUrl = event.yearDetails[year]?.recordsBlobUrl;
 
   // 1. Blob URL 사용
@@ -29,14 +20,13 @@ async function fetchRecords(
     } catch (error) {
       console.warn(
         `[Stats] Blob fetch failed for ${event.id} ${year}, falling back to local file.`,
-        error
+        error,
       );
     }
   }
 
   // 2. 로컬 파일 폴백 (Node SSR 또는 jest jsdom 등에서 로컬 JSON 사용)
-  const canUseFilesystem =
-    typeof window === "undefined" || Boolean(process.env.JEST_WORKER_ID);
+  const canUseFilesystem = typeof window === "undefined" || Boolean(process.env.JEST_WORKER_ID);
   if (canUseFilesystem) {
     const filePath = path.join(dataDir, `${event.id}_${year}.json`);
     if (fs.existsSync(filePath)) {
@@ -48,41 +38,26 @@ async function fetchRecords(
   return [];
 }
 
-export async function getYearStats(
-  event: Event,
-  dataDir: string
-): Promise<EventYearStats[]> {
+export async function getYearStats(event: Event, dataDir: string): Promise<EventYearStats[]> {
   const statsPromises = event.years.map(async (year) => {
     const records = await fetchRecords(event, year, dataDir);
-    
+
     if (records.length === 0) return null;
 
-    const gran = event.yearDetails[year]?.courses.find(
-      (c) => c.id === "granfondo"
-    );
-    const granfondoComment = gran?.comment;
+    const gran = event.yearDetails[year]?.courses.find((c) => c.id === "granfondo");
+    const granfondoComment = event.yearDetails[year].comment ?? gran?.comment;
 
     return {
       year,
-      granFondoDistribution: generateTimeDistributionFromRecords(
-        records,
-        "그란폰도",
-        2,
-        year
-      ),
-      medioFondoDistribution: generateTimeDistributionFromRecords(
-        records,
-        "메디오폰도",
-        2,
-        year
-      ),
+      granFondoDistribution: generateTimeDistributionFromRecords(records, "그란폰도", 2, year),
+      medioFondoDistribution: generateTimeDistributionFromRecords(records, "메디오폰도", 2, year),
       comment: granfondoComment,
     };
   });
 
   const results = await Promise.all(statsPromises);
   const yearStats: EventYearStats[] = [];
-  
+
   for (const s of results) {
     if (s) yearStats.push(s);
   }
@@ -93,7 +68,7 @@ export async function getYearStats(
 
 export async function getYearStatsWithCourses(
   event: Event,
-  dataDir: string
+  dataDir: string,
 ): Promise<EventYearStatsWithCourses[]> {
   const statsPromises = event.years.map(async (year) => {
     const records = await fetchRecords(event, year, dataDir);
@@ -106,15 +81,15 @@ export async function getYearStatsWithCourses(
       courseName: course.name,
       distribution: generateTimeDistributionFromRecords(
         records,
-        course.name,
+        course.originalName ?? course.name,
         2,
-        year
+        year,
       ),
     }));
 
     // comment는 granfondo에만 있다고 가정
     const gran = detail.courses.find((c) => c.id === "granfondo");
-    const granfondoComment = gran?.comment;
+    const granfondoComment = event.yearDetails[year].comment ?? gran?.comment;
 
     return {
       year,

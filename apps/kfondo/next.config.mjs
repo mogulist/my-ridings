@@ -4,8 +4,17 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
+import createNextIntlPlugin from "next-intl/plugin";
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
 const nextConfig = {
-  transpilePackages: ["@my-ridings/elevation-profile", "@my-ridings/plan-geometry"],
+  distDir: process.env.KFONDO_TEST_DIST_DIR || ".next",
+  transpilePackages: [
+    "next-intl",
+    "use-intl",
+    "@my-ridings/elevation-profile",
+    "@my-ridings/plan-geometry",
+  ],
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -16,6 +25,6 @@ const nextConfig = {
     root: path.join(__dirname, "../.."),
   },
   skipTrailingSlashRedirect: true,
-}
+};
 
-export default nextConfig
+export default withNextIntl(nextConfig);

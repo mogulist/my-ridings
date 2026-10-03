@@ -1,25 +1,19 @@
-import { MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
 import { getAllEvents } from "@/lib/db/events";
-
+import { routing } from "@/i18n/routing";
+import { pageAlternates } from "@/i18n/urls";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://kfondo.cc";
-
-  const routes: MetadataRoute.Sitemap = [
-    {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 1,
-    },
-  ];
-
   const events = await getAllEvents();
-  const eventRoutes: MetadataRoute.Sitemap = events.map((event) => ({
-    url: `${baseUrl}/${event.id}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
-
-  return [...routes, ...eventRoutes];
+  return ["/", ...events.map((e) => `/${e.id}`)].flatMap((path) =>
+    routing.locales.map((locale) => {
+      const { canonical, languages } = pageAlternates(path, locale);
+      return {
+        url: canonical,
+        lastModified: new Date(),
+        changeFrequency: path === "/" ? ("daily" as const) : ("weekly" as const),
+        priority: path === "/" ? 1 : 0.8,
+        alternates: { languages },
+      };
+    }),
+  );
 }

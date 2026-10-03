@@ -23,12 +23,17 @@ async function revalidateStaging(payload: { path?: string; tag?: string }) {
 
 export async function revalidateHomePage() {
   revalidatePath("/");
+  revalidatePath("/en");
+  revalidatePath("/(public)/[locale]", "layout");
   await revalidateStaging({ path: "/" });
+  await revalidateStaging({ path: "/en" });
+  await revalidateStaging({ path: "/(public)/[locale]" });
 }
 
 export async function revalidateEventPage(slug: string) {
   const tag = `event-${slug}`;
-  revalidateTag(tag);
+  revalidateTag(tag, { expire: 0 });
   revalidatePath("/", "layout");
   await revalidateStaging({ tag });
+  await revalidateStaging({ path: "/(public)/[locale]" });
 }

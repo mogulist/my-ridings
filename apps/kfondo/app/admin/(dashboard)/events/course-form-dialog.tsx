@@ -1,4 +1,5 @@
 "use client";
+import { EnglishContentFields } from "@/components/english-content-fields";
 
 import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,16 +33,15 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import type {
-  CourseRow,
-  Database,
-} from "@/lib/database.types";
+import type { CourseRow, Database } from "@/lib/database.types";
 import type { EventEditionWithCourses } from "./types";
 
 type CourseInsert = Database["public"]["Tables"]["courses"]["Insert"];
 type CourseUpdate = Database["public"]["Tables"]["courses"]["Update"];
 
 const courseSchema = z.object({
+  name_en: z.string().nullish(),
+
   edition_id: z.string().uuid("에디션을 선택하세요"),
   course_type: z.string().min(1, "코스 타입을 입력하세요"),
   name: z.string().min(1, "코스명을 입력하세요"),
@@ -73,10 +73,7 @@ export function CourseFormDialog({
   onSuccess,
 }: CourseFormDialogProps) {
   const supabase = createClient();
-  const sortedEditions = useMemo(
-    () => [...editions].sort((a, b) => b.year - a.year),
-    [editions]
-  );
+  const sortedEditions = useMemo(() => [...editions].sort((a, b) => b.year - a.year), [editions]);
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -84,6 +81,7 @@ export function CourseFormDialog({
       edition_id: "",
       course_type: "",
       name: "",
+      name_en: "",
       distance: 0,
       elevation: 0,
       registered_count: 0,
@@ -102,6 +100,7 @@ export function CourseFormDialog({
       form.reset({
         edition_id: course.edition_id,
         course_type: course.course_type,
+        name_en: course.name_en ?? "",
         name: course.name,
         distance: course.distance,
         elevation: course.elevation,
@@ -117,6 +116,7 @@ export function CourseFormDialog({
         edition_id: sortedEditions[0]?.id ?? "",
         course_type: "",
         name: "",
+        name_en: "",
         distance: 0,
         elevation: 0,
         registered_count: 0,
@@ -131,13 +131,7 @@ export function CourseFormDialog({
 
   async function onSubmit(values: CourseFormValues) {
     if (
-      hasDuplicateCourse(
-        editions,
-        values.edition_id,
-        values.course_type,
-        values.name,
-        course?.id
-      )
+      hasDuplicateCourse(editions, values.edition_id, values.course_type, values.name, course?.id)
     ) {
       toast.error("이 에디션에 동일한 코스 타입과 코스명이 이미 있습니다.");
       return;
@@ -148,6 +142,7 @@ export function CourseFormDialog({
         const payload: CourseUpdate = {
           edition_id: values.edition_id,
           course_type: values.course_type,
+          name_en: values.name_en?.trim() || null,
           name: values.name,
           distance: values.distance,
           elevation: values.elevation,
@@ -169,6 +164,7 @@ export function CourseFormDialog({
         const payload: CourseInsert = {
           edition_id: values.edition_id,
           course_type: values.course_type,
+          name_en: values.name_en?.trim() || null,
           name: values.name,
           distance: values.distance,
           elevation: values.elevation,
@@ -179,9 +175,7 @@ export function CourseFormDialog({
           gpx_blob_url: values.gpx_blob_url?.trim() || null,
           has_kom: values.has_kom === true,
         };
-        const { error } = await supabase
-          .from("courses")
-          .insert(payload as never);
+        const { error } = await supabase.from("courses").insert(payload as never);
 
         if (error) throw error;
         toast.success("코스가 추가되었습니다.");
@@ -206,296 +200,273 @@ export function CourseFormDialog({
             className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
           >
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 pb-1">
-            <FormField
-              control={form.control}
-              name="edition_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>에디션 *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={Boolean(course)}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="에디션 선택" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {sortedEditions.map((ed) => (
-                        <SelectItem key={ed.id} value={ed.id}>
-                          {ed.year}년
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="course_type"
+                name="edition_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>코스 타입 *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="granfondo" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      ID로 사용됩니다 (예: granfondo)
-                    </FormDescription>
+                    <FormLabel>에디션 *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={Boolean(course)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="에디션 선택" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sortedEditions.map((ed) => (
+                          <SelectItem key={ed.id} value={ed.id}>
+                            {ed.year}년
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>코스명 *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="그란폰도" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="course_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>코스 타입 *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="granfondo" {...field} />
+                      </FormControl>
+                      <FormDescription>ID로 사용됩니다 (예: granfondo)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>코스명 *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="그란폰도" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="distance"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>거리 (km) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step={0.1}
+                          min={0}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="elevation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>고도 (m) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
-                name="distance"
+                name="registered_count"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>거리 (km) *</FormLabel>
+                    <FormLabel>접수 인원</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
-                        step={0.1}
                         min={0}
                         {...field}
-                        onChange={(e) =>
-                          field.onChange(e.target.valueAsNumber || 0)
-                        }
+                        value={field.value ?? 0}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber ?? 0)}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="elevation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>고도 (m) *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(e.target.valueAsNumber || 0)
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
-            <FormField
-              control={form.control}
-              name="registered_count"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>접수 인원</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      {...field}
-                      value={field.value ?? 0}
-                      onChange={(e) =>
-                        field.onChange(e.target.valueAsNumber ?? 0)
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="has_kom"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>KOM 구간 기록</FormLabel>
-                    <FormDescription>
-                      에디션에 KOM 기록 파일이 있을 때, 이 코스에만 [전체/KOM]
-                      전환이 표시됩니다.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value === true}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <div className="space-y-3 border-t pt-4">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                링크 (선택)
-              </h4>
               <FormField
                 control={form.control}
-                name="official_site_url"
+                name="has_kom"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>공식 사이트 URL</FormLabel>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>KOM 구간 기록</FormLabel>
+                      <FormDescription>
+                        에디션에 KOM 기록 파일이 있을 때, 이 코스에만 [전체/KOM] 전환이 표시됩니다.
+                      </FormDescription>
+                    </div>
                     <FormControl>
-                      <Input
-                        type="url"
-                        placeholder="https://..."
-                        {...field}
-                        value={field.value ?? ""}
-                      />
+                      <Switch checked={field.value === true} onCheckedChange={field.onChange} />
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="strava_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Strava URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="url"
-                        placeholder="https://www.strava.com/..."
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="ride_with_gps_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>RideWithGPS URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="url"
-                        placeholder="https://ridewithgps.com/..."
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
-            <div className="space-y-3 border-t pt-4">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                경로 (네이버맵)
-              </h4>
-              <FormField
-                control={form.control}
-                name="gpx_blob_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>GPX 파일</FormLabel>
-                    {field.value ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          현재 경로 있음
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => field.onChange("")}
-                        >
-                          삭제
-                        </Button>
-                      </div>
-                    ) : null}
-                    <FormControl>
-                      <Input
-                        type="file"
-                        accept=".gpx,application/gpx+xml,application/xml,text/xml"
-                        disabled={gpxUploading}
-                        onChange={async (e) => {
-                          const f = e.target.files?.[0];
-                          if (!f) return;
-                          setGpxUploading(true);
-                          try {
-                            const fd = new FormData();
-                            fd.set("file", f);
-                            const res = await fetch("/api/courses/gpx-upload", {
-                              method: "POST",
-                              body: fd,
-                            });
-                            if (!res.ok) {
-                              const data = await res.json().catch(() => ({}));
-                              throw new Error(data.error ?? "업로드 실패");
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-medium text-muted-foreground">링크 (선택)</h4>
+                <FormField
+                  control={form.control}
+                  name="official_site_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>공식 사이트 URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://..."
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="strava_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Strava URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://www.strava.com/..."
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ride_with_gps_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>RideWithGPS URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://ridewithgps.com/..."
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-medium text-muted-foreground">경로 (네이버맵)</h4>
+                <FormField
+                  control={form.control}
+                  name="gpx_blob_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GPX 파일</FormLabel>
+                      {field.value ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm text-muted-foreground">현재 경로 있음</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => field.onChange("")}
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      ) : null}
+                      <FormControl>
+                        <Input
+                          type="file"
+                          accept=".gpx,application/gpx+xml,application/xml,text/xml"
+                          disabled={gpxUploading}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            setGpxUploading(true);
+                            try {
+                              const fd = new FormData();
+                              fd.set("file", f);
+                              const res = await fetch("/api/courses/gpx-upload", {
+                                method: "POST",
+                                body: fd,
+                              });
+                              if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error ?? "업로드 실패");
+                              }
+                              const { url } = await res.json();
+                              field.onChange(url);
+                              toast.success("GPX가 업로드되었습니다.");
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "업로드 실패");
+                            } finally {
+                              setGpxUploading(false);
+                              e.target.value = "";
                             }
-                            const { url } = await res.json();
-                            field.onChange(url);
-                            toast.success("GPX가 업로드되었습니다.");
-                          } catch (err) {
-                            toast.error(
-                              err instanceof Error ? err.message : "업로드 실패"
-                            );
-                          } finally {
-                            setGpxUploading(false);
-                            e.target.value = "";
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      GPX 업로드 시 이벤트 상세에서 네이버맵 버튼이 활성화됩니다.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        GPX 업로드 시 이벤트 상세에서 네이버맵 버튼이 활성화됩니다.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
+            <EnglishContentFields
+              form={form}
+              fields={[{ name: "name_en", label: "코스명 (영어)" }]}
+            />
             <DialogFooter className="shrink-0 border-t pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 취소
               </Button>
-              <Button
-                type="submit"
-                className="bg-primary text-primary-foreground"
-              >
+              <Button type="submit" className="bg-primary text-primary-foreground">
                 저장
               </Button>
             </DialogFooter>
@@ -511,7 +482,7 @@ function hasDuplicateCourse(
   editionId: string,
   courseType: string,
   name: string,
-  excludeCourseId?: string
+  excludeCourseId?: string,
 ): boolean {
   const edition = editions.find((ed) => ed.id === editionId);
   if (!edition) return false;
@@ -523,6 +494,6 @@ function hasDuplicateCourse(
     (existingCourse) =>
       existingCourse.id !== excludeCourseId &&
       existingCourse.course_type.trim() === normalizedType &&
-      existingCourse.name.trim() === normalizedName
+      existingCourse.name.trim() === normalizedName,
   );
 }

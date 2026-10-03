@@ -36,21 +36,44 @@ const LABEL_ROW_HEIGHT = 13;
 const LABEL_GAP_PX = 24;
 const POI_TOP_MARGIN = LABEL_GAP_PX + LABEL_TIERS * LABEL_ROW_HEIGHT + 4;
 
-const X_AXIS_MODE_LABELS: Record<XAxisMode, string> = {
+export type ElevationProfileLabels = {
+	elevation: string;
+	distance: string;
+	elapsed: string;
+	clearSelection: string;
+	axisModes: Record<XAxisMode, string>;
+};
+const DEFAULT_LABELS: ElevationProfileLabels = {
+	elevation: "고도",
 	distance: "거리",
-	"relative-time": "상대 시간",
-	"absolute-time": "절대 시간",
+	elapsed: "경과",
+	clearSelection: "선택 해제",
+	axisModes: {
+		distance: "거리",
+		"relative-time": "상대 시간",
+		"absolute-time": "절대 시간",
+	},
 };
 
-function DefaultTooltip({ active, payload }: TooltipContentProps) {
+function DefaultTooltip({
+	active,
+	payload,
+	labels,
+}: TooltipContentProps & { labels: ElevationProfileLabels }) {
 	if (!active || !payload?.length) return null;
 	const point = payload[0].payload as ProfilePoint;
 	return (
 		<div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs space-y-1 min-w-[160px]">
-			<p className="font-semibold text-gray-800">고도 {Math.round(point.elevationM)} m</p>
-			<p className="text-gray-500">거리 {point.distanceKm.toFixed(1)} km</p>
+			<p className="font-semibold text-gray-800">
+				{labels.elevation} {Math.round(point.elevationM)} m
+			</p>
+			<p className="text-gray-500">
+				{labels.distance} {point.distanceKm.toFixed(1)} km
+			</p>
 			{point.elapsedSeconds != null && (
-				<p className="text-gray-500">경과 {formatRelativeTimeAxis(point.elapsedSeconds)}</p>
+				<p className="text-gray-500">
+					{labels.elapsed} {formatRelativeTimeAxis(point.elapsedSeconds)}
+				</p>
 			)}
 			{point.absoluteMs != null && (
 				<p className="text-gray-500">{formatAbsoluteTimeTooltip(point.absoluteMs)}</p>
@@ -60,6 +83,10 @@ function DefaultTooltip({ active, payload }: TooltipContentProps) {
 }
 
 export type ElevationProfileProps = {
+	/** 표시 문구만 교체하며 기존 사용자는 한국어 기본값을 유지합니다. */
+	labels?: Partial<Omit<ElevationProfileLabels, "axisModes">> & {
+		axisModes?: Partial<Record<XAxisMode, string>>;
+	};
 	data: ProfilePoint[];
 	pauseSegments?: PauseSegment[];
 	/** 경사도 색상 띠. 제공 시 거리 모드에서 x축 아래에 표시 */
@@ -84,6 +111,7 @@ export type ElevationProfileProps = {
 };
 
 export function ElevationProfile({
+	labels: customLabels,
 	data,
 	pauseSegments = [],
 	gradientSegments,
@@ -99,6 +127,12 @@ export function ElevationProfile({
 	onContextMenu,
 	selectionStats,
 }: ElevationProfileProps) {
+	const labels = {
+		...DEFAULT_LABELS,
+		...customLabels,
+		axisModes: { ...DEFAULT_LABELS.axisModes, ...customLabels?.axisModes },
+	};
+
 	const [xAxisMode, setXAxisMode] = useState<XAxisMode>(defaultXAxisMode);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [suppressTooltip, setSuppressTooltip] = useState(false);
@@ -211,7 +245,7 @@ export function ElevationProfile({
 								onClick={clearSelection}
 								className="text-xs text-gray-400 hover:text-gray-600 underline"
 							>
-								선택 해제
+								{labels.clearSelection}
 							</button>
 						)}
 					</div>
@@ -229,7 +263,7 @@ export function ElevationProfile({
 											: "bg-white text-gray-600 hover:bg-gray-50",
 									].join(" ")}
 								>
-									{X_AXIS_MODE_LABELS[mode]}
+									{labels.axisModes[mode]}
 								</button>
 							))}
 						</div>
@@ -281,7 +315,10 @@ export function ElevationProfile({
 							axisLine={false}
 							width={YAXIS_W}
 						/>
-						<Tooltip content={DefaultTooltip} active={suppressTooltip ? false : undefined} />
+						<Tooltip
+							content={(props) => <DefaultTooltip {...props} labels={labels} />}
+							active={suppressTooltip ? false : undefined}
+						/>
 
 						{/* 일시 정지 구간 음영 */}
 						{pauseSegments.map((pause, i) => {

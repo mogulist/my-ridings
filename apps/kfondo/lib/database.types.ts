@@ -1,10 +1,4 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   public: {
@@ -14,13 +8,18 @@ export type Database = {
           id: string;
           slug: string;
           name: string;
+          name_en: string | null;
           location: string;
+          location_en: string | null;
           color_from: string;
           color_to: string;
           meta_title: string;
+          meta_title_en: string | null;
           meta_description: string;
+          meta_description_en: string | null;
           meta_image: string;
           comment: string | null;
+          comment_en: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -28,13 +27,18 @@ export type Database = {
           id?: string;
           slug: string;
           name: string;
+          name_en?: string | null;
           location: string;
+          location_en?: string | null;
           color_from: string;
           color_to: string;
           meta_title: string;
+          meta_title_en?: string | null;
           meta_description: string;
+          meta_description_en?: string | null;
           meta_image: string;
           comment?: string | null;
+          comment_en?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -42,13 +46,18 @@ export type Database = {
           id?: string;
           slug?: string;
           name?: string;
+          name_en?: string | null;
           location?: string;
+          location_en?: string | null;
           color_from?: string;
           color_to?: string;
           meta_title?: string;
+          meta_title_en?: string | null;
           meta_description?: string;
+          meta_description_en?: string | null;
           meta_image?: string;
           comment?: string | null;
+          comment_en?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -62,7 +71,9 @@ export type Database = {
           status: "upcoming" | "completed" | "ready" | "preparing" | "cancelled";
           url: string | null;
           comment: string | null;
+          comment_en: string | null;
           notice: string | null;
+          notice_en: string | null;
           created_at: string;
           updated_at: string;
           records_blob_url: string | null;
@@ -78,7 +89,9 @@ export type Database = {
           status?: "upcoming" | "completed" | "ready" | "preparing" | "cancelled";
           url?: string | null;
           comment?: string | null;
+          comment_en?: string | null;
           notice?: string | null;
+          notice_en?: string | null;
           created_at?: string;
           updated_at?: string;
           records_blob_url?: string | null;
@@ -94,7 +107,9 @@ export type Database = {
           status?: "upcoming" | "completed" | "ready" | "preparing" | "cancelled";
           url?: string | null;
           comment?: string | null;
+          comment_en?: string | null;
           notice?: string | null;
+          notice_en?: string | null;
           created_at?: string;
           updated_at?: string;
           records_blob_url?: string | null;
@@ -109,6 +124,7 @@ export type Database = {
           edition_id: string;
           course_type: string;
           name: string;
+          name_en: string | null;
           distance: number;
           elevation: number;
           registered_count: number;
@@ -125,6 +141,7 @@ export type Database = {
           edition_id: string;
           course_type: string;
           name: string;
+          name_en?: string | null;
           distance: number;
           elevation: number;
           registered_count?: number;
@@ -141,6 +158,7 @@ export type Database = {
           edition_id?: string;
           course_type?: string;
           name?: string;
+          name_en?: string | null;
           distance?: number;
           elevation?: number;
           registered_count?: number;
@@ -160,4 +178,3 @@ export type Database = {
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventEditionRow = Database["public"]["Tables"]["event_editions"]["Row"];
 export type CourseRow = Database["public"]["Tables"]["courses"]["Row"];
-

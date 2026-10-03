@@ -24,10 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import {
-  revalidateHomePage,
-  revalidateEventPage,
-} from "@/app/actions/revalidate";
+import { revalidateHomePage, revalidateEventPage } from "@/app/actions/revalidate";
 import { toast } from "sonner";
 import { CourseFormDialog } from "./course-form-dialog";
 import type { EventEditionWithCourses } from "./types";
@@ -67,10 +64,7 @@ export function CoursesTab({ eventSlug, editions }: CoursesTabProps) {
     setIsDeleting(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("courses")
-        .delete()
-        .eq("id", deleteTarget.id);
+      const { error } = await supabase.from("courses").delete().eq("id", deleteTarget.id);
 
       if (error) throw error;
       toast.success("코스가 삭제되었습니다.");
@@ -104,9 +98,7 @@ export function CoursesTab({ eventSlug, editions }: CoursesTabProps) {
             <section key={edition.id}>
               <div className="mb-3 flex items-center gap-2">
                 <h3 className="text-lg font-semibold">{edition.year}년</h3>
-                <Badge variant="secondary">
-                  {edition.courses.length}개 코스
-                </Badge>
+                <Badge variant="secondary">{edition.courses.length}개 코스</Badge>
               </div>
               <Table>
                 <TableHeader>
@@ -123,10 +115,7 @@ export function CoursesTab({ eventSlug, editions }: CoursesTabProps) {
                 <TableBody>
                   {edition.courses.length === 0 ? (
                     <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="text-center text-muted-foreground"
-                      >
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         코스가 없습니다.
                       </TableCell>
                     </TableRow>
@@ -134,15 +123,18 @@ export function CoursesTab({ eventSlug, editions }: CoursesTabProps) {
                     edition.courses.map((course) => (
                       <TableRow key={course.id}>
                         <TableCell>
-                          <Badge variant="secondary">
-                            {course.course_type}
-                          </Badge>
+                          <Badge variant="secondary">{course.course_type}</Badge>
                         </TableCell>
-                        <TableCell>{course.name}</TableCell>
-                        <TableCell>{course.distance}</TableCell>
                         <TableCell>
-                          {course.elevation.toLocaleString()}
+                          {course.name}
+                          {course.name_en && (
+                            <p lang="en" className="text-xs text-muted-foreground">
+                              {course.name_en}
+                            </p>
+                          )}
                         </TableCell>
+                        <TableCell>{course.distance}</TableCell>
+                        <TableCell>{course.elevation.toLocaleString()}</TableCell>
                         <TableCell>{course.registered_count}명</TableCell>
                         <TableCell className="text-center text-muted-foreground">
                           {course.has_kom ? "○" : "—"}
@@ -197,9 +189,7 @@ export function CoursesTab({ eventSlug, editions }: CoursesTabProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>코스 삭제</AlertDialogTitle>
-            <AlertDialogDescription>
-              이 코스를 삭제하시겠습니까?
-            </AlertDialogDescription>
+            <AlertDialogDescription>이 코스를 삭제하시겠습니까?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>

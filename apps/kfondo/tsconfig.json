@@ -1,10 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "target": "ES6",
     "skipLibCheck": true,
@@ -23,15 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
-    "types": [
-      "jest",
-      "@testing-library/jest-dom",
-      "node"
-    ],
+    "types": ["jest", "@testing-library/jest-dom", "node"],
     "moduleResolution": "node"
   },
   "include": [
@@ -41,9 +31,9 @@
     ".next/types/**/*.ts",
     "__tests__/**/*.ts",
     "__tests__/**/*.tsx",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-i18n-test/types/**/*.ts",
+    ".next-i18n-test/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

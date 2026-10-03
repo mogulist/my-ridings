@@ -1,9 +1,13 @@
+import { formatEventDate } from "@/i18n/date";
+import { translator } from "@/i18n/translator";
+import type { Locale } from "@/i18n/routing";
 /**
  * 기록 찾기 OG 이미지 - Landscape (1200×630)
  * SNS 링크 미리보기용. 기록 결과 페이지(밝은 히어로)와 동일한 톤.
  * Satori 호환: inline style만 사용, 수치는 number, 다중 자식 div엔 display:flex.
  */
 export type RecordOGImageLandscapeProps = {
+  locale?: Locale;
   year: string;
   eventName: string;
   category: string;
@@ -25,7 +29,10 @@ export type RecordOGImageLandscapeProps = {
 };
 
 export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
+  const t = translator(props.locale ?? "ko");
+
   const {
+    locale = "ko",
     year,
     eventName,
     category,
@@ -38,11 +45,11 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
     totalParticipants,
     finishers,
     eventDate,
-    recordLabel = "완주 기록",
-    rankLabel = "순위",
-    participantLabel = "참가자 기준",
-    finisherLabel = "완주자 기준",
-    scopeLabel = "완주",
+    recordLabel,
+    rankLabel,
+    participantLabel,
+    finisherLabel,
+    scopeLabel,
     isKom = false,
   } = props;
 
@@ -139,7 +146,7 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
                 lineHeight: 1.1,
               }}
             >
-              {year}년 {eventName}
+              {t("event.yearName", { v0: year, v1: eventName })}
             </div>
             <div
               style={{
@@ -149,7 +156,7 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
                 fontWeight: 700,
               }}
             >
-              {eventDate}
+              {formatEventDate(eventDate, locale)}
             </div>
           </div>
 
@@ -172,7 +179,7 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
                     fontWeight: 800,
                   }}
                 >
-                  {scopeLabel}
+                  {scopeLabel ?? t("record.full")}
                 </span>
               ) : (
                 solidPill(scopeLabel, "#059669")
@@ -201,7 +208,7 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
               marginBottom: 8,
             }}
           >
-            {recordLabel}
+            {recordLabel ?? t("record.fullRecord")}
           </div>
           <div
             style={{
@@ -219,7 +226,7 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
 
         {/* 하단: 순위 & 퍼센타일 3종 */}
         <div style={{ display: "flex", gap: 18 }}>
-          <StatCard label={rankLabel}>
+          <StatCard label={rankLabel ?? t("record.rank")}>
             <span
               style={{
                 display: "flex",
@@ -240,11 +247,14 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
                 fontWeight: 800,
               }}
             >
-              위
+              {locale === "ko" ? "위" : ""}
             </span>
           </StatCard>
 
-          <StatCard label={participantLabel} sub={`${totalParticipants.toLocaleString()}명`}>
+          <StatCard
+            label={participantLabel ?? t("stats.byParticipants")}
+            sub={t("stats.riderCount", { v0: totalParticipants.toLocaleString(locale) })}
+          >
             <span
               style={{
                 display: "flex",
@@ -270,8 +280,8 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
           </StatCard>
 
           <StatCard
-            label={finisherLabel}
-            sub={`${finishers.toLocaleString()}명`}
+            label={finisherLabel ?? t("stats.byFinishers")}
+            sub={t("stats.riderCount", { v0: finishers.toLocaleString(locale) })}
             accent
           >
             <span
@@ -361,9 +371,7 @@ function StatCard({
       >
         {label}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-        {children}
-      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>{children}</div>
       {sub ? (
         <div
           style={{

@@ -1,3 +1,4 @@
+import type { Locale } from "@/i18n/routing";
 /**
  * 기록으로 찾기 결과 페이지 / OG 이미지 공통 데이터 로직
  */
@@ -38,12 +39,7 @@ export function timeToMilliseconds(time: string): number {
   } else {
     sec = parseInt(s, 10);
   }
-  return (
-    parseInt(h, 10) * 3600 * 1000 +
-    parseInt(m, 10) * 60 * 1000 +
-    sec * 1000 +
-    ms
-  );
+  return parseInt(h, 10) * 3600 * 1000 + parseInt(m, 10) * 60 * 1000 + sec * 1000 + ms;
 }
 
 export function msecToTimeString(msec: number): string {
@@ -95,8 +91,9 @@ export async function getFindByRecordData(
   year: string,
   timeDigit: string,
   scope: FindByRecordScope = "full",
+  locale: Locale = "ko",
 ): Promise<FindByRecordData | null> {
-  const event = await getEventById(eventId);
+  const event = await getEventById(eventId, locale);
   if (!event) return null;
 
   const parsedTime = parseDigitTime(timeDigit);
@@ -114,12 +111,9 @@ export async function getFindByRecordData(
   const courseRow = yearDetail.courses?.find((c) => c.id === courseId);
   const hasKomSortedBlob = Boolean(yearDetail.komSortedRecordsBlobUrl?.trim());
   const canUseKom = hasKomSortedBlob && courseRow?.hasKom === true;
-  const recordScope: FindByRecordScope =
-    scope === "kom" && canUseKom ? "kom" : "full";
+  const recordScope: FindByRecordScope = scope === "kom" && canUseKom ? "kom" : "full";
   const sortedBlobUrl =
-    recordScope === "kom"
-      ? yearDetail.komSortedRecordsBlobUrl
-      : yearDetail.sortedRecordsBlobUrl;
+    recordScope === "kom" ? yearDetail.komSortedRecordsBlobUrl : yearDetail.sortedRecordsBlobUrl;
   if (!sortedBlobUrl) return null;
 
   let sortedData: Record<string, number[]> = {};
@@ -133,25 +127,17 @@ export async function getFindByRecordData(
     return null;
   }
 
-  const courseName = courseRow?.name ?? COURSE_MAP[courseId] ?? courseId;
+  const courseName = courseRow?.originalName ?? courseRow?.name ?? COURSE_MAP[courseId] ?? courseId;
   const sortedKeys = resolveSortedCourseKeys(sortedData, courseName, recordScope);
-  const courseArr: number[] = sortedKeys
-    ? sortedData[sortedKeys.course] || []
-    : [];
-  const maleArr: number[] = sortedKeys
-    ? sortedData[sortedKeys.male] || []
-    : [];
-  const femaleArr: number[] = sortedKeys
-    ? sortedData[sortedKeys.female] || []
-    : [];
+  const courseArr: number[] = sortedKeys ? sortedData[sortedKeys.course] || [] : [];
+  const maleArr: number[] = sortedKeys ? sortedData[sortedKeys.male] || [] : [];
+  const femaleArr: number[] = sortedKeys ? sortedData[sortedKeys.female] || [] : [];
   const inputMsec = timeToMilliseconds(parsedTime);
   if (inputMsec < 0) return null;
 
   const komFinishers = courseArr.length;
-  const effectiveTotalParticipants =
-    recordScope === "kom" ? komFinishers : totalParticipants;
-  const effectiveFinishers =
-    recordScope === "kom" ? komFinishers : finishers;
+  const effectiveTotalParticipants = recordScope === "kom" ? komFinishers : totalParticipants;
+  const effectiveFinishers = recordScope === "kom" ? komFinishers : finishers;
 
   const maleStats = rankAndPercentileFromSorted(maleArr, inputMsec);
   const femaleStats = rankAndPercentileFromSorted(femaleArr, inputMsec);
@@ -169,8 +155,7 @@ export async function getFindByRecordData(
       percentile = combined.percentile;
     }
     if (effectiveTotalParticipants > 0 && rank != null) {
-      percentileByParticipants =
-        ((rank - 1) / effectiveTotalParticipants) * 100;
+      percentileByParticipants = ((rank - 1) / effectiveTotalParticipants) * 100;
     }
     const faster = courseArr.slice(Math.max(0, closestIdx - 10), closestIdx);
     const slower = courseArr.slice(closestIdx, closestIdx + 10);
@@ -188,13 +173,7 @@ export async function getFindByRecordData(
         elevation: courseRow.elevation ?? 0,
       }
     : undefined;
-  const eventDate =
-    yearDetail.date && /^\d{4}\.\d{1,2}\.\d{1,2}$/.test(yearDetail.date)
-      ? (() => {
-          const [y, m, d] = yearDetail.date.split(".");
-          return `${y}년 ${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
-        })()
-      : "";
+  const eventDate = yearDetail.date || "";
 
   return {
     event,
@@ -219,7 +198,7 @@ export async function getFindByRecordData(
 
 function rankAndPercentileFromSorted(
   sortedMs: number[],
-  inputMsec: number
+  inputMsec: number,
 ): { rank: number; percentile: number } | null {
   if (sortedMs.length === 0) return null;
   const rank = sortedMs.filter((msec) => msec < inputMsec).length + 1;
@@ -258,19 +237,14 @@ function resolveSortedCourseKeys(
 
   const normalizedExpected = normalizeSortedCourseLabel(`${courseName}(kom)`);
   let matched = Object.keys(sortedData).find(
-    (key) =>
-      !isGenderKey(key) &&
-      normalizeSortedCourseLabel(key) === normalizedExpected,
+    (key) => !isGenderKey(key) && normalizeSortedCourseLabel(key) === normalizedExpected,
   );
   if (!matched) {
     const coursePrefix = normalizeSortedCourseLabel(courseName);
     matched = Object.keys(sortedData).find((key) => {
       if (isGenderKey(key)) return false;
       const normalizedKey = normalizeSortedCourseLabel(key);
-      return (
-        normalizedKey.endsWith("(kom)") &&
-        normalizedKey.startsWith(coursePrefix)
-      );
+      return normalizedKey.endsWith("(kom)") && normalizedKey.startsWith(coursePrefix);
     });
   }
   if (!matched) return null;

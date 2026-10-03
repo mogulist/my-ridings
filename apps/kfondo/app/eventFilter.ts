@@ -1,3 +1,5 @@
+import type { Locale } from "@/i18n/routing";
+import { eventDisplayName } from "@/i18n/content";
 import dayjs from "dayjs";
 import { getAllEvents } from "@/lib/db/events";
 import type { EventData } from "@/components/EventCard";
@@ -15,13 +17,14 @@ function yearDetailHasPublishedRecords(detail: EventYearDetail | undefined): boo
 }
 
 // Helper to map raw event to EventCard props
-export const mapToEventData = (event: Event): EventData => {
+export const mapToEventData = (event: Event, locale: Locale = "ko"): EventData => {
   const latestYear = Math.max(...event.years);
   const latestDetail = event.yearDetails[latestYear];
 
   return {
     id: event.id,
-    name: event.name || `${event.location} 그란폰도`,
+    name: eventDisplayName(event, locale),
+    searchTerms: event.searchTerms,
     status: "archive",
     date: latestDetail.date,
     years: event.years
@@ -47,15 +50,21 @@ const SPLIT_THRESHOLD = 6;
 const RECENT_WITH_RECORD_DAYS = 14;
 const UPCOMING_WITHOUT_RECORD_DAYS = 7;
 
-type UpcomingCarousel = { title: string; events: EventData[] };
+type UpcomingCarousel = {
+  title: string;
+  month?: number;
+  minDay?: number;
+  maxDay?: number;
+  events: EventData[];
+};
 
 function getMonthKey(dateStr: string): number {
-  const normalized = dateStr.replace(/\./g, '-');
+  const normalized = dateStr.replace(/\./g, "-");
   return dayjs(normalized).month();
 }
 
 function getDayOfMonth(dateStr: string): number {
-  const normalized = dateStr.replace(/\./g, '-');
+  const normalized = dateStr.replace(/\./g, "-");
   return dayjs(normalized).date();
 }
 
@@ -97,6 +106,7 @@ export function splitUpcomingCarousels(events: EventData[]): UpcomingCarousel[] 
     if (monthEvents.length <= SPLIT_THRESHOLD) {
       carousels.push({
         title: `다가오는 대회 (${formatMonthLabel(month)})`,
+        month,
         events: monthEvents,
       });
       continue;
@@ -109,6 +119,9 @@ export function splitUpcomingCarousels(events: EventData[]): UpcomingCarousel[] 
       const chunkEvents = monthEvents.slice(i, i + chunkSize);
       carousels.push({
         title: `다가오는 대회 (${formatMonthDayRangeLabel(month, chunkEvents)})`,
+        month,
+        minDay: Math.min(...chunkEvents.map((e) => getDayOfMonth(e.date))),
+        maxDay: Math.max(...chunkEvents.map((e) => getDayOfMonth(e.date))),
         events: chunkEvents,
       });
     }
@@ -118,8 +131,8 @@ export function splitUpcomingCarousels(events: EventData[]): UpcomingCarousel[] 
 }
 
 // Server-side event filtering logic (no search - client filters)
-export async function getFilteredEvents(): Promise<HomePageFilteredData> {
-  const events = await getAllEvents();
+export async function getFilteredEvents(locale: Locale = "ko"): Promise<HomePageFilteredData> {
+  const events = await getAllEvents(locale);
   const currentYear = dayjs().year();
   const today = dayjs();
 
@@ -145,30 +158,24 @@ export async function getFilteredEvents(): Promise<HomePageFilteredData> {
   const upcomingEvents: typeof events = [];
   const otherEventsTemp: typeof events = [];
 
-  sortedEvents.forEach(event => {
+  sortedEvents.forEach((event) => {
     const latestYear = Math.max(...event.years);
     const latestDetail = event.yearDetails[latestYear];
-    
+
     // Normalize date format for Safari (YYYY.MM.DD -> YYYY-MM-DD)
-    const normalizedDate = latestDetail.date.replace(/\./g, '-');
+    const normalizedDate = latestDetail.date.replace(/\./g, "-");
     const eventDate = dayjs(normalizedDate);
-    
+
     // Check if it's this year
     if (latestYear === currentYear) {
       if (latestDetail.status === "cancelled") {
         otherEventsTemp.push(event);
         return;
       }
-      const daysSince = today
-        .startOf("day")
-        .diff(eventDate.startOf("day"), "day");
+      const daysSince = today.startOf("day").diff(eventDate.startOf("day"), "day");
       const hasRecords = yearDetailHasPublishedRecords(latestDetail);
 
-      if (
-        hasRecords &&
-        daysSince >= 0 &&
-        daysSince <= RECENT_WITH_RECORD_DAYS
-      ) {
+      if (hasRecords && daysSince >= 0 && daysSince <= RECENT_WITH_RECORD_DAYS) {
         recentEvents.push(event);
         return;
       }
@@ -187,8 +194,8 @@ export async function getFilteredEvents(): Promise<HomePageFilteredData> {
   recentEvents.sort((a, b) => {
     const aYear = a.yearDetails[currentYear] ? currentYear : Math.max(...a.years);
     const bYear = b.yearDetails[currentYear] ? currentYear : Math.max(...b.years);
-    const aDateStr = a.yearDetails[aYear].date.replace(/\./g, '-');
-    const bDateStr = b.yearDetails[bYear].date.replace(/\./g, '-');
+    const aDateStr = a.yearDetails[aYear].date.replace(/\./g, "-");
+    const bDateStr = b.yearDetails[bYear].date.replace(/\./g, "-");
     const aDate = dayjs(aDateStr);
     const bDate = dayjs(bDateStr);
     return bDate.valueOf() - aDate.valueOf();
@@ -197,8 +204,8 @@ export async function getFilteredEvents(): Promise<HomePageFilteredData> {
   upcomingEvents.sort((a, b) => {
     const aYear = a.yearDetails[currentYear] ? currentYear : Math.max(...a.years);
     const bYear = b.yearDetails[currentYear] ? currentYear : Math.max(...b.years);
-    const aDateStr = a.yearDetails[aYear].date.replace(/\./g, '-');
-    const bDateStr = b.yearDetails[bYear].date.replace(/\./g, '-');
+    const aDateStr = a.yearDetails[aYear].date.replace(/\./g, "-");
+    const bDateStr = b.yearDetails[bYear].date.replace(/\./g, "-");
     const aDate = dayjs(aDateStr);
     const bDate = dayjs(bDateStr);
     return aDate.valueOf() - bDate.valueOf();
@@ -206,7 +213,7 @@ export async function getFilteredEvents(): Promise<HomePageFilteredData> {
 
   const recentData = await Promise.all(
     recentEvents.map(async (e) => {
-      const data = mapToEventData(e);
+      const data = mapToEventData(e, locale);
       data.status = "recently_updated";
       const latestYear = Math.max(...e.years);
       const detail = e.yearDetails[latestYear];
@@ -215,12 +222,12 @@ export async function getFilteredEvents(): Promise<HomePageFilteredData> {
         if (total > 0) data.participants = total;
       }
       return data;
-    })
+    }),
   );
 
-  const upcomingData = upcomingEvents.map(e => {
-    const data = mapToEventData(e);
-    data.status = 'upcoming';
+  const upcomingData = upcomingEvents.map((e) => {
+    const data = mapToEventData(e, locale);
+    data.status = "upcoming";
     return data;
   });
 
@@ -236,7 +243,7 @@ export async function getFilteredEvents(): Promise<HomePageFilteredData> {
 
 export type HomePageFilteredData = {
   recentEvents: EventData[];
-  upcomingCarousels: { title: string; events: EventData[] }[];
+  upcomingCarousels: UpcomingCarousel[];
   otherEvents: Event[];
   showSections: boolean;
 };
@@ -245,32 +252,35 @@ function matchesSearch(value: string, query: string): boolean {
   return value.toLowerCase().includes(query.toLowerCase());
 }
 
-export function filterEventDataBySearch(
-  events: EventData[],
-  searchQuery: string
-): EventData[] {
+export function filterEventDataBySearch(events: EventData[], searchQuery: string): EventData[] {
   if (!searchQuery?.trim()) return events;
   const query = searchQuery.trim().toLowerCase();
   return events.filter(
-    (e) => matchesSearch(e.name, query) || matchesSearch(e.id, query)
+    (e) =>
+      matchesSearch(e.name, query) ||
+      matchesSearch(e.id, query) ||
+      (e.searchTerms ?? []).some((term) => matchesSearch(term, query)),
   );
 }
 
-export function filterRawEventsBySearch(
-  events: Event[],
-  searchQuery: string
-): Event[] {
+export function filterRawEventsBySearch(events: Event[], searchQuery: string): Event[] {
   if (!searchQuery?.trim()) return events;
   const query = searchQuery.trim().toLowerCase();
   return events.filter((e) => {
     const name = e.name || `${e.location} 그란폰도`;
-    return matchesSearch(name, query) || matchesSearch(e.id, query);
+    return (
+      matchesSearch(name, query) ||
+      matchesSearch(e.id, query) ||
+      [e.location, e.nameEn, e.locationEn, ...(e.searchTerms ?? [])].some((term) =>
+        Boolean(term && matchesSearch(term, query)),
+      )
+    );
   });
 }
 
 export function filterHomePageDataBySearch(
   data: HomePageFilteredData,
-  searchQuery: string
+  searchQuery: string,
 ): HomePageFilteredData {
   if (!searchQuery?.trim()) return data;
 
@@ -290,4 +300,3 @@ export function filterHomePageDataBySearch(
     showSections: data.showSections,
   };
 }
-

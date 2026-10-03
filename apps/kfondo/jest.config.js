@@ -12,11 +12,7 @@ const customJestConfig = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
-  testPathIgnorePatterns: [
-    "<rootDir>/node_modules/",
-    "<rootDir>/.next/",
-    "<rootDir>/e2e/",
-  ],
+  testPathIgnorePatterns: ["<rootDir>/node_modules/", "<rootDir>/.next/", "<rootDir>/e2e/"],
   collectCoverage: true,
   collectCoverageFrom: [
     "components/**/*.{js,jsx,ts,tsx}",
@@ -28,4 +24,12 @@ const customJestConfig = {
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
-module.exports = createJestConfig(customJestConfig);
+module.exports = async (...args) => {
+  const config = await createJestConfig(customJestConfig)(...args);
+  // Bun 워크스페이스의 실제 패키지 경로에서도 ESM 번역 라이브러리를 변환합니다.
+  config.transformIgnorePatterns = [
+    "node_modules/(?!(?:\\.bun/)?(?:next-intl|use-intl|intl-messageformat|@formatjs)(?:@|/|\\+))",
+    "^.+\\.module\\.(css|sass|scss)$",
+  ];
+  return config;
+};

@@ -1,12 +1,6 @@
+import { useTranslations } from "next-intl";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis } from "recharts";
 import React from "react";
 export type DistributionChartProps = {
   /** 접근성용(차트 영역 라벨). 헤더는 `toolbar`에서 렌더링합니다. */
@@ -17,11 +11,7 @@ export type DistributionChartProps = {
   interval: number;
   isMobile: boolean;
   comment?: string;
-  formatXAxisTick: (
-    value: string,
-    isMobile: boolean,
-    interval: number,
-  ) => string;
+  formatXAxisTick: (value: string, isMobile: boolean, interval: number) => string;
   CustomTooltip: React.FC<any>;
 };
 
@@ -36,6 +26,8 @@ export function DistributionChart({
   formatXAxisTick,
   CustomTooltip,
 }: DistributionChartProps) {
+  const t = useTranslations();
+
   return (
     <div className="flex w-full flex-col">
       <div className="mb-4">{toolbar}</div>
@@ -49,7 +41,7 @@ export function DistributionChart({
         <ChartContainer
           config={{
             participants: {
-              label: "참가자 수",
+              label: t("stats.participantCount"),
               color,
             },
           }}
@@ -73,13 +65,11 @@ export function DistributionChart({
                 height={isMobile ? 80 : 70}
                 tick={{ fontSize: isMobile ? 11 : 12 }}
                 tickMargin={10}
-                tickFormatter={(value) =>
-                  formatXAxisTick(value, isMobile, interval)
-                }
+                tickFormatter={(value) => formatXAxisTick(value, isMobile, interval)}
                 interval={0}
                 minTickGap={0}
                 label={{
-                  value: "기록",
+                  value: t("stats.time"),
                   position: "insideBottom",
                   offset: 20,
                   style: { textAnchor: "middle" },
@@ -89,7 +79,7 @@ export function DistributionChart({
                 tick={{ fontSize: isMobile ? 11 : 12 }}
                 width={isMobile ? 40 : 40}
                 label={{
-                  value: "인원",
+                  value: t("stats.people"),
                   angle: -90,
                   position: "insideLeft",
                 }}
@@ -97,7 +87,7 @@ export function DistributionChart({
               <ChartTooltip content={<CustomTooltip />} />
               <Area
                 type="monotone"
-                name="참가자 수"
+                name={t("stats.participantCount")}
                 dataKey="participants"
                 stroke={color}
                 fill={color}
@@ -107,11 +97,7 @@ export function DistributionChart({
           </ResponsiveContainer>
         </ChartContainer>
       </div>
-      {comment ? (
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          {comment}
-        </p>
-      ) : null}
+      {comment ? <p className="mt-2 text-center text-xs text-muted-foreground">{comment}</p> : null}
     </div>
   );
 }

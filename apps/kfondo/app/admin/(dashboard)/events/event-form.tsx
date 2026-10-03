@@ -1,4 +1,5 @@
 "use client";
+import { EnglishContentFields } from "@/components/english-content-fields";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -18,15 +19,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import {
-  revalidateHomePage,
-  revalidateEventPage,
-} from "@/app/actions/revalidate";
+import { revalidateHomePage, revalidateEventPage } from "@/app/actions/revalidate";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Save, X } from "lucide-react";
 
 const formSchema = z.object({
+  name_en: z.string().nullish(),
+  location_en: z.string().nullish(),
+  comment_en: z.string().nullish(),
+  meta_title_en: z.string().nullish(),
+  meta_description_en: z.string().nullish(),
+
   name: z.string().min(2, {
     message: "Name must be at least 2 characters.",
   }),
@@ -36,15 +40,12 @@ const formSchema = z.object({
       message: "Slug must be at least 2 characters.",
     })
     .regex(/^[a-z0-9-]+$/, {
-      message:
-        "Slug must contain only lowercase letters, numbers, and hyphens.",
+      message: "Slug must contain only lowercase letters, numbers, and hyphens.",
     }),
   location: z.string().min(1, "Location is required"),
   meta_title: z.string().min(1, "Meta Title is required"),
   meta_description: z.string().min(1, "Meta Description is required"),
-  meta_image: z
-    .union([z.string().url("Must be a valid URL"), z.literal("")])
-    .optional(),
+  meta_image: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
   comment: z.string().nullish(),
 });
 
@@ -58,6 +59,12 @@ type EventFormProps = {
 
 const defaultValues: EventFormValues = {
   name: "",
+  name_en: "",
+  location_en: "",
+  comment_en: "",
+  meta_title_en: "",
+  meta_description_en: "",
+
   slug: "",
   location: "",
   meta_title: "",
@@ -69,13 +76,7 @@ const defaultValues: EventFormValues = {
 const readOnlyInputClass =
   "flex h-10 w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground";
 
-function BasicInfoView({
-  data,
-  onEditClick,
-}: {
-  data: EventFormValues;
-  onEditClick?: () => void;
-}) {
+function BasicInfoView({ data, onEditClick }: { data: EventFormValues; onEditClick?: () => void }) {
   return (
     <Card>
       <CardHeader>
@@ -97,67 +98,80 @@ function BasicInfoView({
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              대회명 *
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">대회명 *</p>
             <div className={readOnlyInputClass}>{data.name}</div>
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              개최 지역 *
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">개최 지역 *</p>
             <div className={readOnlyInputClass}>{data.location}</div>
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">
-            URL 슬러그 *
-          </p>
+          <p className="text-sm font-medium text-muted-foreground">URL 슬러그 *</p>
           <div className={readOnlyInputClass}>{data.slug}</div>
         </div>
         <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">코멘트</p>
-            <div className="min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground whitespace-pre-wrap">
-              {data.comment || "-"}
-            </div>
+          <p className="text-sm font-medium text-muted-foreground">코멘트</p>
+          <div className="min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground whitespace-pre-wrap">
+            {data.comment || "-"}
           </div>
+        </div>
         <div className="space-y-4 border-t pt-4">
-          <h3 className="font-medium text-sm text-slate-500">
-            메타 정보 (SEO)
-          </h3>
+          <h3 className="font-medium text-sm text-slate-500">메타 정보 (SEO)</h3>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              메타 타이틀
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">메타 타이틀</p>
             <div className={readOnlyInputClass}>{data.meta_title}</div>
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              메타 설명
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">메타 설명</p>
             <div className="min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground whitespace-pre-wrap">
               {data.meta_description}
             </div>
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              메타 이미지 URL
-            </p>
-            <div className={`${readOnlyInputClass} break-all`}>
-              {data.meta_image || "-"}
-            </div>
+            <p className="text-sm font-medium text-muted-foreground">메타 이미지 URL</p>
+            <div className={`${readOnlyInputClass} break-all`}>{data.meta_image || "-"}</div>
           </div>
         </div>
+        <section className="space-y-3 border-t pt-4">
+          <h3 className="font-semibold">영어 번역</h3>
+          <div>
+            <p className="text-sm text-muted-foreground">대회명 (영어)</p>
+            <p lang="en" className="whitespace-pre-wrap">
+              {data.name_en || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">지역 (영어)</p>
+            <p lang="en" className="whitespace-pre-wrap">
+              {data.location_en || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">코멘트 (영어)</p>
+            <p lang="en" className="whitespace-pre-wrap">
+              {data.comment_en || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">SEO 제목 (영어)</p>
+            <p lang="en" className="whitespace-pre-wrap">
+              {data.meta_title_en || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">SEO 설명 (영어)</p>
+            <p lang="en" className="whitespace-pre-wrap">
+              {data.meta_description_en || "-"}
+            </p>
+          </div>
+        </section>
       </CardContent>
     </Card>
   );
 }
 
-export function EventForm({
-  initialData,
-  editMode = false,
-  onEditModeChange,
-}: EventFormProps) {
+export function EventForm({ initialData, editMode = false, onEditModeChange }: EventFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
@@ -173,7 +187,7 @@ export function EventForm({
       form.setValue("meta_title", `${name.trim()} 통계 | K-Fondo`);
       form.setValue(
         "meta_description",
-        `${name.trim()}의 연도별 참가자 통계와 기록 분포를 확인해보세요.`
+        `${name.trim()}의 연도별 참가자 통계와 기록 분포를 확인해보세요.`,
       );
     }
   }, [name, initialData, form]);
@@ -185,6 +199,12 @@ export function EventForm({
     try {
       const payload = {
         ...values,
+        name_en: values.name_en?.trim() || null,
+        location_en: values.location_en?.trim() || null,
+        comment_en: values.comment_en?.trim() || null,
+        meta_title_en: values.meta_title_en?.trim() || null,
+        meta_description_en: values.meta_description_en?.trim() || null,
+
         color_from: "#000000",
         color_to: "#000000",
       };
@@ -237,9 +257,7 @@ export function EventForm({
           meta_image: initialData.meta_image ?? "",
           comment: initialData.comment ?? "",
         }}
-        onEditClick={
-          onEditModeChange ? () => onEditModeChange(true) : undefined
-        }
+        onEditClick={onEditModeChange ? () => onEditModeChange(true) : undefined}
       />
     );
   }
@@ -314,9 +332,7 @@ export function EventForm({
                   <FormControl>
                     <Input placeholder="muju" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    URL용 식별자 (예: kfondo.cc/muju)
-                  </FormDescription>
+                  <FormDescription>URL용 식별자 (예: kfondo.cc/muju)</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -329,11 +345,7 @@ export function EventForm({
                 <FormItem>
                   <FormLabel>코멘트</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="관리자용 메모..."
-                      {...field}
-                      value={field.value ?? ""}
-                    />
+                    <Textarea placeholder="관리자용 메모..." {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -341,9 +353,7 @@ export function EventForm({
             />
 
             <div className="space-y-4 border-t pt-4">
-              <h3 className="font-medium text-sm text-slate-500">
-                메타 정보 (SEO)
-              </h3>
+              <h3 className="font-medium text-sm text-slate-500">메타 정보 (SEO)</h3>
 
               <FormField
                 control={form.control}
@@ -395,6 +405,16 @@ export function EventForm({
                 </Button>
               </div>
             )}
+            <EnglishContentFields
+              form={form}
+              fields={[
+                { name: "name_en", label: "대회명 (영어)" },
+                { name: "location_en", label: "지역 (영어)" },
+                { name: "comment_en", label: "코멘트 (영어)" },
+                { name: "meta_title_en", label: "SEO 제목 (영어)" },
+                { name: "meta_description_en", label: "SEO 설명 (영어)" },
+              ]}
+            />
           </CardContent>
         </Card>
       </form>
