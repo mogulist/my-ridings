@@ -1,34 +1,44 @@
-"use client"
+"use client";
+import { useTranslations } from "next-intl";
 
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useCallback } from "react"
-import { useMobile } from "@/hooks/use-mobile"
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import { useSearchParams } from "next/navigation";
+import { useCallback } from "react";
+import { useMobile } from "@/hooks/use-mobile";
 
 interface YearSelectorProps {
-  years: number[]
-  defaultYear: number
+  years: number[];
+  defaultYear: number;
 }
 
 export function YearSelector({ years, defaultYear }: YearSelectorProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const isMobile = useMobile()
+  const t = useTranslations();
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isMobile = useMobile();
 
   const createQueryString = useCallback(
     (name: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set(name, value)
-      return params.toString()
+      const params = new URLSearchParams(searchParams.toString());
+      params.set(name, value);
+      return params.toString();
     },
     [searchParams],
-  )
+  );
 
-  const selectedYear = searchParams.get("year") || defaultYear.toString()
+  const selectedYear = searchParams.get("year") || defaultYear.toString();
 
-  const sortedYears = [...years].sort((a, b) => b - a)
+  const sortedYears = [...years].sort((a, b) => b - a);
 
   return (
     <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -40,7 +50,7 @@ export function YearSelector({ years, defaultYear }: YearSelectorProps) {
               variant={year.toString() === selectedYear ? "default" : "outline"}
               size="sm"
               onClick={() => {
-                router.push(`${pathname}?${createQueryString("year", year.toString())}`)
+                router.push(`${pathname}?${createQueryString("year", year.toString())}`);
               }}
             >
               {year}
@@ -53,21 +63,21 @@ export function YearSelector({ years, defaultYear }: YearSelectorProps) {
         <Select
           value={selectedYear}
           onValueChange={(value) => {
-            router.push(`${pathname}?${createQueryString("year", value)}`)
+            router.push(`${pathname}?${createQueryString("year", value)}`);
           }}
         >
           <SelectTrigger className={isMobile ? "w-full" : "w-[100px]"}>
-            <SelectValue placeholder="연도 선택" />
+            <SelectValue placeholder={t("event.selectYear")} />
           </SelectTrigger>
           <SelectContent>
             {sortedYears.map((year) => (
               <SelectItem key={year} value={year.toString()}>
-                {year}년
+                {t("common.year", { v0: year })}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
     </div>
-  )
+  );
 }

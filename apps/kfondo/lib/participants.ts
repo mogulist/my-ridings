@@ -15,11 +15,7 @@ async function fetchParticipants(event: Event, year: number): Promise<Participan
   const blobUrl = event.yearDetails[year]?.recordsBlobUrl;
 
   if (blobUrl) {
-    const fromBlob = await tryFetchParticipantRecordsFromBlob(
-      blobUrl,
-      event.id,
-      year
-    );
+    const fromBlob = await tryFetchParticipantRecordsFromBlob(blobUrl, event.id, year);
     if (fromBlob !== null) return fromBlob;
   }
 
@@ -42,12 +38,12 @@ async function fetchParticipants(event: Event, year: number): Promise<Participan
 // 개별 연도의 참가자 수 계산 (Async)
 export async function calculateParticipants(
   event: Event,
-  year: number
+  year: number,
 ): Promise<Record<string, number>> {
   const { courses } = event.yearDetails[year];
   const courseIdsNames = courses.map((c) => ({
     id: c.id,
-    name: c.name,
+    name: c.originalName ?? c.name,
   }));
 
   const participants = await fetchParticipants(event, year);
@@ -57,7 +53,7 @@ export async function calculateParticipants(
       (participant) =>
         (participant.Event === curr.id || participant.Event === curr.name) &&
         participant.Status !== "DNS" &&
-        participant.Status !== "INVALID"
+        participant.Status !== "INVALID",
     ).length;
     acc[curr.id] = count;
     return acc;
@@ -65,14 +61,11 @@ export async function calculateParticipants(
 }
 
 // 개별 연도의 DNF 계산 (Async)
-export async function calculateDNF(
-  event: Event,
-  year: number
-): Promise<Record<string, number>> {
+export async function calculateDNF(event: Event, year: number): Promise<Record<string, number>> {
   const { courses } = event.yearDetails[year];
   const courseIdsNames = courses.map((c) => ({
     id: c.id,
-    name: c.name,
+    name: c.originalName ?? c.name,
   }));
 
   const participants = await fetchParticipants(event, year);
@@ -81,7 +74,7 @@ export async function calculateDNF(
     const count = participants.filter(
       (participant) =>
         (participant.Event === curr.id || participant.Event === curr.name) &&
-        participant.Status === "DNF"
+        participant.Status === "DNF",
     ).length;
     acc[curr.id] = count;
     return acc;
@@ -89,6 +82,7 @@ export async function calculateDNF(
 }
 
 type BaseCourse = {
+  originalName?: string;
   id: string;
   name: string;
 };
@@ -99,18 +93,19 @@ function calculateParticipantsForData(
   participants: Participant[],
   event: Event,
   course: BaseCourse,
-  year: number
+  year: number,
 ): number {
   const yearDetail = event.yearDetails[year];
   const courseForYear = yearDetail?.courses.find((c) => c.id === course.id);
-  const courseNameForYear = courseForYear?.name ?? course.name;
+  const courseNameForYear =
+    courseForYear?.originalName ?? courseForYear?.name ?? course.originalName ?? course.name;
   let participantsCount = 0;
 
   participants.forEach((participant) => {
     if (
       (participant.Event === course.id ||
         participant.Event === courseNameForYear ||
-        participant.Event === course.name) &&
+        participant.Event === (course.originalName ?? course.name)) &&
       participant.Status !== "DNS" &&
       participant.Status !== "INVALID"
     ) {
@@ -126,18 +121,19 @@ function calculateDNFsForData(
   participants: Participant[],
   event: Event,
   course: BaseCourse,
-  year: number
+  year: number,
 ): number {
   const yearDetail = event.yearDetails[year];
   const courseForYear = yearDetail?.courses.find((c) => c.id === course.id);
-  const courseNameForYear = courseForYear?.name ?? course.name;
+  const courseNameForYear =
+    courseForYear?.originalName ?? courseForYear?.name ?? course.originalName ?? course.name;
   let dnfCount = 0;
 
   participants.forEach((participant) => {
     if (
       (participant.Event === course.id ||
         participant.Event === courseNameForYear ||
-        participant.Event === course.name) &&
+        participant.Event === (course.originalName ?? course.name)) &&
       participant.Status === "DNF"
     ) {
       dnfCount++;
@@ -164,9 +160,7 @@ type EventParticipantTrendForACourse = {
 export type EventParticipantTrends = EventParticipantTrendForACourse[];
 
 // 메인 함수 (Async)
-export const getEventParticipantTrend = async (
-  event: Event
-): Promise<EventParticipantTrends> => {
+export const getEventParticipantTrend = async (event: Event): Promise<EventParticipantTrends> => {
   // 모든 연도의 코스 id 합집합으로 시리즈 기준을 만든다
   const idToName: Record<string, string> = {};
   event.years.forEach((y) => {
@@ -189,55 +183,51 @@ export const getEventParticipantTrend = async (
   await Promise.all(
     recentlyFirstSortedYears.map(async (year) => {
       if (event.yearDetails[year].status !== "preparing") {
-         const data = await fetchParticipants(event, year);
-         participantsByYear.set(year, data);
+        const data = await fetchParticipants(event, year);
+        participantsByYear.set(year, data);
       }
-    })
+    }),
   );
 
-  const eventParticipantTrends: EventParticipantTrends = baseCourses.map(
-    (course) => {
-      const yearlyData: EventParticipantTrendForYear[] = [];
+  const eventParticipantTrends: EventParticipantTrends = baseCourses.map((course) => {
+    const yearlyData: EventParticipantTrendForYear[] = [];
 
-      recentlyFirstSortedYears.forEach((year) => {
-        const yearDetail = event.yearDetails[year];
+    recentlyFirstSortedYears.forEach((year) => {
+      const yearDetail = event.yearDetails[year];
 
-        if (yearDetail.status === "preparing") {
-          return;
-        }
+      if (yearDetail.status === "preparing") {
+        return;
+      }
 
-        const courseData = yearDetail.courses.find((c) => c.id === course.id);
-        const registered = courseData?.registered ?? 0;
-        
-        const participants = participantsByYear.get(year) || [];
-        const participantsCount = calculateParticipantsForData(participants, event, course, year);
-        const dnfCount = calculateDNFsForData(participants, event, course, year);
-        
-        const participationRate =
-          registered === 0
-            ? "0"
-            : ((100 * participantsCount) / registered).toFixed(1);
-        const completionRate = dnfCount
-          ? ((100 * (participantsCount - dnfCount)) / participantsCount).toFixed(1)
-          : "100";
+      const courseData = yearDetail.courses.find((c) => c.id === course.id);
+      const registered = courseData?.registered ?? 0;
 
-        yearlyData.push({
-          year,
-          registered: registered,
-          participants: participantsCount,
-          dnf: dnfCount,
-          participationRate,
-          completionRate,
-        });
+      const participants = participantsByYear.get(year) || [];
+      const participantsCount = calculateParticipantsForData(participants, event, course, year);
+      const dnfCount = calculateDNFsForData(participants, event, course, year);
+
+      const participationRate =
+        registered === 0 ? "0" : ((100 * participantsCount) / registered).toFixed(1);
+      const completionRate = dnfCount
+        ? ((100 * (participantsCount - dnfCount)) / participantsCount).toFixed(1)
+        : "100";
+
+      yearlyData.push({
+        year,
+        registered: registered,
+        participants: participantsCount,
+        dnf: dnfCount,
+        participationRate,
+        completionRate,
       });
+    });
 
-      return {
-        id: course.id,
-        name: course.name,
-        yearlyData,
-      };
-    }
-  );
+    return {
+      id: course.id,
+      name: course.name,
+      yearlyData,
+    };
+  });
 
   return eventParticipantTrends;
 };

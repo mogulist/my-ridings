@@ -21,7 +21,8 @@
     "crawl:raceresult": "bun x tsx crawlers/raceresult_crawler.ts",
     "generate:sorted-msec": "bun run scripts/generate_sorted_msec.ts",
     "regenerate:sorted-from-blob": "bun run scripts/regenerate-sorted-msec-from-blob.ts",
-    "publish:edition-records": "bun run scripts/publish-edition-records.ts"
+    "publish:edition-records": "bun run scripts/publish-edition-records.ts",
+    "test:e2e:i18n": "playwright test --config playwright.i18n.config.ts"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -74,6 +75,7 @@
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
     "next": "16.1.4",
+    "next-intl": "4.8.3",
     "next-themes": "^0.4.4",
     "posthog-js": "^1.372.10",
     "posthog-node": "^5.21.2",

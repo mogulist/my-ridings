@@ -1,14 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { EventCard, EventData } from "@/components/EventCard";
 import { cn } from "@/lib/utils";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselApi,
-} from "@/components/ui/carousel";
+import { Carousel, CarouselContent, CarouselItem, CarouselApi } from "@/components/ui/carousel";
 import { useState, useEffect } from "react";
 
 const MD_BREAKPOINT = 768;
@@ -70,17 +65,23 @@ export function EventCarousel({ title, icon, events }: EventCarouselProps) {
   const hasMultipleSlides = events.length > 1;
 
   // Generate unique ID from title for accessibility
-  const sectionId = title.toLowerCase().replace(/\s+/g, '-');
+  const sectionId = title.toLowerCase().replace(/\s+/g, "-");
 
   return (
     <section className="py-4" aria-labelledby={sectionId}>
       <div className="container mx-auto px-4">
         {/* Title */}
         <div className="flex items-center gap-2 mb-4">
-           {icon && <span className="text-2xl" aria-hidden="true">{icon}</span>}
-           <h2 id={sectionId} className="text-2xl font-bold text-foreground">{title}</h2>
+          {icon && (
+            <span className="text-2xl" aria-hidden="true">
+              {icon}
+            </span>
+          )}
+          <h2 id={sectionId} className="text-2xl font-bold text-foreground">
+            {title}
+          </h2>
         </div>
-        
+
         {/* Carousel */}
         <Carousel
           setApi={setApi}
@@ -93,13 +94,13 @@ export function EventCarousel({ title, icon, events }: EventCarouselProps) {
         >
           <CarouselContent className="-ml-2 md:-ml-4">
             {events.map((event) => (
-              <CarouselItem 
-                key={event.id} 
+              <CarouselItem
+                key={event.id}
                 className={cn(
                   "pl-2 md:pl-4",
                   hasMultipleSlides
                     ? "basis-[88%] md:basis-[46%] lg:basis-[30%]"
-                    : "basis-full md:basis-1/2 lg:basis-1/3"
+                    : "basis-full md:basis-1/2 lg:basis-1/3",
                 )}
               >
                 <Link href={`/${event.id}`} className="block h-full">
@@ -119,12 +120,22 @@ export function EventCarousel({ title, icon, events }: EventCarouselProps) {
               disabled={current === 0}
               className={cn(
                 "h-8 w-8 rounded-full flex items-center justify-center transition-colors",
-                "border border-border hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+                "border border-border hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed",
               )}
               aria-label="Previous slide"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m15 18-6-6 6-6"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m15 18-6-6 6-6" />
               </svg>
             </button>
 
@@ -136,9 +147,7 @@ export function EventCarousel({ title, icon, events }: EventCarouselProps) {
                   onClick={() => api?.scrollTo(index)}
                   className={cn(
                     "h-2 rounded-full transition-all",
-                    current === index 
-                      ? "w-6 bg-foreground" 
-                      : "w-2 bg-muted-foreground/30"
+                    current === index ? "w-6 bg-foreground" : "w-2 bg-muted-foreground/30",
                   )}
                   aria-label={`Go to slide ${index + 1}`}
                 />
@@ -151,12 +160,22 @@ export function EventCarousel({ title, icon, events }: EventCarouselProps) {
               disabled={current === dotCount - 1}
               className={cn(
                 "h-8 w-8 rounded-full flex items-center justify-center transition-colors",
-                "border border-border hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+                "border border-border hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed",
               )}
               aria-label="Next slide"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m9 18 6-6-6-6"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m9 18 6-6-6-6" />
               </svg>
             </button>
           </div>

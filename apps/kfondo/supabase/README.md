@@ -82,3 +82,7 @@ scripts/
 
 Phase 2에서는 `event_years`와 `courses` 테이블을 분리하여 정규화합니다.
 현재는 `year_details`를 JSONB로 저장하고 있습니다.
+
+## 한국어·영어 콘텐츠
+
+기존 DB에는 `migrations/20261002_add_english_content.sql`을 먼저 적용한 뒤 `migrations/20261002_backfill_english_content.sql`로 초기 번역을 채웁니다. 자세한 운영 및 배포 순서는 [i18n 안내](../docs/i18n.md)를 참고하세요.

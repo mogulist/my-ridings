@@ -1,3 +1,4 @@
+import type { EventRow } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
@@ -5,28 +6,12 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
-type EventRowWithEditions = {
-  id: string;
-  slug: string;
-  name: string;
-  location: string;
-  color_from: string;
-  color_to: string;
-  meta_title: string;
-  meta_description: string;
-  meta_image: string;
-  comment: string | null;
-  created_at: string;
-  updated_at: string;
-  event_editions?: { date: string }[];
-};
+type EventRowWithEditions = EventRow & { event_editions?: { date: string }[] };
 
-function getLatestEditionDate(
-  editions: { date: string }[] | undefined
-): string | null {
+function getLatestEditionDate(editions: { date: string }[] | undefined): string | null {
   if (!editions?.length) return null;
   const dates = editions.map((e) => e.date).filter(Boolean);
-  return dates.length ? dates.sort().reverse()[0] ?? null : null;
+  return dates.length ? (dates.sort().reverse()[0] ?? null) : null;
 }
 
 export default async function EventsPage() {

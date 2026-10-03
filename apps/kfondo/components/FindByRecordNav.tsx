@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { ChevronLeft } from "lucide-react";
 
 type Breadcrumb = { label: string; href?: string };
@@ -11,12 +11,7 @@ type Props = {
   trailing?: ReactNode;
 };
 
-export function FindByRecordNav({
-  backHref,
-  backLabel,
-  breadcrumbs,
-  trailing,
-}: Props) {
+export function FindByRecordNav({ backHref, backLabel, breadcrumbs, trailing }: Props) {
   return (
     <div className="bg-background">
       <div className="container mx-auto px-4 h-10 flex items-center gap-2">
@@ -36,10 +31,7 @@ export function FindByRecordNav({
             <span key={i} className="flex items-center gap-1.5">
               {i > 0 && <span className="select-none">/</span>}
               {crumb.href ? (
-                <Link
-                  href={crumb.href}
-                  className="hover:text-foreground transition-colors"
-                >
+                <Link href={crumb.href} className="hover:text-foreground transition-colors">
                   {crumb.label}
                 </Link>
               ) : (

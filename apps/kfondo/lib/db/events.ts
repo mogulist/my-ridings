@@ -1,3 +1,5 @@
+import { localizeEvent } from "@/i18n/content";
+import type { Locale } from "@/i18n/routing";
 /**
  * events 데이터 조회 함수
  * Supabase 필수 (폴백 제거됨)
@@ -31,10 +33,11 @@ function mapRowToEvent(row: EventWithRelations): Event {
         rally: 0,
       };
 
-      const courses: RaceCategory[] =
-        (edition.courses?.map((course) => ({
+      const courses: RaceCategory[] = (
+        edition.courses?.map((course) => ({
           id: course.course_type,
           name: course.name,
+          nameEn: course.name_en ?? undefined,
           distance: course.distance,
           elevation: course.elevation,
           registered: course.registered_count,
@@ -43,10 +46,8 @@ function mapRowToEvent(row: EventWithRelations): Event {
           rideWithGpsUrl: course.ride_with_gps_url?.trim() || undefined,
           gpxBlobUrl: course.gpx_blob_url?.trim() || undefined,
           hasKom: course.has_kom === true,
-        })) || []).sort(
-          (a, b) =>
-            (COURSE_TYPE_ORDER[a.id] ?? 99) - (COURSE_TYPE_ORDER[b.id] ?? 99)
-        );
+        })) || []
+      ).sort((a, b) => (COURSE_TYPE_ORDER[a.id] ?? 99) - (COURSE_TYPE_ORDER[b.id] ?? 99));
 
       yearDetails[edition.year] = {
         year: edition.year,
@@ -57,12 +58,12 @@ function mapRowToEvent(row: EventWithRelations): Event {
         sortedRecordsBlobUrl: edition.sorted_records_blob_url || undefined,
         komRecordsBlobUrl: edition.kom_records_blob_url || undefined,
         komSortedRecordsBlobUrl: edition.kom_sorted_records_blob_url || undefined,
+        comment: edition.comment || undefined,
+        commentEn: edition.comment_en || undefined,
         notice: edition.notice || undefined,
+        noticeEn: edition.notice_en || undefined,
         courses: courses,
-        totalRegistered: courses.reduce(
-          (sum, c) => sum + (c.registered || 0),
-          0
-        ),
+        totalRegistered: courses.reduce((sum, c) => sum + (c.registered || 0), 0),
       };
     });
   }
@@ -71,6 +72,9 @@ function mapRowToEvent(row: EventWithRelations): Event {
     id: row.slug, // 프론트엔드 id는 slug를 사용
     location: row.location,
     name: row.name,
+    nameEn: row.name_en ?? undefined,
+    locationEn: row.location_en ?? undefined,
+    commentEn: row.comment_en ?? undefined,
     years: row.event_editions?.map((e) => e.year).sort((a, b) => a - b) || [],
     color: {
       from: row.color_from,
@@ -79,7 +83,9 @@ function mapRowToEvent(row: EventWithRelations): Event {
     status: "ready", // 기본값 (개별 연도 상태 참조)
     meta: {
       title: row.meta_title,
+      titleEn: row.meta_title_en ?? undefined,
       description: row.meta_description,
+      descriptionEn: row.meta_description_en ?? undefined,
       image: row.meta_image,
     },
     comment: row.comment || undefined,
@@ -91,17 +97,15 @@ function mapRowToEvent(row: EventWithRelations): Event {
  * 모든 이벤트 조회
  * @returns Event[] - 이벤트 배열
  */
-export async function getAllEvents(): Promise<Event[]> {
+export async function getAllEvents(locale: Locale = "ko"): Promise<Event[]> {
   if (!isSupabaseEnabled() || !supabase) {
     throw new Error(
-      "[events] Supabase가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를 확인하세요."
+      "[events] Supabase가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를 확인하세요.",
     );
   }
 
   // 3중 조인 쿼리
-  const { data, error } = await supabase
-    .from("events")
-    .select("*, event_editions(*, courses(*))");
+  const { data, error } = await supabase.from("events").select("*, event_editions(*, courses(*))");
 
   if (error) {
     throw new Error(`[events] Supabase 조회 실패: ${error.message}`);
@@ -114,7 +118,7 @@ export async function getAllEvents(): Promise<Event[]> {
 
   console.log(`[events] ✅ Supabase에서 ${data.length}개 이벤트 로드`);
   // @ts-ignore: Supabase 조인 타입 추론 한계로 인해 무시 (실제 런타임 데이터 구조는 맞음)
-  return data.map((row) => mapRowToEvent(row as EventWithRelations));
+  return data.map((row) => localizeEvent(mapRowToEvent(row as EventWithRelations), locale));
 }
 
 /**
@@ -123,19 +127,16 @@ export async function getAllEvents(): Promise<Event[]> {
  * @returns Event | undefined
  */
 export async function getEventById(
-  eventSlug: string
+  eventSlug: string,
+  locale: Locale = "ko",
 ): Promise<Event | undefined> {
   if (!isSupabaseEnabled() || !supabase) {
-    throw new Error(
-      `[events] Supabase가 설정되지 않았습니다. "${eventSlug}" 조회 불가.`
-    );
+    throw new Error(`[events] Supabase가 설정되지 않았습니다. "${eventSlug}" 조회 불가.`);
   }
 
   const { data, error } = await supabase
     .from("events")
-    .select(
-      "*, event_editions(id, year, date, status, url, records_blob_url, sorted_records_blob_url, kom_records_blob_url, kom_sorted_records_blob_url, comment, notice, created_at, updated_at, event_id, courses(*))"
-    )
+    .select("*, event_editions(*, courses(*))")
     .eq("slug", eventSlug) // id 대신 slug로 조회
     .single();
 
@@ -151,11 +152,9 @@ export async function getEventById(
     // notFound()로 이어져 최대 30일간 캐시된 404로 굳어버릴 수 있다.
     console.error(
       `[events] "${eventSlug}" 조회 실패 (일시적 장애 가능성, 404로 처리하지 않음):`,
-      error.message
+      error.message,
     );
-    throw new Error(
-      `[events] "${eventSlug}" Supabase 조회 실패: ${error.message}`
-    );
+    throw new Error(`[events] "${eventSlug}" Supabase 조회 실패: ${error.message}`);
   }
 
   if (!data) {
@@ -164,5 +163,5 @@ export async function getEventById(
 
   console.log(`[events] ✅ Supabase에서 "${eventSlug}" 로드`);
   // @ts-ignore
-  return mapRowToEvent(data as EventWithRelations);
+  return localizeEvent(mapRowToEvent(data as EventWithRelations), locale);
 }

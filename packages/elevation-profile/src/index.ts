@@ -11,7 +11,7 @@ export { DOWNHILL_COLOR, getGradientColor, MARKER_COLORS, markerColor } from "./
 export { GradientStrip } from "./components/GradientStrip";
 export { MarkerOverlay } from "./components/MarkerOverlay";
 export { SelectionOverlay } from "./components/SelectionOverlay";
-export type { ElevationProfileProps } from "./ElevationProfile";
+export type { ElevationProfileProps, ElevationProfileLabels } from "./ElevationProfile";
 export { ElevationProfile } from "./ElevationProfile";
 export type { KmRange } from "./hooks/useZoomState";
 export { useZoomState } from "./hooks/useZoomState";

@@ -1,5 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+import { Link } from "@/i18n/navigation";
+import { LanguageSwitcher } from "@/components/language-switcher";
+
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -12,8 +17,8 @@ const H_COLLAPSED = 48;
 const LOGO_DEFAULT = 40;
 const LOGO_COLLAPSED = 32;
 
-const layoutTransition = { type: "tween" as const, ease: "easeInOut", duration: 0.22 };
-const textTransition = { type: "tween" as const, ease: "easeOut", duration: 0.18 };
+const layoutTransition = { type: "tween" as const, ease: "easeInOut" as const, duration: 0.22 };
+const textTransition = { type: "tween" as const, ease: "easeOut" as const, duration: 0.18 };
 
 const textVariants = {
   initial: { opacity: 0, y: 5 },
@@ -22,15 +27,17 @@ const textVariants = {
 };
 
 export function EventHeader({ eventTitle }: EventHeaderProps) {
+  const t = useTranslations();
+
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     const sentinel = document.getElementById("page-title");
     if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsCollapsed(!entry.isIntersecting),
-      { rootMargin: `-${H_DEFAULT}px 0px 0px 0px`, threshold: 0 },
-    );
+    const observer = new IntersectionObserver(([entry]) => setIsCollapsed(!entry.isIntersecting), {
+      rootMargin: `-${H_DEFAULT}px 0px 0px 0px`,
+      threshold: 0,
+    });
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, []);
@@ -45,7 +52,7 @@ export function EventHeader({ eventTitle }: EventHeaderProps) {
     >
       <div className="container mx-auto h-full px-4">
         <div className="flex h-full items-center">
-          <a href="/" className="group flex items-center gap-2">
+          <Link href="/" className="group flex items-center gap-2">
             <motion.div
               className="relative h-10 w-10 shrink-0"
               animate={{ width: logoSize, height: logoSize }}
@@ -123,12 +130,13 @@ export function EventHeader({ eventTitle }: EventHeaderProps) {
                     K-Fondo
                   </span>
                   <span className="-mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    한국 그란폰도 기록 통계
+                    {t("common.tagline")}
                   </span>
                 </motion.div>
               )}
             </AnimatePresence>
-          </a>
+          </Link>
+          <LanguageSwitcher />
         </div>
       </div>
     </motion.header>

@@ -10,9 +10,7 @@ export async function POST(request: Request) {
   const secret = process.env.REVALIDATE_SECRET;
   if (secret) {
     const authHeader = request.headers.get("authorization");
-    const bearerToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : null;
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     const headerSecret = request.headers.get("x-revalidate-secret");
     const token = bearerToken ?? headerSecret;
 
@@ -29,10 +27,15 @@ export async function POST(request: Request) {
   }
 
   if (body.tag) {
-    revalidateTag(body.tag);
+    revalidateTag(body.tag, { expire: 0 });
   }
   if (body.path) {
-    revalidatePath(body.path);
+    if (body.path === "/(public)/[locale]") revalidatePath(body.path, "layout");
+    else revalidatePath(body.path);
+    if (body.path === "/") {
+      revalidatePath("/en");
+      revalidatePath("/(public)/[locale]", "layout");
+    }
   } else {
     // 전체 revalidate
     revalidatePath("/", "layout");

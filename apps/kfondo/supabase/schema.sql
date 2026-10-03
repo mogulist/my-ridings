@@ -91,3 +91,13 @@ CREATE POLICY "Allow public read access on courses" ON courses FOR SELECT USING 
 CREATE INDEX idx_events_slug ON events(slug);
 CREATE INDEX idx_editions_year ON event_editions(year);
 CREATE INDEX idx_courses_edition ON courses(edition_id);
+
+-- 영어 번역 필드
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS name_en text;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS location_en text;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS comment_en text;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS meta_title_en text;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS meta_description_en text;
+ALTER TABLE public.event_editions ADD COLUMN IF NOT EXISTS comment_en text;
+ALTER TABLE public.event_editions ADD COLUMN IF NOT EXISTS notice_en text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS name_en text;

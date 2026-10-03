@@ -48,3 +48,6 @@ posthog-setup-report.md
 
 # Supabase CLI temporary files
 supabase/.temp/
+
+# 독립 i18n E2E 서버
+/.next-i18n-test/
