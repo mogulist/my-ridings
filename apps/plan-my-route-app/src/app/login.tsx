@@ -12,7 +12,7 @@ import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { fetchRoutes } from "@/features/api/plan-my-route";
 import { createSessionFromUrl } from "@/features/auth/oauth";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
-import { SUPABASE } from "@/features/auth/supabase-client";
+import { isSupabaseConfigured, SUPABASE } from "@/features/auth/supabase-client";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,12 +28,7 @@ export default function LoginScreen() {
 	const [isBusy, setIsBusy] = useState(false);
 
 	const apiOrigin = getApiOrigin();
-	const isConfigValid = Boolean(
-		process.env.EXPO_PUBLIC_SUPABASE_URL &&
-			(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-				process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY) &&
-			apiOrigin,
-	);
+	const isConfigValid = isSupabaseConfigured && Boolean(apiOrigin);
 
 	useEffect(() => {
 		void (async () => {
@@ -110,6 +105,17 @@ export default function LoginScreen() {
 						</Text>
 					</Pressable>
 
+					{__DEV__ ? (
+						<Pressable
+							onPress={() => router.push("/lock-screen-poc")}
+							style={({ pressed }) => [styles.pocButton, pressed && styles.pressed]}
+						>
+							<ThemedText type="small" style={styles.pocButtonLabel}>
+								로그인 없이 잠금 화면 PoC 열기
+							</ThemedText>
+						</Pressable>
+					) : null}
+
 					{errorMessage ? (
 						<ThemedText type="small" style={styles.errorText}>
 							{errorMessage}
@@ -183,6 +189,16 @@ const styles = StyleSheet.create({
 	},
 	buttonDisabled: {
 		opacity: 0.5,
+	},
+	pocButton: {
+		minHeight: 44,
+		alignItems: "center",
+		justifyContent: "center",
+		paddingHorizontal: Spacing.three,
+	},
+	pocButtonLabel: {
+		color: "#2563EB",
+		fontWeight: "600",
 	},
 	errorText: {
 		color: "#D64545",

@@ -5,6 +5,7 @@ import {
 	type NaverMapViewRef,
 } from "@mj-studio/react-native-naver-map";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import * as Linking from "expo-linking";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -19,6 +20,7 @@ import {
 	fetchPlanDetail,
 	type MobilePlanStageRow,
 	type PlanDetail,
+	type PlanPoiRow,
 	type SummitMarkerOnRoute,
 	type TrackPoint,
 } from "@/features/api/plan-my-route";
@@ -62,6 +64,7 @@ export default function PlanMapScreen() {
 	const [detail, setDetail] = useState<PlanDetail | null>(null);
 	const [retryNonce, setRetryNonce] = useState(0);
 	const [isLocating, setIsLocating] = useState(false);
+	const [selectedPoi, setSelectedPoi] = useState<PlanPoiRow | null>(null);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -166,7 +169,12 @@ export default function PlanMapScreen() {
 
 	return (
 		<View style={styles.root}>
-			<NaverMapView ref={mapRef} style={styles.map} initialCamera={initialCamera}>
+			<NaverMapView
+				ref={mapRef}
+				style={styles.map}
+				initialCamera={initialCamera}
+				onTapMap={() => setSelectedPoi(null)}
+			>
 				{stageSegments.length > 0 ? (
 					stageSegments.map((seg) => (
 						<Fragment key={`stage-${seg.dayNumber}`}>
@@ -212,9 +220,10 @@ export default function PlanMapScreen() {
 						longitude={poi.lng}
 						width={22}
 						height={22}
-						image={{ symbol: "blue" }}
+						image={{ symbol: poi.poi_type === "accommodation" ? "yellow" : "blue" }}
 						caption={{ text: poi.name?.trim() || "POI", textSize: 11 }}
 						zIndex={10 + i}
+						onTap={() => setSelectedPoi(poi)}
 					/>
 				))}
 
@@ -245,7 +254,60 @@ export default function PlanMapScreen() {
 				)}
 			</View>
 
-			<View style={[styles.fabAnchor, { bottom: insets.bottom + 88, right: Spacing.three }]}>
+			{selectedPoi ? (
+				<View
+					style={[
+						styles.poiCard,
+						{
+							bottom: insets.bottom + 88,
+							backgroundColor: theme.surfaceElevated,
+							boxShadow: Shadow.floating,
+						},
+					]}
+				>
+					<View style={styles.poiCardHeader}>
+						<View style={styles.poiCardTitle}>
+							<ThemedText type="headline" numberOfLines={2} selectable>
+								{selectedPoi.name}
+							</ThemedText>
+							<ThemedText type="caption" themeColor="textSecondary" selectable>
+								{selectedPoi.poi_type === "accommodation"
+									? accommodationIntentLabel(selectedPoi.intent)
+									: "경유지"}
+							</ThemedText>
+						</View>
+						<Pressable
+							accessibilityRole="button"
+							accessibilityLabel="장소 정보 닫기"
+							style={styles.poiCardClose}
+							onPress={() => setSelectedPoi(null)}
+						>
+							<AppIcon name="xmark" size={16} tintColor={theme.textSecondary} />
+						</Pressable>
+					</View>
+					{selectedPoi.address_name ? (
+						<ThemedText type="caption" themeColor="textSecondary" numberOfLines={2} selectable>
+							{selectedPoi.address_name}
+						</ThemedText>
+					) : null}
+					{selectedPoi.memo?.trim() ? (
+						<ThemedText type="small" numberOfLines={2} selectable>
+							{selectedPoi.memo.trim()}
+						</ThemedText>
+					) : null}
+					<MapPoiActions poi={selectedPoi} />
+				</View>
+			) : null}
+
+			<View
+				style={[
+					styles.fabAnchor,
+					{
+						bottom: insets.bottom + (selectedPoi ? 286 : 88),
+						right: Spacing.three,
+					},
+				]}
+			>
 				<Pressable
 					accessibilityRole="button"
 					accessibilityLabel="현재 위치로 이동"
@@ -271,6 +333,69 @@ export default function PlanMapScreen() {
 			</View>
 		</View>
 	);
+}
+
+function MapPoiActions({ poi }: { poi: PlanPoiRow }) {
+	const theme = useTheme();
+	const actions: { key: string; label: string; icon: string; url: string }[] = [];
+	if (poi.phone) {
+		actions.push({ key: "phone", label: "전화", icon: "phone.fill", url: `tel:${poi.phone}` });
+	}
+	const naverUrl = safeWebUrl(poi.naver_place_url);
+	if (naverUrl) {
+		actions.push({ key: "naver", label: "네이버 지도", icon: "map.fill", url: naverUrl });
+	}
+	const bookingUrl = safeWebUrl(poi.booking_url);
+	if (bookingUrl) {
+		actions.push({ key: "booking", label: "예약", icon: "safari.fill", url: bookingUrl });
+	}
+
+	if (actions.length === 0) {
+		return (
+			<ThemedText type="caption" themeColor="textSecondary" selectable>
+				등록된 빠른 실행 정보가 없습니다.
+			</ThemedText>
+		);
+	}
+
+	return (
+		<View style={styles.poiActions}>
+			{actions.map((action) => (
+				<Pressable
+					key={action.key}
+					accessibilityRole="link"
+					accessibilityLabel={`${poi.name} ${action.label}`}
+					style={({ pressed }) => [
+						styles.poiAction,
+						{ borderColor: `${theme.tint}40` },
+						pressed && styles.pressed,
+					]}
+					onPress={() => void Linking.openURL(action.url)}
+				>
+					<AppIcon name={action.icon} size={16} tintColor={theme.tint} />
+					<ThemedText type="caption" style={{ color: theme.tint }}>
+						{action.label}
+					</ThemedText>
+				</Pressable>
+			))}
+		</View>
+	);
+}
+
+function safeWebUrl(value: string | null): string | null {
+	if (!value) return null;
+	try {
+		const url = new URL(value);
+		return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+	} catch {
+		return null;
+	}
+}
+
+function accommodationIntentLabel(intent: PlanPoiRow["intent"]): string {
+	if (intent === "confirmed") return "숙소 · 확정";
+	if (intent === "planned") return "숙소 · 선택";
+	return "숙소 · 후보";
 }
 
 function StageLegend({ stages }: { stages: MobilePlanStageRow[] }) {
@@ -374,6 +499,46 @@ const styles = StyleSheet.create({
 		borderCurve: "continuous",
 		alignItems: "center",
 		justifyContent: "center",
+	},
+	poiCard: {
+		position: "absolute",
+		left: Spacing.three,
+		right: Spacing.three,
+		zIndex: 30,
+		borderRadius: Radius.lg,
+		borderCurve: "continuous",
+		padding: Spacing.three,
+		gap: Spacing.two,
+	},
+	poiCardHeader: {
+		flexDirection: "row",
+		alignItems: "flex-start",
+		gap: Spacing.two,
+	},
+	poiCardTitle: {
+		flex: 1,
+		minWidth: 0,
+		gap: Spacing.half,
+	},
+	poiCardClose: {
+		width: 36,
+		height: 36,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	poiActions: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		gap: Spacing.two,
+	},
+	poiAction: {
+		minHeight: 40,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderRadius: Radius.pill,
+		paddingHorizontal: Spacing.three,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing.one,
 	},
 	loadingContainer: {
 		flex: 1,

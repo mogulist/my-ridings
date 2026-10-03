@@ -7,7 +7,7 @@
     "eas-build-pre-install": "cd ../.. && bun install --frozen-lockfile",
     "start": "expo start",
     "start:clean": "expo start -c",
-    "start:debug": "expo start --dev-client",
+    "start:debug": "APP_VARIANT=development expo start --dev-client --scheme planmyrouteapp-dev",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -31,6 +31,7 @@
     "submit:production:ios": "eas submit --platform ios --profile production --latest"
   },
   "dependencies": {
+    "@expo/ui": "~55.0.17",
     "@mj-studio/react-native-naver-map": "^2.7.1",
     "@my-ridings/plan-geometry": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -58,8 +59,10 @@
     "expo-status-bar": "~55.0.6",
     "expo-symbols": "~55.0.9",
     "expo-system-ui": "~55.0.22",
-    "expo-updates": "~55.0.30",
+    "expo-task-manager": "~55.0.20",
+    "expo-updates": "~55.0.31",
     "expo-web-browser": "~55.0.20",
+    "expo-widgets": "55.0.20",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.10",

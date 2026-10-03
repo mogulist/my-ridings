@@ -2,7 +2,7 @@
   "expo": {
     "name": "plan-my-route-app",
     "slug": "plan-my-route-app",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "planmyrouteapp",
@@ -34,6 +34,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-widgets",
       "expo-secure-store",
       "expo-font",
       "expo-image",
@@ -51,9 +52,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "라이딩 중 현재 위치를 경로에 표시하기 위해 위치 권한이 필요합니다.",
+          "locationAlwaysAndWhenInUsePermission": "라이딩 중 화면을 잠가도 다음 보급소까지 남은 거리와 획득고도를 갱신하기 위해 위치를 사용합니다. 라이딩 종료 시 추적을 중지합니다.",
           "locationWhenInUsePermission": "라이딩 중 현재 위치를 경로에 표시하기 위해 위치 권한이 필요합니다.",
-          "isIosBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": false
         }
       ]
