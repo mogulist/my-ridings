@@ -60,6 +60,26 @@ describe("getFilteredEvents", () => {
     jest.useRealTimers();
   });
 
+  it.each(["2026.3.7", "2026.3.8", "2026.3.15"])(
+    "기록 수집 제외 대회(%s)는 업커밍 대신 전체 대회에 유지한다",
+    async (date) => {
+      const event = createEvent({ id: "not-collected", date, totalRegistered: 0 });
+      event.yearDetails[2026].status = "not_collected";
+      event.years.push(2025);
+      event.yearDetails[2025] = {
+        ...event.yearDetails[2026], year: 2025, date: "2025.3.8", status: "completed",
+      };
+      mockedGetAllEvents.mockResolvedValue([event]);
+
+      const result = await getFilteredEvents();
+
+      expect(result.upcomingCarousels.flatMap((c) => c.events.map((e) => e.id)))
+        .not.toContain(event.id);
+      expect(result.recentEvents.map((e) => e.id)).not.toContain(event.id);
+      expect(result.otherEvents.find((e) => e.id === event.id)?.years).toContain(2025);
+    },
+  );
+
   it("무기록 당일 이벤트를 다가오는 대회에 유지한다", async () => {
     mockedGetAllEvents.mockResolvedValue([
       createEvent({

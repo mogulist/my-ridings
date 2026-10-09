@@ -38,6 +38,7 @@ export const UpcomingSection = ({ event }: Props) => {
   const isPreparing = latestDetail?.status === "preparing";
   const showPendingNotice =
     !isPreparing &&
+    latestDetail?.status !== "not_collected" &&
     !hasRecords &&
     daysSinceEvent !== null &&
     daysSinceEvent >= 0 &&

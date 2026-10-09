@@ -30,7 +30,7 @@ CREATE TABLE event_editions (
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   year INTEGER NOT NULL,
   date DATE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'completed', 'ready', 'preparing', 'cancelled')),
+  status TEXT NOT NULL DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'completed', 'ready', 'preparing', 'cancelled', 'not_collected')),
   url TEXT, -- 대회 공식 홈페이지 등
   records_blob_url TEXT, -- Vercel Blob URL (원본 기록) [Phase 3 NEW]
   sorted_records_blob_url TEXT, -- Vercel Blob URL (정렬된 기록) [Phase 3 NEW]

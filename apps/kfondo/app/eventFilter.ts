@@ -168,7 +168,7 @@ export async function getFilteredEvents(locale: Locale = "ko"): Promise<HomePage
 
     // Check if it's this year
     if (latestYear === currentYear) {
-      if (latestDetail.status === "cancelled") {
+      if (latestDetail.status === "cancelled" || latestDetail.status === "not_collected") {
         otherEventsTemp.push(event);
         return;
       }

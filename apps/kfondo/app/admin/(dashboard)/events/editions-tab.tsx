@@ -48,6 +48,7 @@ const STATUS_VARIANT: Record<
   ready: "outline",
   preparing: "outline",
   cancelled: "outline",
+  not_collected: "outline",
 };
 
 export function EditionsTab({

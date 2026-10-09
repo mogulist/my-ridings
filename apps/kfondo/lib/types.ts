@@ -100,7 +100,7 @@ export type EventYearDetail = {
   commentEn?: string;
   year: number;
   date: string;
-  status?: "completed" | "upcoming" | "ready" | "preparing" | "cancelled";
+  status?: "completed" | "upcoming" | "ready" | "preparing" | "cancelled" | "not_collected";
   courses: RaceCategory[];
   totalRegistered: number;
   url?: string;
