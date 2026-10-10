@@ -478,7 +478,7 @@ function StageSummaryBody({
 						/>
 						<Pressable
 							accessibilityRole="button"
-							accessibilityLabel="전체 경로 지도 열기"
+							accessibilityLabel="이 스테이지 지도 열기"
 							style={({ pressed }) => [
 								styles.mapButton,
 								{ borderColor: theme.tint },
@@ -487,13 +487,13 @@ function StageSummaryBody({
 							onPress={() =>
 								router.push({
 									pathname: "/routes/[routeId]/plans/[planId]/map",
-									params: { routeId, planId: detail.plan.id },
+									params: { routeId, planId: detail.plan.id, stageId: stage.id },
 								})
 							}
 						>
 							<AppIcon name="map.fill" size={18} tintColor={theme.tint} />
 							<ThemedText type="smallBold" themeColor="tint">
-								전체 경로 지도 열기
+								이 스테이지 지도 열기
 							</ThemedText>
 						</Pressable>
 					</View>
