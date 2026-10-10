@@ -21,6 +21,8 @@ export default function TerrainPreview() {
 	if (!__DEV__) return null;
 	return (
 		<ScrollView
+			keyboardShouldPersistTaps="handled"
+			automaticallyAdjustKeyboardInsets
 			contentInsetAdjustmentBehavior="automatic"
 			style={{ backgroundColor: theme.background }}
 			contentContainerStyle={{
