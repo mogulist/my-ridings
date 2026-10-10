@@ -6,7 +6,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PlanStageMiniElevation } from "@/components/plan-stage-mini-elevation";
@@ -16,12 +16,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { AppIcon } from "@/components/ui/icon";
 import { MaxContentWidth, Radius, Spacing } from "@/constants/theme";
-import {
-	type MobilePlanStageRow,
-	type PlanDetail,
-	patchPlanPoi,
-	putStage,
-} from "@/features/api/plan-my-route";
+import { type MobilePlanStageRow, type PlanDetail } from "@/features/api/plan-my-route";
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
 import { RideLiveActivityStatus } from "@/features/live-activity/ride-live-activity-status";
 import { pauseRideTracking } from "@/features/live-activity/ride-tracking";
@@ -33,7 +28,9 @@ import {
 } from "@/features/plan-my-route/components/stage-focus-tabs";
 import { removeSummitsDuplicatedByCheckpoints } from "@/features/plan-my-route/dedupe-route-markers";
 import { planDetailQueryKey, usePlanDetailQuery } from "@/features/plan-my-route/plan-detail-query";
-import { buildStageFinishPlan } from "@/features/plan-my-route/stage-finish";
+import { type StageFinishPlan } from "@/features/plan-my-route/stage-finish";
+import { StageFinishEditor } from "@/features/plan-my-route/components/stage-finish-editor";
+import { saveStageFinish } from "@/features/api/plan-my-route";
 import { useCurrentLocationKm } from "@/hooks/use-current-location-km";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -146,6 +143,8 @@ export default function StageDetailScreen() {
 					/>
 				) : (
 					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						automaticallyAdjustKeyboardInsets
 						contentContainerStyle={styles.scrollContent}
 						contentInsetAdjustmentBehavior="automatic"
 					>
@@ -212,7 +211,6 @@ function StageSummaryBody({
 	const theme = useTheme();
 	const [focus, setFocus] = useState<StageFocus>("ride");
 	const [memoExpanded, setMemoExpanded] = useState(false);
-	const [isFinishing, setIsFinishing] = useState(false);
 	const tabsTopRef = useRef(0);
 	const routeLabel = stageRouteLine(stage);
 	const memo = stage.memo?.trim() || null;
@@ -236,65 +234,35 @@ function StageSummaryBody({
 		detail.summitMarkers,
 		detail.cpMarkers,
 	);
-	const finishPlan =
-		location.currentKm == null
-			? null
-			: buildStageFinishPlan(
-					detail.stages,
-					stage.id,
-					location.currentKm,
-					detail.planPois,
-					detail.trackPoints,
-				);
-	const finishUnavailableReason = finishPlan
-		? null
-		: stageFinishUnavailableReason(detail.stages, stage, location.currentKm);
-
-	const finishStage = async () => {
-		if (!finishPlan || isFinishing) return;
-		const apiOrigin = getApiOrigin();
-		if (!apiOrigin) {
-			onMessage("앱 서버 주소가 설정되지 않았습니다.");
-			return;
-		}
-		const accessToken = await getStoredAccessToken();
-		if (!accessToken) {
-			onMessage("다시 로그인해 주세요.");
-			return;
-		}
-
-		setIsFinishing(true);
+	const finishStage = async (preview: StageFinishPlan, requestId: string) => {
+		const origin = getApiOrigin(),
+			token = await getStoredAccessToken();
+		if (!origin || !token) throw new Error("로그인과 연결을 확인해 주세요.");
+		await saveStageFinish(origin, token, detail.plan.id, {
+			requestId,
+			currentStageId: preview.currentStage.id,
+			nextStageId: preview.nextStage.id,
+			newEndM: preview.currentUpdate.end_distance!,
+			expectedCurrentStartM: preview.currentStage.start_distance!,
+			expectedCurrentEndM: preview.currentStage.end_distance!,
+			expectedNextStartM: preview.nextStage.start_distance!,
+			expectedNextEndM: preview.nextStage.end_distance!,
+			currentGainM: preview.currentUpdate.elevation_gain ?? null,
+			currentLossM: preview.currentUpdate.elevation_loss ?? null,
+			nextGainM: preview.nextUpdate.elevation_gain ?? null,
+			nextLossM: preview.nextUpdate.elevation_loss ?? null,
+			poiIds: preview.poiIdsToMove,
+		});
+		// Storage has committed. A tracking/cache refresh failure must not report a failed save.
 		try {
-			for (const poiId of finishPlan.poiIdsToMove) {
-				await patchPlanPoi(apiOrigin, accessToken, detail.plan.id, poiId, {
-					assignment_mode: "stage",
-					stage_id: finishPlan.nextStage.id,
-				});
-			}
-			await putStage(apiOrigin, accessToken, finishPlan.currentStage.id, finishPlan.currentUpdate);
-			await putStage(apiOrigin, accessToken, finishPlan.nextStage.id, finishPlan.nextUpdate);
 			if (getRideTrackingStatus().planId === detail.plan.id) await pauseRideTracking();
 			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(detail.plan.id) });
-			onMessage(
-				`현재 위치에서 종료했습니다. 다음 스테이지로 POI ${finishPlan.poiIdsToMove.length}곳을 옮겼습니다.`,
-			);
-		} catch (error) {
-			await queryClient.invalidateQueries({ queryKey: planDetailQueryKey(detail.plan.id) });
-			onMessage(error instanceof Error ? error.message : "스테이지 종료를 저장하지 못했습니다.");
-		} finally {
-			setIsFinishing(false);
+		} catch {
+			onMessage("종료 지점은 저장했습니다. 화면을 다시 열어 주세요.");
+			return;
 		}
-	};
-
-	const confirmFinishStage = () => {
-		if (!finishPlan || location.currentKm == null) return;
-		Alert.alert(
-			"여기서 스테이지를 종료할까요?",
-			`${location.currentKm.toFixed(1)}km 지점을 오늘의 종료점과 다음 스테이지의 시작점으로 변경합니다. 뒤에 남은 POI도 다음 스테이지로 이동합니다.`,
-			[
-				{ text: "취소", style: "cancel" },
-				{ text: "스테이지 종료", style: "destructive", onPress: () => void finishStage() },
-			],
+		onMessage(
+			`종료 지점을 저장했습니다. 다음 스테이지로 POI ${preview.poiIdsToMove.length}곳을 옮겼습니다.`,
 		);
 	};
 
@@ -308,6 +276,8 @@ function StageSummaryBody({
 
 	return (
 		<ScrollView
+			keyboardShouldPersistTaps="handled"
+			automaticallyAdjustKeyboardInsets
 			ref={scrollRef}
 			contentContainerStyle={styles.stageScrollContent}
 			contentInsetAdjustmentBehavior="automatic"
@@ -402,39 +372,14 @@ function StageSummaryBody({
 							onMessage={onMessage}
 						/>
 
-						<View style={styles.finishSection}>
-							<Pressable
-								accessibilityRole="button"
-								accessibilityLabel="현재 위치에서 스테이지 종료"
-								accessibilityState={{ disabled: !finishPlan || isFinishing }}
-								disabled={!finishPlan || isFinishing}
-								style={({ pressed }) => [
-									styles.finishButton,
-									{ borderColor: finishPlan ? theme.danger : theme.separator },
-									!finishPlan && styles.finishButtonDisabled,
-									(pressed || isFinishing) && styles.pressed,
-								]}
-								onPress={confirmFinishStage}
-							>
-								<AppIcon
-									name="flag.checkered"
-									size={17}
-									tintColor={finishPlan ? theme.danger : theme.textSecondary}
-								/>
-								<ThemedText type="smallBold" themeColor={finishPlan ? "danger" : "textSecondary"}>
-									{isFinishing
-										? "종료 저장 중…"
-										: finishPlan
-											? "여기서 스테이지 종료"
-											: "스테이지 종료"}
-								</ThemedText>
-							</Pressable>
-							{finishUnavailableReason ? (
-								<ThemedText type="caption" themeColor="textSecondary" selectable>
-									{finishUnavailableReason}
-								</ThemedText>
-							) : null}
-						</View>
+						<StageFinishEditor
+							stages={detail.stages}
+							stage={stage}
+							pois={detail.planPois}
+							track={detail.trackPoints}
+							currentKm={location.currentKm}
+							onSave={finishStage}
+						/>
 					</>
 				) : focus === "stay" ? (
 					<>
@@ -680,32 +625,6 @@ const styles = StyleSheet.create({
 	},
 });
 
-function stageFinishUnavailableReason(
-	stages: MobilePlanStageRow[],
-	stage: MobilePlanStageRow,
-	currentKm: number | null,
-): string {
-	if (currentKm == null || !Number.isFinite(currentKm)) {
-		return "현재 위치를 확인하면 사용할 수 있습니다.";
-	}
-
-	const stageIndex = stages.findIndex((item) => item.id === stage.id);
-	if (!stages[stageIndex + 1]) {
-		return "마지막 스테이지에는 이동할 다음 스테이지가 없습니다.";
-	}
-
-	const startKm = (stage.start_distance ?? 0) / 1000;
-	const endKm = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
-	if (currentKm <= startKm) {
-		return "스테이지 시작점보다 이동한 뒤 종료할 수 있습니다.";
-	}
-	if (currentKm >= endKm) {
-		return "계획된 스테이지 종료점에 도착한 상태입니다.";
-	}
-	return "현재 위치에서는 스테이지를 종료할 수 없습니다.";
-}
-
-/** `StageDetailPanel`과 동일: 출발·도착 이름이 모두 있을 때만 표시 */
 function stageRouteLine(stage: MobilePlanStageRow): string | null {
 	const startLabel = stage.start_name?.trim();
 	const endLabel = stage.end_name?.trim();
