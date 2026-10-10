@@ -22,7 +22,8 @@ const supabaseKey = configuredSupabaseKey || "sb_publishable_missing_config";
 
 const largeSecureStore = {
 	async getItem(key: string) {
-    if (Platform.OS === "web" && typeof window === "undefined") return null;
+		// SSR has no device storage. Keep the encrypted native/browser storage contract unchanged.
+		if (Platform.OS === "web" && typeof window === "undefined") return null;
 		const encryptedValue = await AsyncStorage.getItem(key);
 		if (!encryptedValue) return null;
 

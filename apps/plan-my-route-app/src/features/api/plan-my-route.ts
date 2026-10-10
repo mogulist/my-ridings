@@ -400,4 +400,3 @@ export const getFavoritePlans = (routeDetails: RouteDetail[]) =>
 				planName: plan.name,
 			})),
 	);
-
