@@ -369,6 +369,22 @@ function StageSummaryBody({
 					<>
 						<CurrentLocationKmLine location={location} />
 						<RideLiveActivityStatus planId={detail.plan.id} />
+						<Pressable
+							accessibilityRole="button"
+							onPress={() =>
+								router.push({
+									pathname: "/routes/[routeId]/plans/[planId]/terrain",
+									params: {
+										routeId,
+										planId: detail.plan.id,
+										dayNumber: String(detail.stages.findIndex((s) => s.id === stage.id) + 1),
+									},
+								})
+							}
+							style={{ minHeight: 48, justifyContent: "center" }}
+						>
+							<ThemedText type="linkPrimary">보급소와 오르막까지의 지형 보기</ThemedText>
+						</Pressable>
 						<ThemedText type="caption" themeColor="textSecondary" selectable>
 							주행 현황과 앞으로 남은 경유지를 확인합니다.
 						</ThemedText>
