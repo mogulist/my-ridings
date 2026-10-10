@@ -1,3 +1,6 @@
+import { useTerrainSpeeds } from "../use-terrain-speeds";
+import { estimateTerrainMinutes, terrainTimeLabel } from "../terrain-time";
+import { TerrainSpeedEditor } from "./terrain-speed-editor";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
@@ -9,7 +12,7 @@ import {
 	type RideTerrainBriefing,
 	type RideTerrainTarget,
 } from "../ride-terrain-data";
-import type { TerrainKind } from "@my-ridings/plan-geometry";
+import type { TerrainKind, TerrainSummary } from "@my-ridings/plan-geometry";
 
 export const TERRAIN_COLORS: Record<TerrainKind, string> = {
 	flat: "#637D90",
@@ -28,6 +31,7 @@ export function RideTerrainDetail({
 	statusLabel: string;
 }) {
 	const theme = useTheme();
+	const timing = useTerrainSpeeds();
 	const [selection, setSelection] = useState<"supply" | "approach" | "summit" | "finish">("supply");
 	const [expanded, setExpanded] = useState(false);
 	const options = [
@@ -39,6 +43,13 @@ export function RideTerrainDetail({
 	const target = options.find((o) => o.key === selection)?.target ?? options[0].target;
 	const activeKey = options.find((o) => o.target === target)?.key;
 	const labelStyle = { color: theme.textSecondary, fontSize: 14, lineHeight: 21 };
+	const timeText = (summary: TerrainSummary, selected = false) => {
+		if (!timing.ready) return "예상 시간 불러오는 중…";
+		const minutes = estimateTerrainMinutes(summary, timing.speeds);
+		return minutes == null
+			? "고도 정보가 부족해 예상 시간을 계산할 수 없습니다."
+			: `${selected ? "선택 구간 · " : ""}휴식 제외 예상 주행 ${terrainTimeLabel(minutes)}`;
+	};
 	const destination = (heading: string, t: RideTerrainTarget, color: string) => (
 		<View style={{ paddingVertical: 18, gap: 6 }}>
 			<View
@@ -68,6 +79,9 @@ export function RideTerrainDetail({
 					{t.summary.gainM == null ? "고도 정보 없음" : `상승 ${terrainAscent(t.summary)}`}
 				</ThemedText>
 			</View>
+			<ThemedText type="small" themeColor="textSecondary">
+				{timeText(t.summary)}
+			</ThemedText>
 			<ThemedText style={labelStyle}>
 				{terrainSequence(t.summary) || "목적지에 도착했습니다"}
 			</ThemedText>
@@ -183,6 +197,15 @@ export function RideTerrainDetail({
 						{target.summary.distanceKm.toFixed(1)}km
 					</ThemedText>
 				</View>
+			</View>
+			<View style={{ gap: 8 }}>
+				<ThemedText type="smallBold">{timeText(target.summary, true)}</ThemedText>
+				<TerrainSpeedEditor
+					speeds={timing.speeds}
+					ready={timing.ready}
+					onSave={timing.save}
+					loadError={timing.loadError}
+				/>
 			</View>
 			<View>
 				{(expanded ? target.summary.segments : target.summary.segments.slice(0, 12)).map((s, i) => (

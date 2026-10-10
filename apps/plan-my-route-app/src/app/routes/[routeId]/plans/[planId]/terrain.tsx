@@ -43,6 +43,8 @@ export default function RideTerrainScreen() {
 		: null;
 	return (
 		<ScrollView
+			keyboardShouldPersistTaps="handled"
+			automaticallyAdjustKeyboardInsets
 			contentInsetAdjustmentBehavior="automatic"
 			style={{ backgroundColor: theme.background }}
 			contentContainerStyle={{
