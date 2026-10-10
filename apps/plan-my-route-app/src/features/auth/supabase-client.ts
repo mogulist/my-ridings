@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import "react-native-get-random-values";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,6 +22,7 @@ const supabaseKey = configuredSupabaseKey || "sb_publishable_missing_config";
 
 const largeSecureStore = {
 	async getItem(key: string) {
+    if (Platform.OS === "web" && typeof window === "undefined") return null;
 		const encryptedValue = await AsyncStorage.getItem(key);
 		if (!encryptedValue) return null;
 
