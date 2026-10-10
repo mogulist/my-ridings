@@ -27,6 +27,8 @@ import {
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
 import { useTheme } from "@/hooks/use-theme";
 
+import { clipMapTrack, getMapScope, mapMarkerPoint } from "@/features/plan-my-route/map-scope";
+
 const UNPLANNED_STROKE_COLOR = "#9CA3AF";
 
 function stageStrokeColor(dayNumber: number): string {
@@ -51,13 +53,18 @@ const FALLBACK_CAMERA: MapCamera = {
 	zoom: 12,
 };
 
-export default function PlanMapScreen() {
+export default function PlanMapScreen({ previewDetail }: { previewDetail?: PlanDetail } = {}) {
 	const router = useRouter();
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 	const mapRef = useRef<NaverMapViewRef>(null);
-	const { planId } = useLocalSearchParams<{ planId: string }>();
+	const { planId, stageId } = useLocalSearchParams<{ planId: string; stageId?: string }>();
+	const [showAll, setShowAll] = useState(false);
 	const apiOrigin = useMemo(getApiOrigin, []);
+	useEffect(() => {
+		setShowAll(false);
+		setSelectedPoi(null);
+	}, [planId, stageId]);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,6 +76,11 @@ export default function PlanMapScreen() {
 	useEffect(() => {
 		let isMounted = true;
 		void (async () => {
+			if (__DEV__ && previewDetail) {
+				setDetail(previewDetail);
+				setIsLoading(false);
+				return;
+			}
 			if (!planId) {
 				setErrorMessage("planId가 필요합니다.");
 				setIsLoading(false);
@@ -99,12 +111,43 @@ export default function PlanMapScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [apiOrigin, planId, router, retryNonce]);
+	}, [apiOrigin, planId, router, retryNonce, previewDetail]);
 
-	const validTrack = useMemo(() => (detail ? toMapCoordinates(detail.trackPoints) : []), [detail]);
+	const selectedStageId =
+		stageId ?? (__DEV__ && previewDetail ? previewDetail.stages[1]?.id : null);
+	const scope = useMemo(
+		() => (detail ? getMapScope(detail, showAll ? null : selectedStageId) : null),
+		[detail, showAll, selectedStageId],
+	);
+	const validTrack = useMemo(() => toMapCoordinates(scope?.track ?? []), [scope]);
+	const fitScope = () => {
+		if (!validTrack.length) return;
+		const bounds = validTrack.reduce(
+			(a, p) => ({
+				minLat: Math.min(a.minLat, p.latitude),
+				maxLat: Math.max(a.maxLat, p.latitude),
+				minLng: Math.min(a.minLng, p.longitude),
+				maxLng: Math.max(a.maxLng, p.longitude),
+			}),
+			{ minLat: 90, maxLat: -90, minLng: 180, maxLng: -180 },
+		);
+		mapRef.current?.animateCameraWithTwoCoords({
+			coord1: { latitude: bounds.minLat, longitude: bounds.minLng },
+			coord2: { latitude: bounds.maxLat, longitude: bounds.maxLng },
+			duration: 300,
+		});
+	};
+	useEffect(() => {
+		fitScope();
+	}, [validTrack]);
 	const stageSegments = useMemo(
-		() => (detail ? buildStageSegments(detail.stages, detail.trackPoints) : []),
-		[detail],
+		() =>
+			detail
+				? buildStageSegments(detail.stages, detail.trackPoints).filter(
+						(s) => !scope?.stage || detail.stages[s.dayNumber - 1]?.id === scope.stage.id,
+					)
+				: [],
+		[detail, scope],
 	);
 
 	const handleMyLocation = async () => {
@@ -173,6 +216,8 @@ export default function PlanMapScreen() {
 				ref={mapRef}
 				style={styles.map}
 				initialCamera={initialCamera}
+				onInitialized={fitScope}
+				mapPadding={{ top: insets.top + 150, bottom: insets.bottom + 100, left: 30, right: 30 }}
 				onTapMap={() => setSelectedPoi(null)}
 			>
 				{stageSegments.length > 0 ? (
@@ -213,7 +258,7 @@ export default function PlanMapScreen() {
 					</>
 				)}
 
-				{detail.planPois.map((poi, i) => (
+				{scope!.pois.map((poi, i) => (
 					<NaverMapMarkerOverlay
 						key={`poi-${poi.id}`}
 						latitude={poi.lat}
@@ -227,8 +272,24 @@ export default function PlanMapScreen() {
 					/>
 				))}
 
-				{renderCpMarkers(detail.cpMarkers, detail.trackPoints)}
-				{renderSummitMarkers(detail.summitMarkers, detail.trackPoints)}
+				{renderCpMarkers(scope!.cps, detail.trackPoints)}
+				{renderSummitMarkers(scope!.summits, detail.trackPoints)}
+				{scope?.stage && validTrack.length > 0 ? (
+					<>
+						<NaverMapMarkerOverlay
+							latitude={validTrack[0].latitude}
+							longitude={validTrack[0].longitude}
+							caption={{ text: scope.stage.start_name || "출발" }}
+							image={{ symbol: "green" }}
+						/>
+						<NaverMapMarkerOverlay
+							latitude={validTrack[validTrack.length - 1].latitude}
+							longitude={validTrack[validTrack.length - 1].longitude}
+							caption={{ text: scope.stage.end_name || "도착" }}
+							image={{ symbol: "red" }}
+						/>
+					</>
+				) : null}
 			</NaverMapView>
 
 			<View
@@ -237,7 +298,53 @@ export default function PlanMapScreen() {
 			>
 				{useGlass ? (
 					<GlassView glassEffectStyle="regular" isInteractive style={styles.legendChrome}>
-						<StageLegend stages={detail.stages} />
+						<View style={{ gap: 8 }}>
+							{detail.stages.some((s) => s.id === selectedStageId) ? (
+								<View style={{ flexDirection: "row", gap: 8 }}>
+									{[false, true].map((all) => (
+										<Pressable
+											key={String(all)}
+											accessibilityRole="button"
+											accessibilityState={{ selected: showAll === all }}
+											onPress={() => {
+												setShowAll(all);
+												setSelectedPoi(null);
+											}}
+											style={{
+												minHeight: 44,
+												paddingHorizontal: 12,
+												justifyContent: "center",
+												borderRadius: 12,
+												backgroundColor: showAll === all ? theme.tint : theme.backgroundElement,
+											}}
+										>
+											<ThemedText
+												type="smallBold"
+												style={{ color: showAll === all ? "#fff" : theme.text }}
+											>
+												{all ? "전체 코스" : "이 스테이지"}
+											</ThemedText>
+										</Pressable>
+									))}
+								</View>
+							) : null}
+							<ThemedText type="smallBold">
+								{scope?.stage ? `스테이지 ${detail.stages.indexOf(scope.stage) + 1}` : "전체 코스"}
+							</ThemedText>
+							<Pressable
+								accessibilityRole="button"
+								onPress={fitScope}
+								style={{ minHeight: 44, justifyContent: "center" }}
+							>
+								<ThemedText themeColor="tint" type="small">
+									선택 범위에 맞추기
+								</ThemedText>
+							</Pressable>
+							<StageLegend
+								stages={scope?.stage ? [scope.stage] : detail.stages}
+								allStages={detail.stages}
+							/>
+						</View>
 					</GlassView>
 				) : (
 					<View
@@ -249,7 +356,53 @@ export default function PlanMapScreen() {
 							},
 						]}
 					>
-						<StageLegend stages={detail.stages} />
+						<View style={{ gap: 8 }}>
+							{detail.stages.some((s) => s.id === selectedStageId) ? (
+								<View style={{ flexDirection: "row", gap: 8 }}>
+									{[false, true].map((all) => (
+										<Pressable
+											key={String(all)}
+											accessibilityRole="button"
+											accessibilityState={{ selected: showAll === all }}
+											onPress={() => {
+												setShowAll(all);
+												setSelectedPoi(null);
+											}}
+											style={{
+												minHeight: 44,
+												paddingHorizontal: 12,
+												justifyContent: "center",
+												borderRadius: 12,
+												backgroundColor: showAll === all ? theme.tint : theme.backgroundElement,
+											}}
+										>
+											<ThemedText
+												type="smallBold"
+												style={{ color: showAll === all ? "#fff" : theme.text }}
+											>
+												{all ? "전체 코스" : "이 스테이지"}
+											</ThemedText>
+										</Pressable>
+									))}
+								</View>
+							) : null}
+							<ThemedText type="smallBold">
+								{scope?.stage ? `스테이지 ${detail.stages.indexOf(scope.stage) + 1}` : "전체 코스"}
+							</ThemedText>
+							<Pressable
+								accessibilityRole="button"
+								onPress={fitScope}
+								style={{ minHeight: 44, justifyContent: "center" }}
+							>
+								<ThemedText themeColor="tint" type="small">
+									선택 범위에 맞추기
+								</ThemedText>
+							</Pressable>
+							<StageLegend
+								stages={scope?.stage ? [scope.stage] : detail.stages}
+								allStages={detail.stages}
+							/>
+						</View>
 					</View>
 				)}
 			</View>
@@ -398,11 +551,17 @@ function accommodationIntentLabel(intent: PlanPoiRow["intent"]): string {
 	return "숙소 · 후보";
 }
 
-function StageLegend({ stages }: { stages: MobilePlanStageRow[] }) {
+function StageLegend({
+	stages,
+	allStages,
+}: {
+	stages: MobilePlanStageRow[];
+	allStages: MobilePlanStageRow[];
+}) {
 	return (
 		<View style={styles.legendInner}>
-			{stages.map((_, index) => {
-				const dayNumber = index + 1;
+			{stages.map((stage) => {
+				const dayNumber = allStages.indexOf(stage) + 1;
 				const color = stageStrokeColor(dayNumber);
 				return (
 					<View key={`leg-${dayNumber}`} style={styles.legendRow}>
@@ -420,7 +579,7 @@ function StageLegend({ stages }: { stages: MobilePlanStageRow[] }) {
 function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]) {
 	return cpMarkers
 		.map((cp) => {
-			const tp = trackPoints[cp.trackPointIndex];
+			const tp = mapMarkerPoint(trackPoints, cp.distanceKm);
 			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
 			return (
 				<NaverMapMarkerOverlay
@@ -440,7 +599,7 @@ function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]
 function renderSummitMarkers(summitMarkers: SummitMarkerOnRoute[], trackPoints: TrackPoint[]) {
 	return summitMarkers
 		.map((s) => {
-			const tp = trackPoints[s.trackPointIndex];
+			const tp = mapMarkerPoint(trackPoints, s.distanceKm);
 			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
 			return (
 				<NaverMapMarkerOverlay
@@ -587,9 +746,7 @@ function buildStageSegments(
 			const endM = Number(stage.end_distance);
 			if (!Number.isFinite(startM) || !Number.isFinite(endM) || endM <= startM) return null;
 
-			const segmentPoints = trackPoints.filter(
-				(p) => p.d != null && (p.d as number) >= startM && (p.d as number) <= endM,
-			);
+			const segmentPoints = clipMapTrack(trackPoints, startM, endM);
 			const coords = toMapCoordinates(segmentPoints);
 			if (coords.length < 2) return null;
 
