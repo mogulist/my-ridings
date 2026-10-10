@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { clipMapTrack, getMapScope } from "./map-scope";
+import { clipMapTrack, getMapScope, mapMarkerPoint } from "./map-scope";
 import { MAP_PREVIEW_DETAIL as detail } from "./map-preview-data";
 test("a selected stage excludes distant tracks and markers, retaining endpoints", () => {
 	const scope = getMapScope(detail, "stage-1");
@@ -40,4 +40,17 @@ test("POI ownership wins and distance POIs do not require altitude", () => {
 		trackPoints: detail.trackPoints.map((p) => ({ ...p, e: undefined })),
 	};
 	expect(getMapScope(d, "stage-1").pois.map((p) => p.id)).toEqual(["p", "distance"]);
+});
+
+test("marker placement uses route distance despite stale original track indices", () => {
+	expect(
+		mapMarkerPoint(
+			[
+				{ x: 127, y: 37, d: 0 },
+				{ x: 127.1, y: 37, d: 10000 },
+			],
+			10,
+		)?.x,
+	).toBe(127.1);
+	expect(mapMarkerPoint([], 10)).toBeNull();
 });

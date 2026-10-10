@@ -52,3 +52,14 @@ export function getMapScope(detail: PlanDetail, stageId?: string | null) {
 		}),
 	};
 }
+
+// API marker indices may refer to the full track while older responses contain a sampled track.
+export function mapMarkerPoint(track: TrackPoint[], distanceKm: number): TrackPoint | null {
+	let nearest: TrackPoint | null = null;
+	for (const p of track) {
+		if (!Number.isFinite(p.d)) continue;
+		if (!nearest || Math.abs(p.d! / 1000 - distanceKm) < Math.abs(nearest.d! / 1000 - distanceKm))
+			nearest = p;
+	}
+	return nearest;
+}

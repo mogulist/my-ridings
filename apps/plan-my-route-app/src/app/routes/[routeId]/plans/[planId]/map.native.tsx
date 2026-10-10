@@ -27,7 +27,7 @@ import {
 import { getApiOrigin, getStoredAccessToken } from "@/features/auth/session";
 import { useTheme } from "@/hooks/use-theme";
 
-import { clipMapTrack, getMapScope } from "@/features/plan-my-route/map-scope";
+import { clipMapTrack, getMapScope, mapMarkerPoint } from "@/features/plan-my-route/map-scope";
 
 const UNPLANNED_STROKE_COLOR = "#9CA3AF";
 
@@ -575,7 +575,7 @@ function StageLegend({
 function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]) {
 	return cpMarkers
 		.map((cp) => {
-			const tp = trackPoints[cp.trackPointIndex];
+			const tp = mapMarkerPoint(trackPoints, cp.distanceKm);
 			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
 			return (
 				<NaverMapMarkerOverlay
@@ -595,7 +595,7 @@ function renderCpMarkers(cpMarkers: CpMarkerOnRoute[], trackPoints: TrackPoint[]
 function renderSummitMarkers(summitMarkers: SummitMarkerOnRoute[], trackPoints: TrackPoint[]) {
 	return summitMarkers
 		.map((s) => {
-			const tp = trackPoints[s.trackPointIndex];
+			const tp = mapMarkerPoint(trackPoints, s.distanceKm);
 			if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return null;
 			return (
 				<NaverMapMarkerOverlay
