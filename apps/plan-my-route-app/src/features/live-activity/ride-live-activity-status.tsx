@@ -34,7 +34,7 @@ export function RideLiveActivityStatus({ planId }: { planId?: string }) {
     <View
       style={{ padding: 12, gap: 6, borderRadius: 12, backgroundColor: theme.backgroundElement }}
     >
-      <ThemedText type="smallBold">잠금화면 보급정보</ThemedText>
+      <ThemedText type="smallBold">잠금화면 안내</ThemedText>
       <ThemedText type="caption" selectable>
         {status.message}
         {status.active ? (status.background ? " · 잠금 중 자동 갱신" : " · 앱 사용 중 갱신") : ""}
@@ -45,7 +45,7 @@ export function RideLiveActivityStatus({ planId }: { planId?: string }) {
         </ThemedText>
       ) : null}
       <ThemedText type="caption" themeColor="textSecondary" selectable>
-        거리·획득고도는 경로 기준입니다. 8시간 이상 라이딩하면 휴식 중 앱을 열어 주세요. 앱을 강제
+        거리·지형·획득고도는 경로 기준입니다. 8시간 이상 라이딩하면 휴식 중 앱을 열어 주세요. 앱을 강제
         종료하면 위치 갱신이 멈춥니다.
       </ThemedText>
       <View style={{ flexDirection: "row", gap: 16 }}>
