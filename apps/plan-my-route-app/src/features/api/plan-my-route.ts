@@ -248,6 +248,40 @@ export const putPlanReviewNote = async (
 	}
 };
 
+export async function saveStageFinish(
+	apiOrigin: string,
+	accessToken: string,
+	planId: string,
+	body: {
+		requestId: string;
+		currentStageId: string;
+		nextStageId: string;
+		newEndM: number;
+		expectedCurrentStartM: number;
+		expectedCurrentEndM: number;
+		expectedNextStartM: number;
+		expectedNextEndM: number;
+		currentGainM: number | null;
+		currentLossM: number | null;
+		nextGainM: number | null;
+		nextLossM: number | null;
+		poiIds: string[];
+	},
+): Promise<void> {
+	const response = await fetch(`${apiOrigin}/api/mobile/plans/${planId}/finish`, {
+		method: "POST",
+		headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		let message = "종료 지점을 저장하지 못했습니다.";
+		try {
+			message = (await response.json()).error ?? message;
+		} catch {}
+		throw new Error(message);
+	}
+}
+
 export const fetchPlanDetail = async (
 	apiOrigin: string,
 	accessToken: string,
@@ -367,36 +401,3 @@ export const getFavoritePlans = (routeDetails: RouteDetail[]) =>
 			})),
 	);
 
-export async function saveStageFinish(
-	apiOrigin: string,
-	accessToken: string,
-	planId: string,
-	body: {
-		requestId: string;
-		currentStageId: string;
-		nextStageId: string;
-		newEndM: number;
-		expectedCurrentStartM: number;
-		expectedCurrentEndM: number;
-		expectedNextStartM: number;
-		expectedNextEndM: number;
-		currentGainM: number | null;
-		currentLossM: number | null;
-		nextGainM: number | null;
-		nextLossM: number | null;
-		poiIds: string[];
-	},
-): Promise<void> {
-	const response = await fetch(`${apiOrigin}/api/mobile/plans/${planId}/finish`, {
-		method: "POST",
-		headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-		body: JSON.stringify(body),
-	});
-	if (!response.ok) {
-		let message = "종료 지점을 저장하지 못했습니다.";
-		try {
-			message = (await response.json()).error ?? message;
-		} catch {}
-		throw new Error(message);
-	}
-}
