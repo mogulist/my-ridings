@@ -366,3 +366,24 @@ export const getFavoritePlans = (routeDetails: RouteDetail[]) =>
 				planName: plan.name,
 			})),
 	);
+
+export async function registerPlanClimb(
+	apiOrigin: string,
+	accessToken: string,
+	planId: string,
+	body: { name: string; distanceM: number; summitId: string | null },
+): Promise<void> {
+	const response = await fetch(`${apiOrigin}/api/mobile/plans/${planId}/climbs`, {
+		method: "POST",
+		headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		let message = "고개를 저장하지 못했습니다.";
+		try {
+			const data = await response.json();
+			message = data.error ?? message;
+		} catch {}
+		throw new Error(message);
+	}
+}
