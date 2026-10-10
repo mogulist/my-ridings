@@ -1,3 +1,4 @@
+import { PlanStageMiniElevation } from "@/components/plan-stage-mini-elevation";
 import {
 	startTerrainPreviewActivity,
 	endTerrainPreviewActivity,
@@ -106,6 +107,21 @@ export default function TerrainPreview() {
 				</Pressable>
 			</View>
 			<RideTerrainDetail briefing={briefing} statusLabel="예시 위치 기준" />
+			<PlanStageMiniElevation
+				stage={{
+					id: "preview",
+					title: null,
+					start_distance: 0,
+					end_distance: 30000,
+					elevation_gain: 0,
+					elevation_loss: 0,
+					memo: null,
+					start_name: null,
+					end_name: null,
+				}}
+				trackPoints={plan.track}
+				currentRelKm={km}
+			/>
 		</ScrollView>
 	);
 }
