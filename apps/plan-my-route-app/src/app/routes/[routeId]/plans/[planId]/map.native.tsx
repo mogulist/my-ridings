@@ -61,6 +61,10 @@ export default function PlanMapScreen({ previewDetail }: { previewDetail?: PlanD
 	const { planId, stageId } = useLocalSearchParams<{ planId: string; stageId?: string }>();
 	const [showAll, setShowAll] = useState(false);
 	const apiOrigin = useMemo(getApiOrigin, []);
+	useEffect(() => {
+		setShowAll(false);
+		setSelectedPoi(null);
+	}, [planId, stageId]);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -295,7 +299,7 @@ export default function PlanMapScreen({ previewDetail }: { previewDetail?: PlanD
 				{useGlass ? (
 					<GlassView glassEffectStyle="regular" isInteractive style={styles.legendChrome}>
 						<View style={{ gap: 8 }}>
-							{selectedStageId ? (
+							{detail.stages.some((s) => s.id === selectedStageId) ? (
 								<View style={{ flexDirection: "row", gap: 8 }}>
 									{[false, true].map((all) => (
 										<Pressable
@@ -353,7 +357,7 @@ export default function PlanMapScreen({ previewDetail }: { previewDetail?: PlanD
 						]}
 					>
 						<View style={{ gap: 8 }}>
-							{selectedStageId ? (
+							{detail.stages.some((s) => s.id === selectedStageId) ? (
 								<View style={{ flexDirection: "row", gap: 8 }}>
 									{[false, true].map((all) => (
 										<Pressable
