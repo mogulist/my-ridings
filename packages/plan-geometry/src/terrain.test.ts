@@ -62,6 +62,7 @@ describe("terrain before a destination", () => {
 		points[30].e = NaN;
 		const s = summarizeTerrain(analyzeTerrain(points), 0, 4);
 		expect(s.gainM).toBeNull();
+		expect(analyzeTerrain(points).climbs).toHaveLength(0);
 		expect(s.distances.unknown).toBeGreaterThan(0);
 		const sparse = analyzeTerrain([points[0], points[100]]);
 		expect(summarizeTerrain(sparse, 0, 5).distances.unknown).toBe(5);

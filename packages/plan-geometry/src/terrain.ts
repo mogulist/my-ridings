@@ -161,6 +161,8 @@ export function analyzeTerrain(track: TrackPoint[]): TerrainAnalysis {
 		for (let j = i; j <= lastUp; j++) gain += cells[j].gainM;
 		const length = summitKm - c.startKm;
 		if (
+			cells[i - 1]?.kind !== "unknown" &&
+			cells[lastUp + 1]?.kind !== "unknown" &&
 			length * 1000 >= TERRAIN_RULES.minClimbLengthM &&
 			gain >= TERRAIN_RULES.minClimbGainM &&
 			gain / (length * 10) >= TERRAIN_RULES.climbPct
