@@ -97,7 +97,7 @@ describe("실제 라이딩 보급정보", () => {
     expect(snapshot.primaryDistance).toBe("1.0 km");
     expect(snapshot.nextSupplyName).toBe("두번째");
     expect(snapshot.thirdSupplyName).toBe("세번째");
-    expect(snapshot.primaryAscent).toBe("+30 m");
+    expect(snapshot.primaryAscent).toBe("+50m");
     expect(snapshot.nextSupplyAscent).toBe("+80 m");
   });
   test("통과하면 다음 보급소로 넘어가며 명시적 스테이지 배정을 유지한다", () => {
@@ -119,7 +119,7 @@ describe("실제 라이딩 보급정보", () => {
   test("위치 대기·경로 밖·보급소 없음에 가짜 거리를 표시하지 않는다", () => {
     const plan = prepareRideSupplyPlan(detail([]));
     expect(buildRideSupplySnapshot(plan, null).primaryName).toBe("GPS 위치 확인 중");
-    expect(buildRideSupplySnapshot(plan, position).primaryName).toBe("남은 보급소 없음");
+    expect(buildRideSupplySnapshot(plan, position).primaryName).toBe("미등록 오르막");
     const offRoute = buildRideSupplySnapshot(plan, position, "경로 밖 · 복귀 후 갱신");
     expect(offRoute.primaryDistance).toBe("—");
     expect(offRoute.nextSupplyName).toBeNull();
