@@ -1,3 +1,7 @@
+import {
+	startTerrainPreviewActivity,
+	endTerrainPreviewActivity,
+} from "@/features/live-activity/terrain-preview-activity";
 import { Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
@@ -87,6 +91,20 @@ export default function TerrainPreview() {
 					</View>
 				</>
 			) : null}
+			<View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+				<Pressable
+					onPress={() => void startTerrainPreviewActivity(scenario, km)}
+					style={{ minHeight: 44, justifyContent: "center" }}
+				>
+					<ThemedText type="linkPrimary">잠금화면 예시 시작</ThemedText>
+				</Pressable>
+				<Pressable
+					onPress={() => void endTerrainPreviewActivity()}
+					style={{ minHeight: 44, justifyContent: "center" }}
+				>
+					<ThemedText type="linkPrimary">예시 종료</ThemedText>
+				</Pressable>
+			</View>
 			<RideTerrainDetail briefing={briefing} statusLabel="예시 위치 기준" />
 		</ScrollView>
 	);

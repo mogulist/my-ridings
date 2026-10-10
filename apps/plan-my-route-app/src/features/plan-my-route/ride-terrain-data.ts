@@ -12,7 +12,7 @@ import type { PlanDetail, SummitMarkerOnRoute } from "@/features/api/plan-my-rou
 import {
 	prepareRideSupplyPlan,
 	type RideSupplyPlan,
-} from "@/features/live-activity/ride-supply-data";
+} from "@/features/live-activity/ride-supply-plan";
 
 export type RideTerrainPlan = RideSupplyPlan & {
 	terrain: TerrainAnalysis;
@@ -55,10 +55,11 @@ export function terrainAscent(summary: TerrainSummary): string {
 	return summary.gainM == null ? "고도 정보 없음" : `+${summary.gainM.toLocaleString()}m`;
 }
 export function prepareRideTerrainPlan(detail: PlanDetail): RideTerrainPlan {
+	const plan = prepareRideSupplyPlan(detail);
 	return {
-		...prepareRideSupplyPlan(detail),
-		terrain: analyzeTerrain(detail.trackPoints),
-		summitMarkers: detail.summitMarkers,
+		...plan,
+		terrain: plan.terrain ?? analyzeTerrain(detail.trackPoints),
+		summitMarkers: detail.summitMarkers ?? [],
 	};
 }
 export function buildRideTerrainBriefing(
