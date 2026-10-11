@@ -30,7 +30,7 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
             >
               {props.primaryLabel}
             </Text>
-            <Text modifiers={[font({ size: 18, weight: "bold", design: "rounded" }), lineLimit(1)]}>
+            <Text modifiers={[font({ size: 16, weight: "bold", design: "rounded" }), lineLimit(1)]}>
               {props.primaryName}
             </Text>
           </VStack>
@@ -55,65 +55,62 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
           </VStack>
         </HStack>
 
-        {props.nextSupplyName && props.nextSupplyDistance && props.nextSupplyAscent ? (
-          <HStack spacing={8} alignment="center">
-            <Image systemName="2.circle.fill" color="#8E8E93" />
-            <Text
-              modifiers={[font({ size: 15, weight: "semibold", design: "rounded" }), lineLimit(1)]}
-            >
-              {props.nextSupplyName}
-            </Text>
-            <Spacer />
-            <VStack alignment="trailing" spacing={0}>
-              <Text
-                modifiers={[
-                  font({ size: 15, weight: "semibold", design: "rounded" }),
-                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
-                ]}
-              >
-                {props.nextSupplyDistance}
-              </Text>
-              <Text
-                modifiers={[
-                  font({ size: 12, weight: "semibold", design: "rounded" }),
-                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
-                ]}
-              >
-                {props.nextSupplyAscent}
-              </Text>
-            </VStack>
-          </HStack>
+        {props.primaryTerrain ? (
+          <Text
+            modifiers={[
+              font({ size: 11, weight: "medium" }),
+              lineLimit(1),
+              foregroundStyle({ type: "hierarchical", style: "secondary" }),
+            ]}
+          >
+            {props.primaryTerrain}
+          </Text>
         ) : null}
-
-        {props.thirdSupplyName && props.thirdSupplyDistance && props.thirdSupplyAscent ? (
-          <HStack spacing={8} alignment="center">
-            <Image systemName="3.circle.fill" color="#8E8E93" />
+        {props.climbLabel ? (
+          <VStack alignment="leading" spacing={2}>
+            <HStack spacing={8}>
+              <Text modifiers={[font({ size: 12, weight: "semibold" }), lineLimit(1)]}>
+                {props.climbLabel}
+              </Text>
+              <Spacer />
+              <Text modifiers={[font({ size: 13, weight: "bold", design: "rounded" })]}>
+                {props.climbDistance}
+              </Text>
+            </HStack>
             <Text
-              modifiers={[font({ size: 15, weight: "semibold", design: "rounded" }), lineLimit(1)]}
+              modifiers={[
+                font({ size: 11 }),
+                lineLimit(1),
+                foregroundStyle({ type: "hierarchical", style: "secondary" }),
+              ]}
             >
-              {props.thirdSupplyName}
+              {props.climbTerrain}
             </Text>
-            <Spacer />
-            <VStack alignment="trailing" spacing={0}>
-              <Text
-                modifiers={[
-                  font({ size: 15, weight: "semibold", design: "rounded" }),
-                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
-                ]}
-              >
-                {props.thirdSupplyDistance}
-              </Text>
-              <Text
-                modifiers={[
-                  font({ size: 12, weight: "semibold", design: "rounded" }),
-                  foregroundStyle({ type: "hierarchical", style: "secondary" }),
-                ]}
-              >
-                {props.thirdSupplyAscent}
-              </Text>
-            </VStack>
-          </HStack>
+          </VStack>
         ) : null}
+        {props.climbStats ? (
+          <Text modifiers={[font({ size: 11 }), lineLimit(1)]}>{props.climbStats}</Text>
+        ) : null}
+        <HStack spacing={8}>
+          <Text
+            modifiers={[
+              font({ size: 10 }),
+              foregroundStyle({ type: "hierarchical", style: "secondary" }),
+            ]}
+          >
+            {props.secondaryLabel}
+          </Text>
+          <Spacer />
+          <Text
+            modifiers={[
+              font({ size: 10 }),
+              lineLimit(1),
+              foregroundStyle({ type: "hierarchical", style: "secondary" }),
+            ]}
+          >
+            {props.secondaryValue}
+          </Text>
+        </HStack>
       </VStack>
     ),
     compactLeading: <Image systemName="bicycle" color="#0A84FF" />,
@@ -156,10 +153,12 @@ const RideLiveActivity = (props: RideLiveActivityProps) => {
               foregroundStyle({ type: "hierarchical", style: "secondary" }),
             ]}
           >
-            {props.secondaryLabel}
+            {props.primaryTerrain ?? props.secondaryLabel}
           </Text>
           <Spacer />
-          <Text modifiers={[font({ size: 12, weight: "semibold" })]}>{props.secondaryValue}</Text>
+          <Text modifiers={[font({ size: 12, weight: "semibold" })]}>
+            {props.climbDistance ?? props.secondaryValue}
+          </Text>
         </HStack>
       </VStack>
     ),

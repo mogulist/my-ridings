@@ -103,7 +103,7 @@ async function renderActivity(message: string | null = null, allowStart = false)
     }
     RideLiveActivity.start(
       props,
-      Linking.createURL(`/routes/${session.ride.routeId}/plans/${session.ride.planId}/schedule`),
+      Linking.createURL(`/routes/${session.ride.routeId}/plans/${session.ride.planId}/terrain`),
     );
     session.activityStartedAt = Date.now();
     await saveSession();
@@ -113,7 +113,7 @@ async function renderActivity(message: string | null = null, allowStart = false)
   }
   setRideTrackingStatus({
     active: true,
-    message: message ?? session.positionMessage ?? "잠금화면 보급정보 표시 중",
+    message: message ?? session.positionMessage ?? "잠금화면 보급·지형 정보 표시 중",
   });
 }
 

@@ -1,12 +1,16 @@
+import { analyzeTerrain } from "@my-ridings/plan-geometry";
 import {
-  calibrateThreshold,
-  computeTrackElevationGainLoss,
-  planPoiBelongsToStage,
-  snapPlanPoisToTrack,
-  type SnappedPlanPoi,
-} from "@my-ridings/plan-geometry";
+  buildRideTerrainBriefing,
+  terrainAscent,
+  TERRAIN_LABELS,
+  type RideTerrainPlan,
+} from "@/features/plan-my-route/ride-terrain-data";
+import type { TerrainSummary } from "@my-ridings/plan-geometry";
+import type { RideSupplyPlan } from "./ride-supply-plan";
+export { prepareRideSupplyPlan, type RideSupplyPlan } from "./ride-supply-plan";
+import { computeTrackElevationGainLoss, planPoiBelongsToStage } from "@my-ridings/plan-geometry";
 
-import type { PlanDetail, TrackPoint } from "@/features/api/plan-my-route";
+import type { TrackPoint } from "@/features/api/plan-my-route";
 
 import type { RideLiveActivityProps } from "./mock-ride-snapshots";
 
@@ -21,39 +25,6 @@ export type RidePosition = {
   km: number;
   timestamp: number;
 };
-
-export type RideSupplyPlan = {
-  track: TrackPoint[];
-  threshold: number;
-  stages: { id: string; startDistanceKm: number; endDistanceKm: number }[];
-  stops: SnappedPlanPoi[];
-};
-
-export function prepareRideSupplyPlan(detail: PlanDetail): RideSupplyPlan {
-  const track = detail.trackPoints.filter(
-    (point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.d),
-  );
-  const supplies = detail.planPois.filter(
-    (poi) =>
-      (poi.poi_type === "convenience" || poi.poi_type === "mart") &&
-      poi.intent !== "confirmed" &&
-      !poi.is_candidate_excluded,
-  );
-  return {
-    track,
-    threshold: calibrateThreshold(track, detail.knownRouteElevationGainM),
-    stages: detail.stages.map((stage) => ({
-      id: stage.id,
-      startDistanceKm: (stage.start_distance ?? 0) / 1000,
-      endDistanceKm: (stage.end_distance ?? stage.start_distance ?? 0) / 1000,
-    })),
-    // A missing altitude must not hide a supply stop. The original track remains unchanged.
-    stops: snapPlanPoisToTrack(
-      supplies,
-      track.map((point) => ({ ...point, e: point.e ?? 0 })),
-    ),
-  };
-}
 
 /** Project onto segments, so sparse tracks don't turn a rider between samples into an off-route fix. */
 export function locateRide(
@@ -155,7 +126,7 @@ export function buildRideSupplySnapshot(
         : !stage
           ? "스테이지 경로 밖"
           : "남은 보급소 없음");
-  return {
+  const oldSnapshot: RideLiveActivityProps = {
     phase: "ride",
     phaseLabel: "라이딩",
     stageLabel: stage ? `스테이지 ${stageIndex + 1}` : "라이딩",
@@ -175,5 +146,61 @@ export function buildRideSupplySnapshot(
     secondaryLabel: updated ? `${updated} 위치 기준` : "위치 수신 대기",
     secondaryValue: "경로 기준 거리·획득고도",
     accentColor: stops.length ? "#FF9500" : "#8E8E93",
+  };
+  if (!plan || km == null || message || !stage) return oldSnapshot;
+  // Older saved plans are upgraded once, before destination summaries are generated.
+  plan.terrain ??= analyzeTerrain(plan.track);
+  const b = buildRideTerrainBriefing(
+    { ...plan, terrain: plan.terrain, summitMarkers: plan.summitMarkers ?? [] } as RideTerrainPlan,
+    km,
+  );
+  if (!b) return oldSnapshot;
+  const primary = b.supply ?? b.approach ?? b.summit ?? b.finish;
+  const compact = (summary: TerrainSummary) =>
+    summary.segments
+      .slice(0, 2)
+      .map((s) => `${TERRAIN_LABELS[s.kind]} ${(s.endKm - s.startKm).toFixed(1)}km`)
+      .join(" → ") + (summary.segments.length > 2 ? " …" : "");
+  const climbTarget = b.approach ?? b.summit;
+  const climbStats = b.climb
+    ? `오르막 자체 ${(b.climb.summitKm - b.climb.startKm).toFixed(1)}km · +${b.climb.gainM}m`
+    : b.remainingClimbs == null
+      ? "남은 오르막 분석 불가"
+      : "본격적인 오르막 없음";
+  return {
+    ...oldSnapshot,
+    primaryLabel: b.supply
+      ? "다음 보급소"
+      : b.approach
+        ? "다음 오르막 시작"
+        : b.summit
+          ? "오르막 진행 중"
+          : "오늘 끝까지",
+    primaryName: b.supply?.title ?? (b.climb ? b.climbName : b.finish.title),
+    primaryDistance: `${primary.summary.distanceKm.toFixed(1)} km`,
+    primaryAscent: terrainAscent(primary.summary),
+    primaryTerrain: compact(primary.summary) || "목적지 도착",
+    remainingLabel: `${primary.summary.distanceKm.toFixed(1)}km`,
+    climbLabel:
+      b.supply && b.climb
+        ? `${b.approach ? "다음 오르막" : "오르막 진행 중"} · ${b.climbName}`
+        : null,
+    climbDistance:
+      b.supply && climbTarget
+        ? `${b.approach ? "시작" : "정상"} ${climbTarget.summary.distanceKm.toFixed(1)}km`
+        : null,
+    climbTerrain: b.supply && climbTarget ? compact(climbTarget.summary) : null,
+    climbStats,
+    secondaryLabel: updated ? `${updated} 위치 기준` : "위치 확인 중",
+    secondaryValue: !b.supply
+      ? b.remainingClimbs == null
+        ? "남은 오르막 분석 불가"
+        : `남은 오르막 ${b.remainingClimbs}개`
+      : b.climb && b.climb.summitKm <= b.supply.endKm
+        ? "보급 전 오르막 통과"
+        : b.climb && b.climb.startKm < b.supply.endKm
+          ? "보급소는 오르막 중간"
+          : "지형 상세는 눌러서 확인",
+    accentColor: b.supply ? "#FF9500" : "#0A84FF",
   };
 }

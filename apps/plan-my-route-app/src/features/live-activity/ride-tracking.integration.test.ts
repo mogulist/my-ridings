@@ -107,6 +107,7 @@ describe("실시간 현황 수명주기", () => {
   test("라이딩 시작·잠금 중 GPS 갱신·종료가 실제 네이티브 경계까지 이어진다", async () => {
     await service.syncRideTracking(ride, plan);
     expect(starts).toBe(1);
+    expect(native.start.mock.calls.at(-1)?.[1]).toContain("/terrain");
     expect(locationRunning).toBe(true);
     appState.currentState = "background";
     await service.updateRideLocation({

@@ -20,6 +20,11 @@ export type RideLiveActivityProps = {
   secondaryLabel: string;
   secondaryValue: string;
   accentColor: string;
+  primaryTerrain?: string;
+  climbLabel?: string | null;
+  climbDistance?: string | null;
+  climbTerrain?: string | null;
+  climbStats?: string;
 };
 
 export const MOCK_RIDE_PHASES: readonly MockRidePhase[] = ["ride", "supply", "lodging"];
