@@ -4,26 +4,26 @@
 export const PLAN_GEOMETRY_PACKAGE_VERSION = 2;
 
 export type {
-  AccommodationCandidate,
-  AccommodationCandidateGroup,
+	AccommodationCandidate,
+	AccommodationCandidateGroup,
 } from "./accommodation-candidate-groups";
 export {
-  ACCOMMODATION_GROUP_GAP_KM,
-  groupAccommodationCandidates,
+	ACCOMMODATION_GROUP_GAP_KM,
+	groupAccommodationCandidates,
 } from "./accommodation-candidate-groups";
 
 export {
-  calibrateThreshold,
-  computeElevationGainCurve,
-  computeTrackElevationGainLoss,
+	calibrateThreshold,
+	computeElevationGainCurve,
+	computeTrackElevationGainLoss,
 } from "./elevation-gain";
 export type { ClimbProfile, ClimbStartMode, GradientSegment } from "./gradient";
 export {
-  computeGradientSegments,
-  DOWNHILL_COLOR,
-  detectClimb,
-  getGradientColor,
-  lookupGradientAtKm,
+	computeGradientSegments,
+	DOWNHILL_COLOR,
+	detectClimb,
+	getGradientColor,
+	lookupGradientAtKm,
 } from "./gradient";
 export type { RouteDetour } from "./route-detour";
 export { computeRouteDetour } from "./route-detour";
@@ -33,3 +33,12 @@ export type { PlanPoiSnapInput, SnappedPlanPoi, StageDistanceRange } from "./sna
 export { planPoiBelongsToStage, snapPlanPoisToTrack } from "./snap-plan-pois";
 export { stageDayLabel } from "./stage-day-label";
 export type { TrackPoint } from "./track-point";
+
+export { analyzeTerrain, summarizeTerrain, nextTerrainClimb, TERRAIN_RULES } from "./terrain";
+export type {
+	TerrainKind,
+	TerrainSegment,
+	DetectedClimb,
+	TerrainAnalysis,
+	TerrainSummary,
+} from "./terrain";

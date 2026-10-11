@@ -20,8 +20,6 @@ import { supabaseAdmin } from "@/lib/supabase";
 const UUID_V4_LIKE_REGEX =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const MAX_TRACK_POINTS_IN_RESPONSE = 2500;
-
 type PublicPlanStage = {
 	id: string;
 	title: string | null;
@@ -57,18 +55,6 @@ type PlanRowWithNested = {
 	route: PublicPlanRouteRow;
 	stages: PublicPlanStage[];
 };
-
-function sampleTrackPoints<T>(points: T[], maxPoints: number): T[] {
-	if (points.length <= maxPoints) return points;
-	const step = Math.ceil(points.length / maxPoints);
-	const out: T[] = [];
-	for (let i = 0; i < points.length; i += step) {
-		out.push(points[i]!);
-	}
-	const last = points[points.length - 1]!;
-	if (out[out.length - 1] !== last) out.push(last);
-	return out;
-}
 
 async function fetchOfficialSummitsForTrack(
 	trackPoints: RwgpsTrackPoint[],
@@ -207,8 +193,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ plan
 		? Number(rwgpsRoute.elevation_gain) || Number(routeRow.elevation_gain) || 0
 		: Number(routeRow.elevation_gain) || 0;
 
-	const trackPointsSampled =
-		fullTrack.length > 0 ? sampleTrackPoints(fullTrack, MAX_TRACK_POINTS_IN_RESPONSE) : [];
+	// Terrain analysis and marker indices require the original distance/elevation samples.
+	const trackPointsForClient = fullTrack;
 
 	return NextResponse.json({
 		plan: {
@@ -223,7 +209,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ plan
 		route: routeForClient,
 		stages: sortedStages,
 		planPois,
-		trackPoints: trackPointsSampled,
+		trackPoints: trackPointsForClient,
 		officialSummits,
 		cpMarkers,
 		summitMarkers,
