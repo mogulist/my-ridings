@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { normalizePlanReviewRoute } from "./review-route";
 
 describe("normalizePlanReviewRoute", () => {
-	test.each(["summary", "schedule", "map"])("%s 탭을 복원 경로로 허용한다", (screen) => {
+	test.each(["summary", "schedule", "map", "terrain"])("%s 탭을 복원 경로로 허용한다", (screen) => {
 		expect(normalizePlanReviewRoute(`/routes/route-1/plans/plan-2/${screen}/`)).toBe(
 			`/routes/route-1/plans/plan-2/${screen}`,
 		);

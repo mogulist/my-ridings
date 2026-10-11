@@ -10,6 +10,7 @@ export type LocationPermissionStatus = "unknown" | "granted" | "denied";
 
 export type CurrentLocationKmState = {
 	permission: LocationPermissionStatus;
+	updatedAt: number | null;
 	lat: number | null;
 	lng: number | null;
 	/** 트랙에 스냅된 경로 누적 km */
@@ -32,6 +33,7 @@ export function useCurrentLocationKm(
 	const [lat, setLat] = useState<number | null>(null);
 	const [lng, setLng] = useState<number | null>(null);
 	const [currentKm, setCurrentKm] = useState<number | null>(null);
+	const [updatedAt, setUpdatedAt] = useState<number | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [isWatching, setIsWatching] = useState(false);
@@ -50,6 +52,7 @@ export function useCurrentLocationKm(
 			const fix = { ...loc.coords, timestamp: loc.timestamp };
 			const result = locateRide(track, fix, null);
 			setCurrentKm(result.position?.km ?? null);
+			setUpdatedAt(result.position?.timestamp ?? null);
 			setError(result.reason);
 			void updateRideLocation(fix).catch(() => {});
 		},
@@ -140,6 +143,7 @@ export function useCurrentLocationKm(
 
 	return {
 		permission,
+		updatedAt,
 		lat,
 		lng,
 		currentKm,

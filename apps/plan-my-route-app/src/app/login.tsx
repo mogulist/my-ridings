@@ -1,6 +1,7 @@
+import { consumePendingReviewRoute } from "@/features/navigation/pending-review-route";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, useColorScheme } from "react-native";
@@ -34,7 +35,7 @@ export default function LoginScreen() {
 		void (async () => {
 			const accessToken = await getStoredAccessToken();
 			if (!accessToken) return;
-			router.replace("/");
+			router.replace(((await consumePendingReviewRoute()) ?? "/") as Href);
 		})();
 	}, [router]);
 
@@ -66,7 +67,7 @@ export default function LoginScreen() {
 			if (!accessToken) throw new Error("세션을 만들지 못했습니다.");
 
 			await fetchRoutes(apiOrigin, accessToken);
-			router.replace("/");
+			router.replace(((await consumePendingReviewRoute()) ?? "/") as Href);
 		} catch (error: unknown) {
 			setErrorMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
 		} finally {

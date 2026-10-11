@@ -1,5 +1,6 @@
+import { consumePendingReviewRoute } from "@/features/navigation/pending-review-route";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -21,7 +22,7 @@ export default function AuthCallbackScreen() {
 				}
 
 				await createSessionFromUrl(initialUrl);
-				if (isMounted) router.replace("/");
+				if (isMounted) router.replace(((await consumePendingReviewRoute()) ?? "/") as Href);
 			} catch (error: unknown) {
 				if (!isMounted) return;
 				setErrorMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");

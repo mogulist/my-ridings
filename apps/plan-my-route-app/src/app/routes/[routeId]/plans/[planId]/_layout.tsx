@@ -139,6 +139,14 @@ export default function PlanDetailLayout() {
 					}}
 				/>
 				<Stack.Screen
+					name="terrain"
+					options={{
+						title: "앞으로의 지형",
+						...planDetailHeaderChrome,
+						headerLeft: () => <HeaderBackToSchedule />,
+					}}
+				/>
+				<Stack.Screen
 					name="note"
 					options={{
 						presentation: "modal",

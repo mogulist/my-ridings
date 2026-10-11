@@ -1,5 +1,5 @@
 const PLAN_REVIEW_ROUTE =
-	/^\/routes\/([^/]+)\/plans\/([^/]+)\/(summary|schedule|map|stages\/([1-9]\d*))\/?$/;
+	/^\/routes\/([^/]+)\/plans\/([^/]+)\/(summary|schedule|map|terrain|stages\/([1-9]\d*))\/?$/;
 
 export function normalizePlanReviewRoute(pathname: string): string | null {
 	const match = pathname.match(PLAN_REVIEW_ROUTE);
