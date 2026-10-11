@@ -1,3 +1,4 @@
+import { markerOnTrack, type PlanClimbMarkerRow } from "@/lib/plan-climb-marker";
 import { NextResponse } from "next/server";
 import { parseNumber, SUMMIT_SELECT_COLS } from "@/app/api/summits/shared";
 import type { PlanPoiRow } from "@/app/types/planPoi";
@@ -188,6 +189,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ plan
 
 	const summitMarkers =
 		rwgpsRoute && fullTrack.length > 0 ? computeSummitsOnRoute(officialSummits, fullTrack) : [];
+
+	const { data: localClimbs, error: climbError } = await supabaseAdmin
+		.from("plan_climb_marker")
+		.select("id,name,distance_m,summit_id")
+		.eq("plan_id", row.id);
+	if (climbError && !["42P01", "PGRST205"].includes(climbError.code))
+		return NextResponse.json({ error: "플랜 고개 정보를 불러오지 못했습니다." }, { status: 500 });
+	for (const climb of (localClimbs ?? []) as PlanClimbMarkerRow[]) {
+		const marker = markerOnTrack(climb, fullTrack);
+		if (marker) summitMarkers.push(marker);
+	}
+	summitMarkers.sort((a, b) => a.distanceKm - b.distanceKm);
 
 	const knownRouteElevationGainM = rwgpsRoute
 		? Number(rwgpsRoute.elevation_gain) || Number(routeRow.elevation_gain) || 0

@@ -455,6 +455,22 @@ function StageSummaryBody({
 						<ThemedText type="caption" themeColor="textSecondary" selectable>
 							멈춰서 경로와 고도 프로필을 자세히 확인합니다.
 						</ThemedText>
+						<Pressable
+							accessibilityRole="button"
+							style={{ minHeight: 48, justifyContent: "center" }}
+							onPress={() =>
+								router.push({
+									pathname: "/routes/[routeId]/plans/[planId]/climbs",
+									params: {
+										routeId,
+										planId: detail.plan.id,
+										dayNumber: String(detail.stages.indexOf(stage) + 1),
+									},
+								})
+							}
+						>
+							<ThemedText type="linkPrimary">빠진 고개 찾기 · 오르막 스캔</ThemedText>
+						</Pressable>
 						<PlanStageMiniElevation
 							stage={stage}
 							trackPoints={detail.trackPoints}
