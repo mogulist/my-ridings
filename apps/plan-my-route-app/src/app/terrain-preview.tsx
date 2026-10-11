@@ -3,7 +3,8 @@ import {
 	startTerrainPreviewActivity,
 	endTerrainPreviewActivity,
 } from "@/features/live-activity/terrain-preview-activity";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { HeaderBack } from "@/components/ui/header-back";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
@@ -13,6 +14,7 @@ import { makeTerrainPreviewPlan } from "@/features/plan-my-route/terrain-preview
 import { useTheme } from "@/hooks/use-theme";
 export default function TerrainPreview() {
 	const theme = useTheme();
+	const router = useRouter();
 	const [showControls, setShowControls] = useState(false);
 	const [scenario, setScenario] = useState("normal");
 	const [km, setKm] = useState<number | null>(1);
@@ -32,7 +34,21 @@ export default function TerrainPreview() {
 				gap: 16,
 			}}
 		>
-			<Stack.Screen options={{ headerShown: true, title: "앞으로의 지형" }} />
+			<Stack.Screen
+				options={{
+					headerShown: true,
+					title: "앞으로의 지형",
+					headerLeft: () => (
+						<HeaderBack
+							accessibilityLabel="예시 화면에서 나가기"
+							onPress={() => {
+								if (router.canGoBack()) router.back();
+								else router.replace("/(tabs)");
+							}}
+						/>
+					),
+				}}
+			/>
 			<ThemedText type="caption" themeColor="textSecondary">
 				개발용 예시 데이터 · 실제 라이딩 정보가 아닙니다.
 			</ThemedText>
