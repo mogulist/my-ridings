@@ -1,248 +1,230 @@
-import { useMemo } from "react";
-import { StyleSheet, View } from "react-native";
-
+import { analyzeTerrain, summarizeTerrain } from "@my-ridings/plan-geometry";
+import { useMemo, useRef, useState } from "react";
+import { Pressable, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
-import { Card } from "@/components/ui/card";
-import { Spacing } from "@/constants/theme";
 import type { MobilePlanStageRow, TrackPoint } from "@/features/api/plan-my-route";
+import { buildElevationEnvelope } from "@/features/plan-my-route/elevation-envelope";
+import { TERRAIN_COLORS } from "@/features/plan-my-route/components/ride-terrain-detail";
+import { TERRAIN_LABELS, terrainAscent } from "@/features/plan-my-route/ride-terrain-data";
 import { useTheme } from "@/hooks/use-theme";
-
-const CHART_HEIGHT = 76;
-const BIN_COUNT = 72;
-const CURRENT_DOT_SIZE = 10;
-
 export type PlanStageMiniElevationProps = {
 	stage: MobilePlanStageRow;
 	trackPoints: TrackPoint[];
 	currentRelKm?: number | null;
 };
-
 export function PlanStageMiniElevation({
 	stage,
 	trackPoints,
 	currentRelKm,
 }: PlanStageMiniElevationProps) {
 	const theme = useTheme();
-
-	const chart = useMemo(() => buildStageElevationBins(trackPoints, stage), [stage, trackPoints]);
-
-	const stageStartM = stage.start_distance ?? 0;
-	const stageEndM = stage.end_distance ?? stageStartM;
-	const stageLenM = Math.max(stageEndM - stageStartM, 0);
-	const markerRatio =
-		currentRelKm == null || stageLenM <= 0
-			? null
-			: Math.min(Math.max((currentRelKm * 1000) / stageLenM, 0), 1);
-
-	const startKmLabel = (stageStartM / 1000).toFixed(1);
-	const endKmLabel = (stageEndM / 1000).toFixed(1);
-
+	const chartRef = useRef<View>(null);
+	const [zoom, setZoom] = useState(false),
+		[width, setWidth] = useState(0),
+		[selected, setSelected] = useState<number | null>(null);
+	const stageStart = (stage.start_distance ?? 0) / 1000,
+		stageEnd = (stage.end_distance ?? stage.start_distance ?? 0) / 1000;
+	const currentKm = currentRelKm == null ? null : stageStart + currentRelKm;
+	const start = zoom
+		? Math.min(currentKm ?? stageStart, Math.max(stageStart, stageEnd - 20))
+		: stageStart;
+	const end = zoom ? Math.min(stageEnd, start + 20) : stageEnd;
+	const analysis = useMemo(() => analyzeTerrain(trackPoints), [trackPoints]);
+	const bins = useMemo(
+		() => buildElevationEnvelope(trackPoints, start, end),
+		[trackPoints, start, end],
+	);
+	const summary = useMemo(
+		() => summarizeTerrain(analysis, start, Math.max(start, end)),
+		[analysis, start, end],
+	);
+	const valid = bins.filter((b) => b.minM != null && b.maxM != null);
+	const min = valid.length ? Math.floor(Math.min(...valid.map((b) => b.minM!)) / 100) * 100 : 0;
+	const max = valid.length
+		? Math.max(min + 100, Math.ceil(Math.max(...valid.map((b) => b.maxM!)) / 100) * 100)
+		: 100;
+	const h = 144;
+	const y = (m: number) => ((m - min) / (max - min)) * h;
+	const picked = selected == null ? null : bins[Math.min(selected, bins.length - 1)];
+	const marker =
+		currentKm != null && currentKm >= start && currentKm <= end && end > start
+			? (currentKm - start) / (end - start)
+			: null;
 	return (
-		<View style={styles.wrap}>
-			<ThemedText type="smallBold" style={styles.sectionTitle}>
-				고도
-			</ThemedText>
-			<Card style={styles.card}>
-				{chart == null ? (
-					<ThemedText type="small" themeColor="textSecondary">
-						이 구간 고도 샘플이 없습니다.
-					</ThemedText>
-				) : (
-					<>
-						<View style={styles.chartOuter}>
-							<View style={[styles.chartInner, { height: CHART_HEIGHT }]}>
-								{chart.bins.map((elev, i) => {
-									const flat = chart.maxM === chart.minM;
-									const h = flat
-										? CHART_HEIGHT * 0.45
-										: ((elev - chart.minM) / chart.rangeM) * CHART_HEIGHT;
-									const barH = Math.max(2, Math.min(CHART_HEIGHT, h));
-									const t = (i + 0.5) / BIN_COUNT;
-									const isBeforeMarker = markerRatio == null || t <= markerRatio + 0.001;
-									const fill = isBeforeMarker
-										? withAlpha(theme.tint, 0.72)
-										: withAlpha(theme.textSecondary, 0.22);
-									return (
-										<View key={i} style={styles.barSlot}>
+		<View style={{ gap: 12 }}>
+			<View
+				style={{
+					flexDirection: "row",
+					justifyContent: "space-between",
+					alignItems: "center",
+					flexWrap: "wrap",
+					gap: 8,
+				}}
+			>
+				<ThemedText type="headline">고도와 지형</ThemedText>
+				<Pressable
+					accessibilityRole="button"
+					accessibilityLabel={zoom ? "스테이지 전체 고도 보기" : "20km 구간 고도 확대"}
+					onPress={() => {
+						setZoom(!zoom);
+						setSelected(null);
+					}}
+					style={{
+						minHeight: 44,
+						justifyContent: "center",
+						paddingHorizontal: 12,
+						borderRadius: 12,
+						backgroundColor: theme.backgroundElement,
+					}}
+				>
+					<ThemedText type="smallBold">{zoom ? "전체 보기" : "20km 확대"}</ThemedText>
+				</Pressable>
+			</View>
+			{valid.length === 0 ? (
+				<ThemedText type="small" themeColor="textSecondary">
+					이 구간의 고도 정보가 없습니다.
+				</ThemedText>
+			) : (
+				<>
+					<View style={{ flexDirection: "row", gap: 8 }}>
+						<View style={{ width: 42, height: h, justifyContent: "space-between" }}>
+							<ThemedText type="caption" themeColor="textSecondary">
+								{max}m
+							</ThemedText>
+							<ThemedText type="caption" themeColor="textSecondary">
+								{min}m
+							</ThemedText>
+						</View>
+						<Pressable
+							accessibilityRole="button"
+							accessibilityLabel="고도 그래프의 지점 확인"
+							onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+							ref={chartRef}
+							onPress={(e) => {
+								const pageX = e.nativeEvent.pageX;
+								chartRef.current?.measureInWindow((x, _y, chartWidth) => {
+									const resolvedWidth = chartWidth || width;
+									if (resolvedWidth > 0 && Number.isFinite(pageX)) {
+										setSelected(
+											Math.max(
+												0,
+												Math.min(
+													bins.length - 1,
+													Math.floor(((pageX - x) / resolvedWidth) * bins.length),
+												),
+											),
+										);
+									}
+								});
+							}}
+							style={{
+								height: h,
+								flex: 1,
+								flexDirection: "row",
+								alignItems: "flex-end",
+								borderBottomWidth: 1,
+								borderColor: theme.separator,
+							}}
+						>
+							{bins.map((b, i) => (
+								<View key={i} style={{ flex: 1, height: h, justifyContent: "flex-end" }}>
+									{b.minM == null ? (
+										<View style={{ height: h, backgroundColor: theme.backgroundElement }} />
+									) : (
+										<>
 											<View
-												style={[
-													styles.bar,
-													{
-														height: barH,
-														backgroundColor: fill,
-													},
-												]}
+												style={{
+													position: "absolute",
+													bottom: 0,
+													height: Math.max(1, y(b.minM)),
+													width: "100%",
+													backgroundColor: `${theme.tint}25`,
+												}}
 											/>
-										</View>
-									);
-								})}
-								{markerRatio != null ? (
-									<View
-										pointerEvents="none"
-										style={[
-											styles.markerLine,
-											{
-												left: `${markerRatio * 100}%`,
-												backgroundColor: theme.tint,
-											},
-										]}
-									/>
-								) : null}
-								{markerRatio != null ? (
-									<View
-										pointerEvents="none"
-										style={[
-											styles.markerDot,
-											{
-												left: `${markerRatio * 100}%`,
-												backgroundColor: theme.tint,
-												boxShadow: `0 0 8px ${withAlpha(theme.tint, 0.55)}`,
-											},
-										]}
-									/>
-								) : null}
-							</View>
-						</View>
-						<View style={styles.axisLabels}>
-							<ThemedText type="caption" themeColor="textSecondary" style={styles.axisKm}>
-								{startKmLabel} km
-							</ThemedText>
-							<ThemedText type="caption" themeColor="textSecondary" style={styles.axisKm}>
-								{endKmLabel} km
-							</ThemedText>
-						</View>
-					</>
-				)}
-			</Card>
+											<View
+												style={{
+													position: "absolute",
+													bottom: y(b.minM),
+													height: Math.max(2, y(b.maxM!) - y(b.minM)),
+													width: "100%",
+													backgroundColor: theme.tint,
+												}}
+											/>
+										</>
+									)}
+								</View>
+							))}
+							{marker != null ? (
+								<View
+									pointerEvents="none"
+									style={{
+										position: "absolute",
+										left: `${marker * 100}%`,
+										width: 2,
+										top: 0,
+										bottom: 0,
+										backgroundColor: theme.warning,
+									}}
+								/>
+							) : null}
+							{selected != null ? (
+								<View
+									pointerEvents="none"
+									style={{
+										position: "absolute",
+										left: `${((selected + 0.5) / bins.length) * 100}%`,
+										width: 1,
+										top: 0,
+										bottom: 0,
+										backgroundColor: theme.text,
+									}}
+								/>
+							) : null}
+						</Pressable>
+					</View>
+					<View style={{ flexDirection: "row", justifyContent: "space-between", paddingLeft: 50 }}>
+						<ThemedText type="caption" themeColor="textSecondary">
+							{start.toFixed(1)}km
+						</ThemedText>
+						<ThemedText type="caption" themeColor="textSecondary">
+							{end.toFixed(1)}km
+						</ThemedText>
+					</View>
+					{picked ? (
+						<ThemedText type="small" selectable>
+							{picked.startKm.toFixed(1)}–{picked.endKm.toFixed(1)}km ·{" "}
+							{picked.minM == null
+								? "고도 정보 없음"
+								: `${Math.round(picked.minM)}–${Math.round(picked.maxM!)}m`}
+						</ThemedText>
+					) : null}
+				</>
+			)}
+			<View
+				accessibilityLabel="거리 비례 지형 구간"
+				style={{ flexDirection: "row", height: 12, borderRadius: 6, overflow: "hidden" }}
+			>
+				{summary.segments.map((s, i) => (
+					<View
+						key={i}
+						style={{ flex: s.endKm - s.startKm, backgroundColor: TERRAIN_COLORS[s.kind] }}
+					/>
+				))}
+			</View>
+			<View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+				{Object.entries(summary.distances).map(([kind, distance]) => (
+					<ThemedText key={kind} type="caption" themeColor="textSecondary">
+						{TERRAIN_LABELS[kind as keyof typeof TERRAIN_LABELS]} {distance!.toFixed(1)}km
+					</ThemedText>
+				))}
+			</View>
+			<ThemedText type="small" selectable>
+				표시 구간 {(end - start).toFixed(1)}km · 상승 {terrainAscent(summary)}
+			</ThemedText>
+			<ThemedText type="caption" themeColor="textSecondary">
+				거리는 전체 경로 기준입니다. 곡선의 화면상 기울기와 실제 도로 경사도는 다릅니다. 빈 구간은
+				고도 정보가 없는 곳입니다.
+			</ThemedText>
 		</View>
 	);
-}
-
-function withAlpha(hex: string, alpha: number): string {
-	if (hex.startsWith("#") && hex.length === 7) {
-		const r = Number.parseInt(hex.slice(1, 3), 16);
-		const g = Number.parseInt(hex.slice(3, 5), 16);
-		const b = Number.parseInt(hex.slice(5, 7), 16);
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-	}
-	return hex;
-}
-
-const styles = StyleSheet.create({
-	wrap: {
-		gap: Spacing.two,
-	},
-	sectionTitle: {
-		marginBottom: Spacing.half,
-	},
-	card: {
-		paddingHorizontal: Spacing.three,
-		paddingVertical: Spacing.three,
-	},
-	chartOuter: {
-		width: "100%",
-	},
-	chartInner: {
-		flexDirection: "row",
-		alignItems: "flex-end",
-		width: "100%",
-		position: "relative",
-	},
-	barSlot: {
-		flex: 1,
-		alignItems: "stretch",
-		justifyContent: "flex-end",
-		paddingHorizontal: 0.25,
-		minWidth: 0,
-	},
-	bar: {
-		width: "100%",
-		borderRadius: 2,
-	},
-	markerLine: {
-		position: "absolute",
-		top: 0,
-		bottom: 0,
-		width: 2,
-		marginLeft: -1,
-		opacity: 0.85,
-	},
-	markerDot: {
-		position: "absolute",
-		top: -CURRENT_DOT_SIZE / 2,
-		width: CURRENT_DOT_SIZE,
-		height: CURRENT_DOT_SIZE,
-		borderRadius: CURRENT_DOT_SIZE / 2,
-		marginLeft: -CURRENT_DOT_SIZE / 2,
-	},
-	axisLabels: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		marginTop: Spacing.two,
-	},
-	axisKm: {
-		fontVariant: ["tabular-nums"],
-	},
-});
-
-type BinChart = {
-	bins: number[];
-	minM: number;
-	maxM: number;
-	rangeM: number;
-};
-
-function buildStageElevationBins(
-	trackPoints: TrackPoint[],
-	stage: MobilePlanStageRow,
-): BinChart | null {
-	const startM = stage.start_distance ?? 0;
-	const endM = stage.end_distance ?? startM;
-	if (!(endM > startM)) return null;
-
-	const inRange = trackPoints.filter(
-		(p): p is TrackPoint & { d: number; e: number } =>
-			p.d != null && p.e != null && p.d >= startM && p.d <= endM,
-	);
-	if (inRange.length === 0) return null;
-
-	let minM = Infinity;
-	let maxM = -Infinity;
-	for (const p of inRange) {
-		if (p.e < minM) minM = p.e;
-		if (p.e > maxM) maxM = p.e;
-	}
-	if (!Number.isFinite(minM) || !Number.isFinite(maxM)) return null;
-
-	const rangeM = maxM === minM ? 1 : maxM - minM;
-
-	const spanM = endM - startM;
-	const bucketMax: (number | undefined)[] = Array.from({ length: BIN_COUNT }, () => undefined);
-
-	for (const p of inRange) {
-		const t = (p.d - startM) / spanM;
-		const idx = Math.min(BIN_COUNT - 1, Math.max(0, Math.floor(t * BIN_COUNT)));
-		const cur = bucketMax[idx];
-		if (cur === undefined || p.e > cur) bucketMax[idx] = p.e;
-	}
-
-	const filled = fillElevationBuckets(bucketMax, minM);
-
-	return {
-		bins: filled,
-		minM,
-		maxM,
-		rangeM,
-	};
-}
-
-function fillElevationBuckets(bucketMax: (number | undefined)[], seedMinM: number): number[] {
-	const out: number[] = [];
-	let carry = seedMinM;
-	for (let i = 0; i < bucketMax.length; i++) {
-		const v = bucketMax[i];
-		if (v !== undefined) carry = v;
-		out.push(carry);
-	}
-	return out;
 }
