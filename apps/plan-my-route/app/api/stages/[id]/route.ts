@@ -29,7 +29,7 @@ export async function PUT(
 		// Security check: Verify the stage belongs to a plan connected to a route owned by the user
 		const { data: stageData, error: stageError } = await supabaseAdmin
 			.from("stage")
-			.select("plan!inner(route!inner(user_id))")
+			.select("plan!inner(route!plan_route_id_fkey!inner(user_id))")
 			.eq("id", id)
 			.single();
 
@@ -84,7 +84,7 @@ export async function DELETE(
 	try {
 		const { data: stageData, error: stageError } = await supabaseAdmin
 			.from("stage")
-			.select("plan!inner(route!inner(user_id))")
+			.select("plan!inner(route!plan_route_id_fkey!inner(user_id))")
 			.eq("id", id)
 			.single();
 

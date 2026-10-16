@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 		// Security check: Verify the plan belongs to a route owned by the user
 		const { data: planData, error: planError } = await supabaseAdmin
 			.from("plan")
-			.select("route!inner(user_id)")
+			.select("route!plan_route_id_fkey!inner(user_id)")
 			.eq("id", plan_id)
 			.single();
 

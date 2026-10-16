@@ -89,7 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 			`
 			id,
 			start_date,
-			route:route (
+			route:route!plan_route_id_fkey (
 				rwgps_url,
 				total_distance,
 				user_id

@@ -40,7 +40,7 @@ export async function PATCH(
 
 		const { data: planData, error: planError } = await supabaseAdmin
 			.from("plan")
-			.select("public_share_token, route!inner(user_id)")
+			.select("public_share_token, route!plan_route_id_fkey!inner(user_id)")
 			.eq("id", id)
 			.single();
 

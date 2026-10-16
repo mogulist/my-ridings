@@ -18,7 +18,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 		const { data: planData, error: planError } = await supabaseAdmin
 			.from("plan")
-			.select("route!inner(user_id)")
+			.select("route!plan_route_id_fkey!inner(user_id)")
 			.eq("id", id)
 			.single();
 
@@ -70,7 +70,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 	try {
 		const { data: planData, error: planError } = await supabaseAdmin
 			.from("plan")
-			.select("route!inner(user_id)")
+			.select("route!plan_route_id_fkey!inner(user_id)")
 			.eq("id", id)
 			.single();
 

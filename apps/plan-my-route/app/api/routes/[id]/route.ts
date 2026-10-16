@@ -19,7 +19,7 @@ export async function GET(
 		.from("route")
 		.select(`
 			*,
-			plans:plan (
+			plans:plan!plan_route_id_fkey (
 				*,
 				stages:stage (*)
 			)

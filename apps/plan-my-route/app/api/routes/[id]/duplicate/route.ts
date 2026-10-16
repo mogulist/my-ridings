@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				elevation_loss,
 				smoothing_param,
 				start_date,
-				plans:plan (
+				plans:plan!plan_route_id_fkey (
 					name,
 					sort_order,
 					start_date,
