@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: SharePageProps): Promise<Meta
 		.select(
 			`
 				name,
-				route:route (
+				route:route!plan_route_id_fkey (
 					name,
 					cover_image_og_url,
 					cover_image_hero_url

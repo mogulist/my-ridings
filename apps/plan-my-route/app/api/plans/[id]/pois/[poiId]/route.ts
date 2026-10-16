@@ -19,7 +19,7 @@ async function assertPlanOwner(
 ): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
   const { data, error } = await supabaseAdmin
     .from("plan")
-    .select("route!inner(user_id)")
+    .select("route!plan_route_id_fkey!inner(user_id)")
     .eq("id", planId)
     .single();
 

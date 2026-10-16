@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
 		return NextResponse.json({ error: "고개 이름과 정상 거리를 확인해 주세요." }, { status: 400 });
 	const { data: plan, error } = await supabaseAdmin
 		.from("plan")
-		.select("id,route:route(user_id,total_distance),stages:stage(end_distance)")
+		.select("id,route:route!plan_route_id_fkey(user_id,total_distance),stages:stage(end_distance)")
 		.eq("id", planId)
 		.single();
 	if (error || !plan || (plan.route as unknown as { user_id: string })?.user_id !== user.id)

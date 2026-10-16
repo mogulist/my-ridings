@@ -75,7 +75,7 @@ export async function GET() {
 			start_date,
 			public_share_token,
 			shared_at,
-			route:route (
+			route:route!plan_route_id_fkey (
 				name,
 				rwgps_url,
 				total_distance,

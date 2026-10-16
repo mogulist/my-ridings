@@ -57,7 +57,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
 			public_share_token,
 			shared_at,
 			schedule_marker_memos,
-			route:route (
+			route:route!plan_route_id_fkey (
 				name,
 				rwgps_url,
 				total_distance,
