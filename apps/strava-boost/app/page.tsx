@@ -10,7 +10,7 @@ import { type ActivityFilters, filterActivities } from "@/lib/filters";
 import { getStravaLocalYear } from "@/lib/strava-date";
 import { calculateStats } from "@/lib/stats";
 import type { SyncProgress } from "@/lib/sync";
-import { getLastSyncTime, getStoredActivities, syncActivities } from "@/lib/sync";
+import { ACTIVITY_CHANGED, getLastSyncTime, getStoredActivities, syncActivities } from "@/lib/sync";
 import type { StravaActivity } from "@/src/types";
 
 export default function Home() {
@@ -44,6 +44,13 @@ export default function Home() {
 			loadSyncInfo();
 		}
 	}, [isAuthenticated]);
+
+	useEffect(() => {
+		const reload = () => { void loadSyncInfo(); };
+		window.addEventListener(ACTIVITY_CHANGED, reload);
+		window.addEventListener("focus", reload);
+		return () => { window.removeEventListener(ACTIVITY_CHANGED, reload); window.removeEventListener("focus", reload); };
+	}, []);
 
 	// 동기화 제안 (최초 또는 24시간 경과)
 	useEffect(() => {

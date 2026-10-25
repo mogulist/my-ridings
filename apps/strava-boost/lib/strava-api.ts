@@ -9,7 +9,16 @@ class StravaApiClient {
 	private client: AxiosInstance | null = null;
 	private accessToken: string | null = null;
 
-	private async getAccessToken(): Promise<string> {
+	private tokenRequest: Promise<string> | null = null;
+
+	async getAccessToken(): Promise<string> {
+		if (this.tokenRequest) return this.tokenRequest;
+		this.tokenRequest = this.resolveAccessToken();
+		try { return await this.tokenRequest; }
+		finally { this.tokenRequest = null; }
+	}
+
+	private async resolveAccessToken(): Promise<string> {
 		// IndexedDB에서 토큰 가져오기
 		const tokens = await dbUtils.getTokens();
 
@@ -43,15 +52,13 @@ class StravaApiClient {
 	}
 
 	private async getClient(): Promise<AxiosInstance> {
-		if (this.client && this.accessToken) {
-			return this.client;
-		}
-
 		const token = await this.getAccessToken();
+		if (this.client && this.accessToken === token) return this.client;
 		this.accessToken = token;
 
 		this.client = axios.create({
 			baseURL: "https://www.strava.com/api/v3",
+			timeout: 15000,
 			headers: {
 				Authorization: `Bearer ${token}`,
 			},
@@ -140,6 +147,12 @@ class StravaApiClient {
 		}
 
 		return activities;
+	}
+
+	async getActivity(activityId: number): Promise<StravaActivity> {
+		const client = await this.getClient();
+		const response = await client.get<StravaActivity>(`/activities/${activityId}`);
+		return response.data;
 	}
 
 	async getGear(gearId: string): Promise<{ id: string; name: string } | null> {

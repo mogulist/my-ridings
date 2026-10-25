@@ -139,3 +139,21 @@ export const getLastSyncTime = async (): Promise<Date | null> => {
 	const timestamp = await dbUtils.getLastSyncAt();
 	return timestamp ? new Date(timestamp * 1000) : null;
 };
+
+export const ACTIVITY_CHANGED = "strava:activity-changed";
+
+export const syncActivity = async (id: number, refreshStreams = false): Promise<StravaActivity> => {
+	const activity = await stravaApi.getActivity(id);
+	// Invalidate before fetching: a failed streams request must not leave old geometry cached.
+	await dbUtils.invalidateStreams(id);
+	await dbUtils.saveActivities([activity]);
+	try {
+		if (refreshStreams) {
+			const streams = await stravaApi.getActivityStreams(id);
+			await dbUtils.saveStreams(streams);
+		}
+	} finally {
+		window.dispatchEvent(new CustomEvent(ACTIVITY_CHANGED, { detail: id }));
+	}
+	return activity;
+};
