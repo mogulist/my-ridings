@@ -37,7 +37,7 @@ import {
 } from "recharts";
 import { detectPauses } from "@/lib/riding-profile-utils";
 import { parseStravaLocalDate } from "@/lib/strava-date";
-import type { ActivityStreams, EventInfo, StravaActivity, SummitPoi, XAxisMode } from "@/src/types";
+import type { ActivityStreams, EventInfo, StravaActivity, SummitPoi, XAxisMode } from "@/types/strava";
 
 type SelectionBounds = {
 	minLat: number;

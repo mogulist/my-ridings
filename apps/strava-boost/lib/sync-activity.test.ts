@@ -1,24 +1,41 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
+import * as storage from "./activity-storage";
 import { dbUtils } from "./indexeddb";
 import { stravaApi } from "./strava-api";
-import { ACTIVITY_CHANGED, syncActivity } from "./sync";
-import type { StravaActivity } from "../src/types";
+import { ACTIVITY_CHANGED, syncActivity, syncActivities } from "./sync";
+import type { StravaActivity } from "../types/strava";
 
 const originalWindow = globalThis.window;
 const mocks: Array<{ mockRestore(): void }> = [];
-afterEach(() => { mocks.forEach((mock) => mock.mockRestore()); mocks.length = 0; globalThis.window = originalWindow; });
+afterEach(() => {
+	mocks.forEach((mock) => mock.mockRestore());
+	mocks.length = 0;
+	globalThis.window = originalWindow;
+});
 
 function setup() {
 	const activity = { id: 123, name: "수정된 제목", type: "Ride", private: true } as StravaActivity;
 	const streams = { activityId: 123, altitude: [100], distance: [0], time: [0], latlng: [] };
 	const events: Event[] = [];
-	globalThis.window = { dispatchEvent: (event: Event) => { events.push(event); return true; } } as unknown as Window & typeof globalThis;
+	globalThis.window = {
+		dispatchEvent: (event: Event) => {
+			events.push(event);
+			return true;
+		},
+	} as unknown as Window & typeof globalThis;
 	const get = spyOn(stravaApi, "getActivity").mockResolvedValue(activity);
 	const invalidate = spyOn(dbUtils, "invalidateStreams").mockResolvedValue();
 	const save = spyOn(dbUtils, "saveActivities").mockResolvedValue();
 	const fetchStreams = spyOn(stravaApi, "getActivityStreams").mockResolvedValue(streams);
 	const saveStreams = spyOn(dbUtils, "saveStreams").mockResolvedValue();
-	mocks.push(get, invalidate, save, fetchStreams, saveStreams);
+	mocks.push(
+		spyOn(storage, "persistActivities").mockResolvedValue(),
+		get,
+		invalidate,
+		save,
+		fetchStreams,
+		saveStreams,
+	);
 	return { activity, streams, get, invalidate, save, fetchStreams, saveStreams, events };
 }
 
@@ -49,4 +66,33 @@ test("stream failure still notifies views after metadata changed and old streams
 	expect(mock.invalidate).toHaveBeenCalledWith(123);
 	expect(mock.saveStreams).not.toHaveBeenCalled();
 	expect(mock.events).toHaveLength(1);
+});
+
+test("a failed cloud upload never updates the local sync checkpoint", async () => {
+	const get = spyOn(stravaApi, "getActivities").mockResolvedValue([{ id: 1 }] as StravaActivity[]);
+	const stamp = spyOn(storage, "storedSyncTimestamp").mockResolvedValue(null);
+	const persist = spyOn(storage, "persistActivities").mockRejectedValue(
+		new Error("DB unavailable"),
+	);
+	const save = spyOn(dbUtils, "saveActivities").mockResolvedValue();
+	const checkpoint = spyOn(dbUtils, "saveLastSyncAt").mockResolvedValue();
+	mocks.push(get, stamp, persist, save, checkpoint);
+	await expect(syncActivities()).rejects.toThrow("DB unavailable");
+	expect(checkpoint).not.toHaveBeenCalled();
+	expect(save).not.toHaveBeenCalled();
+});
+
+test("an empty first sync persists completion, and forced full sync ignores cloud checkpoint", async () => {
+	const get = spyOn(stravaApi, "getActivities").mockResolvedValue([]);
+	const stamp = spyOn(storage, "storedSyncTimestamp").mockResolvedValue(100);
+	const persist = spyOn(storage, "persistActivities").mockResolvedValue();
+	const checkpoint = spyOn(dbUtils, "saveLastSyncAt").mockResolvedValue();
+	mocks.push(get, stamp, persist, checkpoint);
+	expect(await syncActivities(undefined, { forceFullSync: true })).toEqual({
+		count: 0,
+		isIncremental: false,
+	});
+	expect(get).toHaveBeenCalledWith(undefined);
+	expect(persist).toHaveBeenCalledWith([], true);
+	expect(checkpoint).toHaveBeenCalled();
 });

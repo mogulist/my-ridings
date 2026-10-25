@@ -1,7 +1,7 @@
 "use client";
 
 import axios, { type AxiosInstance } from "axios";
-import type { StravaActivity, StravaTokenResponse, ActivityStreams } from "@/src/types";
+import type { StravaActivity, StravaTokenResponse, ActivityStreams } from "@/types/strava";
 import { dbUtils } from "./indexeddb";
 import { saveTokens } from "./strava-auth";
 

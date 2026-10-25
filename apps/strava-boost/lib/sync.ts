@@ -1,9 +1,9 @@
 "use client";
 
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 import { dbUtils } from "./indexeddb";
 import { stravaApi } from "./strava-api";
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { persistActivities, storedActivities, storedSyncTimestamp } from "./activity-storage";
 
 const defaultSyncLookbackWeeks = 4;
 const msPerWeek = 7 * 24 * 60 * 60 * 1000;
@@ -51,7 +51,7 @@ export const syncActivities = async (
 		});
 
 		// 마지막 동기화 시간 확인
-		let lastSyncAt = await dbUtils.getLastSyncAt();
+		let lastSyncAt = await storedSyncTimestamp();
 
 		// 전체 동기화 강제 옵션
 		if (options?.forceFullSync) {
@@ -73,6 +73,8 @@ export const syncActivities = async (
 		);
 
 		if (activities.length === 0) {
+			await persistActivities([], true);
+			await dbUtils.saveLastSyncAt(Math.floor(Date.now() / 1000));
 			updateProgress({
 				status: "success",
 				message: "새로운 활동이 없습니다.",
@@ -86,29 +88,14 @@ export const syncActivities = async (
 			message: `${activities.length}개의 활동을 저장하는 중...`,
 		});
 
+		await persistActivities(activities, true);
+
 		// IndexedDB에 저장
 		await dbUtils.saveActivities(activities);
 
 		// 동기화 시간 업데이트
 		const syncTimestamp = Math.floor(Date.now() / 1000);
 		await dbUtils.saveLastSyncAt(syncTimestamp);
-
-		// Supabase에 동기화 시간 업데이트 (설정된 경우)
-		if (isSupabaseConfigured()) {
-			const tokens = await dbUtils.getTokens();
-			if (tokens) {
-				await supabase.from("users").upsert(
-					{
-						strava_id: tokens.athleteId,
-						last_sync_at: new Date(syncTimestamp * 1000).toISOString(),
-						updated_at: new Date().toISOString(),
-					},
-					{
-						onConflict: "strava_id",
-					},
-				);
-			}
-		}
 
 		updateProgress({
 			status: "success",
@@ -132,11 +119,11 @@ export const syncActivities = async (
 };
 
 export const getStoredActivities = async (): Promise<StravaActivity[]> => {
-	return await dbUtils.getAllActivities();
+	return storedActivities();
 };
 
 export const getLastSyncTime = async (): Promise<Date | null> => {
-	const timestamp = await dbUtils.getLastSyncAt();
+	const timestamp = await storedSyncTimestamp();
 	return timestamp ? new Date(timestamp * 1000) : null;
 };
 
@@ -144,6 +131,7 @@ export const ACTIVITY_CHANGED = "strava:activity-changed";
 
 export const syncActivity = async (id: number, refreshStreams = false): Promise<StravaActivity> => {
 	const activity = await stravaApi.getActivity(id);
+	await persistActivities([activity]);
 	// Invalidate before fetching: a failed streams request must not leave old geometry cached.
 	await dbUtils.invalidateStreams(id);
 	await dbUtils.saveActivities([activity]);

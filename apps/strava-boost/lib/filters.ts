@@ -1,6 +1,6 @@
 "use client";
 
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 
 export type RidingLocation = "indoor" | "outdoor";
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { dbUtils } from "@/lib/indexeddb";
 import { clearAuth, getAuthUrl, getStoredTokens } from "@/lib/strava-auth";
 
 type AuthState = {
@@ -27,6 +28,7 @@ export const useAuth = () => {
 					// 토큰 만료 확인
 					const now = Math.floor(Date.now() / 1000);
 					if (tokens.expiresAt > now) {
+						await dbUtils.prepareAccountCache();
 						setAuthState({
 							isAuthenticated: true,
 							isLoading: false,

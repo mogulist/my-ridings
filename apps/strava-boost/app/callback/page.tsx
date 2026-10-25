@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { exchangeCodeForToken, saveTokens } from "@/lib/strava-auth";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 function CallbackContent() {
 	const router = useRouter();
@@ -35,26 +34,6 @@ function CallbackContent() {
 				// IndexedDB에 토큰 저장
 				await saveTokens(tokenResponse);
 
-				// Supabase에 사용자 정보 저장 (설정된 경우에만)
-				if (isSupabaseConfigured()) {
-					const { error: supabaseError } = await supabase.from("users").upsert(
-						{
-							strava_id: tokenResponse.athlete.id,
-							last_sync_at: null,
-							updated_at: new Date().toISOString(),
-						},
-						{
-							onConflict: "strava_id",
-						},
-					);
-
-					if (supabaseError) {
-						console.error("Supabase 저장 오류:", supabaseError);
-						// Supabase 오류는 치명적이지 않으므로 계속 진행
-					}
-				} else {
-					console.log("Supabase가 설정되지 않아 사용자 정보를 저장하지 않습니다.");
-				}
 
 				setStatus("success");
 				setTimeout(() => {

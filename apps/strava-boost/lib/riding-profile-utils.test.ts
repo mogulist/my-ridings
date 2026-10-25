@@ -7,7 +7,7 @@ import {
   formatAbsoluteTimeAxis,
   formatAbsoluteTimeTooltip,
 } from "./riding-profile-utils";
-import type { ActivityStreams } from "../src/types";
+import type { ActivityStreams } from "../types/strava";
 
 test("downsample: 최대 포인트 이하면 그대로 반환", () => {
   const arr = [1, 2, 3];
