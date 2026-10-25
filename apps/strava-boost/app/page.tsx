@@ -10,7 +10,7 @@ import { type ActivityFilters, filterActivities } from "@/lib/filters";
 import { getStravaLocalYear } from "@/lib/strava-date";
 import { calculateStats } from "@/lib/stats";
 import type { SyncProgress } from "@/lib/sync";
-import { ACTIVITY_CHANGED, getLastSyncTime, getStoredActivities, syncActivities } from "@/lib/sync";
+import { ACTIVITY_CHANGED, getLastSyncTime, getStoredActivities, syncActivities, syncActivity } from "@/lib/sync";
 import type { StravaActivity } from "@/src/types";
 
 export default function Home() {
@@ -21,6 +21,8 @@ export default function Home() {
 		total: null,
 		message: "",
 	});
+	const [resyncingId, setResyncingId] = useState<number | null>(null);
+	const isSyncBusy = syncProgress.status === "syncing" || resyncingId !== null;
 	const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 	const [activityCount, setActivityCount] = useState<number>(0);
 	const [allActivities, setAllActivities] = useState<StravaActivity[]>([]);
@@ -32,7 +34,9 @@ export default function Home() {
 
 	const loadSyncInfo = async () => {
 		const syncTime = await getLastSyncTime();
-		setLastSyncTime(syncTime);
+		setLastSyncTime((previous) =>
+			previous?.getTime() === syncTime?.getTime() ? previous : syncTime,
+		);
 		const activities = await getStoredActivities();
 		setAllActivities(activities);
 		setActivityCount(activities.length);
@@ -78,6 +82,16 @@ export default function Home() {
 		window.addEventListener("scroll", handleScroll);
 		return () => window.removeEventListener("scroll", handleScroll);
 	}, []);
+
+	const handleActivityResync = async (id: number) => {
+		setResyncingId(id);
+		try {
+			await syncActivity(id, true);
+		} finally {
+			try { await loadSyncInfo(); }
+			finally { setResyncingId(null); }
+		}
+	};
 
 	const handleSync = async (forceFullSync = false) => {
 		try {
@@ -263,9 +277,10 @@ export default function Home() {
 				<div className="flex items-center gap-2">
 					<button
 						onClick={() => handleSync(false)}
-						disabled={syncProgress.status === "syncing"}
+						disabled={isSyncBusy}
 						className="p-2 text-gray-600 hover:text-blue-600 disabled:text-gray-400 transition-colors"
-						title="동기화"
+						title="최근 4주 동기화"
+						aria-label="최근 4주 동기화"
 					>
 						{syncProgress.status === "syncing" ? (
 							<svg
@@ -315,13 +330,24 @@ export default function Home() {
 				{!lastSyncTime && (
 					<button
 						onClick={() => handleSync(false)}
-						disabled={syncProgress.status === "syncing"}
+						disabled={isSyncBusy}
 						className="ml-1 text-blue-600 hover:text-blue-800 hover:underline disabled:text-gray-400 disabled:no-underline"
 					>
 						(지금 동기화)
 					</button>
 				)}
 				{activityCount > 0 && ` · ${activityCount}개 활동`}
+				<div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+					<span>일반 동기화는 최근 4주(28일)의 활동을 갱신합니다.</span>
+					<button
+						type="button"
+						onClick={() => handleSync(true)}
+						disabled={isSyncBusy}
+						className="text-blue-600 hover:text-blue-800 hover:underline disabled:text-gray-400 disabled:no-underline"
+					>
+						전체 다시 동기화
+					</button>
+				</div>
 			</div>
 
 			{/* 동기화 진행바 - 동기화 중일 때만 표시 */}
@@ -421,7 +447,7 @@ export default function Home() {
 
 				{/* 활동 목록 */}
 				<div className="lg:col-span-2">
-					<ActivityList activities={filteredActivities} />
+					<ActivityList activities={filteredActivities} onResync={handleActivityResync} syncDisabled={isSyncBusy} />
 				</div>
 			</div>
 		</div>
