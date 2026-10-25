@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowUp, BarChart2, MapPin } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowUp, BarChart2, MapPin, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
@@ -11,6 +11,8 @@ import type { StravaActivity } from "@/src/types";
 
 type ActivityListProps = {
 	activities: StravaActivity[];
+	onResync: (id: number) => Promise<void>;
+	syncDisabled?: boolean;
 };
 
 const SORT_OPTIONS: { value: ActivitySortOrder; label: string }[] = [
@@ -20,7 +22,10 @@ const SORT_OPTIONS: { value: ActivitySortOrder; label: string }[] = [
 	{ value: "duration-desc", label: "시간 긴 순" },
 ];
 
-export function ActivityList({ activities }: ActivityListProps) {
+export function ActivityList({ activities, onResync, syncDisabled = false }: ActivityListProps) {
+	const [syncingId, setSyncingId] = useState<number | null>(null);
+	const syncingRef = useRef(false);
+	const [feedback, setFeedback] = useState<{ error: boolean; message: string } | null>(null);
 	const [expandedId, setExpandedId] = useState<number | null>(null);
 	const [sortOrder, setSortOrder] = useState<ActivitySortOrder>("date-desc");
 	const [gearNames, setGearNames] = useState<Map<string, string>>(new Map());
@@ -82,13 +87,20 @@ export function ActivityList({ activities }: ActivityListProps) {
 		return `${kmh.toFixed(1)} km/h`;
 	};
 
-	if (activities.length === 0) {
-		return (
-			<div className="bg-white rounded-lg shadow p-4 sm:p-6">
-				<h2 className="text-lg sm:text-xl font-semibold mb-4">활동 목록</h2>
-				<p className="text-gray-500 text-center py-8 text-sm sm:text-base">활동이 없습니다.</p>
-			</div>
-		);
+	async function handleResync(activity: StravaActivity) {
+		if (syncingRef.current || syncDisabled) return;
+		syncingRef.current = true;
+		setSyncingId(activity.id);
+		setFeedback(null);
+		try {
+			await onResync(activity.id);
+			setFeedback({ error: false, message: `“${activity.name}” 활동을 업데이트했습니다.` });
+		} catch {
+			setFeedback({ error: true, message: `“${activity.name}” 재동기화에 실패했습니다. 연결 상태를 확인하고 다시 시도해주세요.` });
+		} finally {
+			syncingRef.current = false;
+			setSyncingId(null);
+		}
 	}
 
 	return (
@@ -108,6 +120,12 @@ export function ActivityList({ activities }: ActivityListProps) {
 					))}
 				</select>
 			</div>
+			{feedback && (
+				<p role={feedback.error ? "alert" : "status"} className={`mb-3 text-sm ${feedback.error ? "text-red-700" : "text-green-700"}`}>
+					{feedback.message}
+				</p>
+			)}
+			{activities.length === 0 && <p className="text-gray-500 text-center py-8 text-sm sm:text-base">활동이 없습니다.</p>}
 			<div className="space-y-2 lg:max-h-[calc(100vh-28rem)] lg:overflow-y-auto">
 				{sortedActivities.map((activity) => {
 					const isExpanded = expandedId === activity.id;
@@ -132,6 +150,17 @@ export function ActivityList({ activities }: ActivityListProps) {
 									</div>
 								</div>
 								<div className="flex items-center gap-2 flex-shrink-0">
+									<button
+										type="button"
+										onClick={(event) => { event.stopPropagation(); void handleResync(activity); }}
+										disabled={syncDisabled || syncingId !== null}
+										aria-label={`${activity.name} 다시 동기화`}
+										aria-busy={syncingId === activity.id}
+										title="이 활동 다시 동기화"
+										className="p-2 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+									>
+										<RefreshCw className={`size-4 ${syncingId === activity.id ? "animate-spin" : ""}`} aria-hidden />
+									</button>
 								  <button
 								    type="button"
 								    onClick={(e) => {
