@@ -19,6 +19,9 @@
 		"turbo": "^2.8.17"
 	},
 	"overrides": {
-		"recharts": "3.9.2"
+		"recharts": "3.9.2",
+		"dompurify": "3.4.17",
+		"handlebars": "4.7.10",
+		"shell-quote": "1.12.0"
 	}
 }
