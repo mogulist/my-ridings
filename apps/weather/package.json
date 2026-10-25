@@ -20,7 +20,7 @@
 		"@my-ridings/weather-grid": "workspace:*",
 		"@my-ridings/weather-types": "workspace:*",
 		"drizzle-orm": "^0.45.1",
-		"next": "16.1.6",
+		"next": "16.4.3",
 		"postgres": "^3.4.7",
 		"react": "19.2.3",
 		"react-dom": "19.2.3",
