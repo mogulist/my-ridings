@@ -9,7 +9,8 @@
 		"start": "next start",
 		"typecheck": "tsc --noEmit",
 		"stats": "bun run src/index.ts",
-		"auth": "bun run src/auth.ts"
+		"auth": "bun run src/auth.ts",
+		"webhook:register": "bun scripts/register-strava-webhook.mjs"
 	},
 	"dependencies": {
 		"@my-ridings/design-tokens": "workspace:*",

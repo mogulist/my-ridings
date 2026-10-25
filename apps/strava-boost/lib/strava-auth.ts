@@ -54,11 +54,13 @@ export const exchangeCodeForToken = async (code: string): Promise<StravaTokenRes
 };
 
 export const saveTokens = async (tokenResponse: StravaTokenResponse) => {
+	const athleteId = tokenResponse.athlete?.id ?? (await dbUtils.getTokens())?.athleteId;
+	if (!athleteId) throw new Error("인증 정보가 없습니다.");
 	await dbUtils.saveTokens({
 		accessToken: tokenResponse.access_token,
 		refreshToken: tokenResponse.refresh_token,
 		expiresAt: tokenResponse.expires_at,
-		athleteId: tokenResponse.athlete.id,
+		athleteId,
 	});
 };
 

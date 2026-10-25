@@ -5,6 +5,9 @@ export type StravaActivity = {
 	moving_time: number; // seconds
 	elapsed_time: number; // seconds
 	type: string;
+	sport_type?: string;
+	private?: boolean;
+	visibility?: "everyone" | "followers_only" | "only_me";
 	start_date: string;
 	start_date_local: string;
 	gear_id: string | null;

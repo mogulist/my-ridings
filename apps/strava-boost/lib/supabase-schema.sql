@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Browser access currently uses the anon Data API client.
+GRANT SELECT, INSERT, UPDATE ON public.users TO anon;
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_users_strava_id ON users(strava_id);
 
@@ -34,3 +37,15 @@ CREATE POLICY "Users can insert own data"
   FOR INSERT
   WITH CHECK (true); -- 일단 모든 사용자가 삽입할 수 있도록 (나중에 strava_id로 필터링)
 
+-- Run for existing projects AND fresh setup. No activity data or OAuth tokens are stored here.
+CREATE TABLE IF NOT EXISTS public.strava_activity_changes (
+  owner_id BIGINT NOT NULL,
+  activity_id BIGINT NOT NULL,
+  version UUID NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (owner_id, activity_id)
+);
+ALTER TABLE public.strava_activity_changes ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.strava_activity_changes FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.strava_activity_changes TO service_role;
+-- No public policies: only server API routes use service_role, after verifying the athlete.

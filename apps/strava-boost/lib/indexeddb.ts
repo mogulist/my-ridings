@@ -163,24 +163,10 @@ export const dbUtils = {
 			const transaction = database.transaction([STORE_NAMES.ACTIVITIES], "readwrite");
 			const store = transaction.objectStore(STORE_NAMES.ACTIVITIES);
 
-			let completed = 0;
-			let hasError = false;
-
-			activities.forEach((activity) => {
-				const request = store.put(activity);
-				request.onsuccess = () => {
-					completed++;
-					if (completed === activities.length && !hasError) {
-						resolve();
-					}
-				};
-				request.onerror = () => {
-					if (!hasError) {
-						hasError = true;
-						reject(request.error);
-					}
-				};
-			});
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
+			transaction.onabort = () => reject(transaction.error);
+			for (const activity of activities) store.put(activity);
 		});
 	},
 
@@ -276,6 +262,29 @@ export const dbUtils = {
 
 			request.onsuccess = () => resolve(request.result || null);
 			request.onerror = () => reject(request.error);
+		});
+	},
+
+	async invalidateStreams(activityId: number): Promise<void> {
+		const database = await openDB();
+		return new Promise((resolve, reject) => {
+			const tx = database.transaction([STORE_NAMES.STREAMS], "readwrite");
+			tx.objectStore(STORE_NAMES.STREAMS).delete(activityId);
+			tx.oncomplete = () => resolve();
+			tx.onabort = () => reject(tx.error);
+			tx.onerror = () => reject(tx.error);
+		});
+	},
+
+	async deleteActivity(activityId: number): Promise<void> {
+		const database = await openDB();
+		return new Promise((resolve, reject) => {
+			const tx = database.transaction([STORE_NAMES.ACTIVITIES, STORE_NAMES.STREAMS], "readwrite");
+			tx.objectStore(STORE_NAMES.ACTIVITIES).delete(activityId);
+			tx.objectStore(STORE_NAMES.STREAMS).delete(activityId);
+			tx.oncomplete = () => resolve();
+			tx.onabort = () => reject(tx.error);
+			tx.onerror = () => reject(tx.error);
 		});
 	},
 

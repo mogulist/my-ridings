@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, Clock, MapPin } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, RefreshCw } from "lucide-react";
+import { ACTIVITY_CHANGED, syncActivity } from "@/lib/sync";
 import { dbUtils } from "@/lib/indexeddb";
 import { stravaApi } from "@/lib/strava-api";
 import { RidingProfile } from "@/components/RidingProfile";
@@ -36,6 +37,9 @@ export default function ActivityDetailPage() {
 	const router = useRouter();
 	const id = Number(params.id);
 
+	const [revision, setRevision] = useState(0);
+	const [syncing, setSyncing] = useState(false);
+	const [syncMessage, setSyncMessage] = useState<string | null>(null);
 	const [activity, setActivity] = useState<StravaActivity | null>(null);
 	const [streams, setStreams] = useState<ActivityStreams | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -46,6 +50,32 @@ export default function ActivityDetailPage() {
 	const [selectionBounds, setSelectionBounds] = useState<{ minLat: number; maxLat: number; minLng: number; maxLng: number; polyline: [number, number][] } | null>(null);
 
 	useEffect(() => {
+		const reload = (event: Event) => {
+			if ((event as CustomEvent<number>).detail === id) setRevision((value) => value + 1);
+		};
+		window.addEventListener(ACTIVITY_CHANGED, reload);
+		return () => window.removeEventListener(ACTIVITY_CHANGED, reload);
+	}, [id]);
+
+	async function handleResync() {
+		setSyncing(true);
+		setSyncMessage(null);
+		try {
+			await syncActivity(id, true);
+			setSyncMessage("활동 정보를 업데이트했습니다.");
+		} catch {
+			setSyncMessage("재동기화에 실패했습니다. 로그인 상태와 Strava 연결을 확인하고 다시 시도해주세요.");
+		} finally { setSyncing(false); }
+	}
+
+	useEffect(() => {
+		setError(null);
+		setStreams(null);
+		setStreamsLoading(true);
+		setSummits([]);
+		setEventInfo(null);
+		setSelectionBounds(null);
+		setHighlightPosition(null);
 		if (!id || isNaN(id)) {
 			setError("잘못된 활동 ID입니다.");
 			return;
@@ -66,6 +96,7 @@ export default function ActivityDetailPage() {
 		}
 
 		async function load() {
+			let activityLoaded = false;
 			try {
 				const act = await dbUtils.getActivityById(id);
 				if (cancelled) return;
@@ -74,6 +105,7 @@ export default function ActivityDetailPage() {
 					return;
 				}
 				setActivity(act);
+				activityLoaded = true;
 
 				// 캐시 확인: latlng가 있는 경우만 캐시 사용 (소프트 체크)
 				const cached = await dbUtils.getStreams(id);
@@ -93,7 +125,11 @@ export default function ActivityDetailPage() {
 			} catch (err) {
 				if (!cancelled) {
 					console.error("활동 로드 실패:", err);
-					setError("데이터를 불러오는 데 실패했습니다. 로그인이 필요할 수 있습니다.");
+					if (activityLoaded) {
+						setSyncMessage("경로·고도 데이터를 불러오지 못했습니다. 다시 동기화를 눌러 재시도해주세요.");
+					} else {
+						setError("활동 데이터를 불러오지 못했습니다. 페이지를 다시 열어주세요.");
+					}
 				}
 			} finally {
 				if (!cancelled) setStreamsLoading(false);
@@ -104,7 +140,7 @@ export default function ActivityDetailPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [id]);
+	}, [id, revision]);
 
 	const polyline = streams?.latlng && streams.latlng.length > 0
 		? streams.latlng
@@ -152,10 +188,16 @@ export default function ActivityDetailPage() {
 							<div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
 						)}
 					</div>
+					<button type="button" onClick={handleResync} disabled={!activity || syncing || streamsLoading}
+						className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 disabled:opacity-50">
+						<RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />
+						{syncing ? "업데이트 중..." : "다시 동기화"}
+					</button>
 				</div>
 			</div>
 
 			<div className="px-4 py-4 space-y-4">
+				{syncMessage && <p role="status" className="text-sm text-gray-600">{syncMessage}</p>}
 				{/* 요약 chips */}
 				{activity && (
 					<div className="flex flex-wrap gap-2">
