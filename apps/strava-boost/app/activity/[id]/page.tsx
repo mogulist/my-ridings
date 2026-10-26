@@ -7,15 +7,16 @@ import { ACTIVITY_CHANGED, syncActivity } from "@/lib/sync";
 import { storedActivity } from "@/lib/activity-storage";
 import { dbUtils } from "@/lib/indexeddb";
 import { stravaApi } from "@/lib/strava-api";
-import { RidingProfile } from "@/components/RidingProfile";
-import { RouteMap } from "@/components/RouteMap";
+import { RidingProfile } from "@/app/activity/[id]/_components/RidingProfile";
+import { RouteMap } from "@/app/activity/[id]/_components/RouteMap";
 import { formatStravaLocalDate } from "@/lib/strava-date";
-import type { ActivityStreams, EventInfo, SummitPoi, StravaActivity } from "@/types/strava";
+import type { ActivityStreams, StravaActivity } from "@/types/strava";
+import type { EventInfo, SummitPoi } from "@/app/activity/[id]/_lib/types";
 import {
 	fetchSummitsForTrack,
 	findEventForActivity,
 	streamsToTrackPoints,
-} from "@/lib/poi-matching";
+} from "@/app/activity/[id]/_lib/poi-matching";
 
 function StatChip({ children }: { children: React.ReactNode }) {
 	return (

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Expand, Locate } from "lucide-react";
 import type { NaverMapInstance, NaverLatLngBounds, FitBoundsOptions } from "@/types/naver-maps";
-import type { SummitPoi, EventInfo } from "@/types/strava";
+import type { SummitPoi, EventInfo } from "@/app/activity/[id]/_lib/types";
 
 type SelectionBounds = {
   minLat: number;

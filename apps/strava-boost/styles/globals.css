@@ -16,3 +16,10 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+.trace-primary-nav { display:flex; gap:24px; border-bottom:1px solid #d8e2eb; margin-bottom:20px; }
+.trace-primary-nav a { padding:12px 2px; color:#526b80; text-decoration:none; font-size:14px; font-weight:600; border-bottom:2px solid transparent; }
+.trace-primary-nav a[aria-current] { color:#175bb4; border-bottom-color:#175bb4; }
+.trace-primary-nav a:focus-visible { outline:3px solid #4387de; outline-offset:3px; }
+.boost-app > .trace-primary-nav { padding:0 max(24px,calc((100% - 1160px)/2)); margin:0; background:#fff; }
+@media(max-width:720px) { .boost-app > .trace-primary-nav { padding:0 16px; } }

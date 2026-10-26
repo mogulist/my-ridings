@@ -1,12 +1,14 @@
 # 공유 Supabase 설정
 
 부스트는 기존 **plan-my-route Supabase 프로젝트** 안의 `strava_boost` 스키마만 사용한다.
-장비·정비 기능이나 새로운 UI, Supabase 회원 가입은 포함하지 않는다.
+로그인은 기존 Strava 방식을 사용하며 Supabase 회원 가입은 추가하지 않는다.
+장비·정비 기능의 추가 SQL과 사용법은 [장비·정비 안내](../docs/boost-equipment.md)를 따른다.
 
 ## 적용 순서
 
 1. plan-my-route 프로젝트의 SQL Editor에서 `migrations/20261025_add_shared_database.sql`을 실행한다.
-   신규 DB 초기화에는 동일한 내용의 `schema.sql`을 사용한다. 둘 다 실행할 필요는 없다.
+   신규 DB 초기화에는 장비·정비까지 포함한 `schema.sql`을 사용한다.
+   기존 프로젝트에 schema.sql 전체를 다시 실행할 필요는 없다.
 2. Data API 설정의 **Exposed schemas** 목록에 `strava_boost`를 추가한다.
    기존 `public` 등 목록은 유지한다. 기존 기본 권한이나 Auth 설정은 바꾸지 않는다.
 3. **부스트 서버**에만 다음 환경변수를 설정하고 재배포한다.
@@ -49,7 +51,7 @@
 배포 후 두 브라우저에서 같은 Strava 계정의 활동 수·동기화 시각·개별 수정 반영을 확인하고,
 plan-my-route의 기존 로그인과 경로 조회·저장이 정상인지 확인한다.
 
-## 이번 변경의 검증 결과
+## 공유 DB 전환 검증 기록
 
 - 부스트 단위·API 테스트, 타입 검사, webpack 프로덕션 빌드 통과.
 - PostgreSQL 호환 임시 DB(PGlite)에서 SQL 적용/재실행 및 schema.sql과의 일치 확인.
@@ -60,7 +62,8 @@ plan-my-route의 기존 로그인과 경로 조회·저장이 정상인지 확�
 - plan-my-route 및 공용 packages·의존성 lockfile·turbo 설정의 변경 없음.
   최신 main 리베이스 후 의존성을 독립 설치하여 plan-my-route 테스트 83개가 모두 통과했다.
   앞선 React 의존성 경로 오류는 재현되지 않았다.
-- 운영 DB 변경, Data API 설정, 배포는 수행하지 않았다. 위 적용 순서 이후 운영 확인이 필요하다.
+- 이후 사용자가 공유 DB SQL·Data API 설정을 적용했다. 실제 테이블 API 200 응답과 로컬 동기화 동작을 확인했다.
+  장비·정비 추가 SQL은 아직 운영 DB에 적용하지 않았다.
 
 ### 2026-10-26 main 리베이스 후 재검증
 
@@ -69,4 +72,4 @@ plan-my-route의 기존 로그인과 경로 조회·저장이 정상인지 확�
 - 실제 설치 Next.js `16.4.3`, Axios `1.20.0` 확인.
 - 부스트 테스트 36개, plan-my-route 테스트 83개, 의존성 호환 테스트 3개 통과.
 - 부스트 webpack 프로덕션 빌드 및 재생성된 Next.js 타입 기준 타입 검사 통과.
-- 임시 DB에서 마이그레이션 격리·재실행 검증 재통과. 운영 DB 적용 여부는 그대로다.
+- 임시 DB에서 마이그레이션 격리·재실행 검증 재통과. 이 검증 자체는 운영 DB에 쓰기 작업을 하지 않았다.
