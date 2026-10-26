@@ -1,4 +1,5 @@
-import type { ActivityStreams, ChartPoint, PauseSegment } from "@/types/strava";
+import type { ActivityStreams } from "@/types/strava";
+import type { ChartPoint, PauseSegment } from "@/app/activity/[id]/_lib/types";
 
 export function downsample<T>(arr: T[], maxPoints: number): T[] {
   if (arr.length <= maxPoints) return arr;

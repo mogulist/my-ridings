@@ -1,6 +1,6 @@
 "use client";
 
-import type { ActivityStats } from "@/lib/stats";
+import type { ActivityStats } from "@/app/(statistics)/_lib/stats";
 
 type YearlyStatsProps = {
 	stats: ActivityStats;

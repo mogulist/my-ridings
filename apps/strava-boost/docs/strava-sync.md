@@ -43,7 +43,7 @@
 ## 검증
 
 - `bun run typecheck`
-- `bun test lib/server/ lib/sync-activity.test.ts lib/riding-profile-utils.test.ts`
+- `bun test lib/server/ lib/sync-activity.test.ts 'app/activity/[id]/_lib/riding-profile-utils.test.ts'`
 - `bun run build` (포트 바인딩이 제한된 샌드박스에서는 `bun run build --webpack`)
 - 운영 확인: 앱에서 기존 활동을 열고 Strava에서 제목·유형·공개 범위를 각각 바꿔 수 초 후 반영되는지 확인한다. 앱을 닫은 채 수정한 후 다시 열어도 반영되어야 한다. 설명이나 경로를 수정한 경우 **다시 동기화**로 반영한다. 네트워크 오류 후 재시도와 삭제된 활동의 제거도 확인한다.
 

@@ -35,9 +35,10 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { detectPauses } from "@/lib/riding-profile-utils";
+import { detectPauses } from "@/app/activity/[id]/_lib/riding-profile-utils";
 import { parseStravaLocalDate } from "@/lib/strava-date";
-import type { ActivityStreams, EventInfo, StravaActivity, SummitPoi, XAxisMode } from "@/types/strava";
+import type { ActivityStreams, StravaActivity } from "@/types/strava";
+import type { EventInfo, SummitPoi, XAxisMode } from "@/app/activity/[id]/_lib/types";
 
 type SelectionBounds = {
 	minLat: number;
@@ -96,10 +97,7 @@ export function RidingProfile({
 }: Props) {
 	const [xAxisMode, setXAxisMode] = useState<XAxisMode>("distance");
 
-	const startMs = useMemo(
-		() => parseStravaLocalDate(activity.start_date_local).getTime(),
-		[activity.start_date_local],
-	);
+	const startMs = parseStravaLocalDate(activity.start_date_local).getTime();
 
 	// ProfilePoint[] 로 정규화 (패키지 어댑터 사용)
 	const profileData = useMemo(() => fromStravaStreams(streams, startMs), [streams, startMs]);

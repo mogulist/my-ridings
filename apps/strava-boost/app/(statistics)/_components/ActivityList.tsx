@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
-import { type ActivitySortOrder, sortActivities } from "@/lib/sort";
+import { type ActivitySortOrder, sortActivities } from "@/app/(statistics)/_lib/sort";
 import { formatStravaLocalDate } from "@/lib/strava-date";
 import type { StravaActivity } from "@/types/strava";
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ActivityFilters, RidingLocation } from "@/lib/filters";
-import { getUniqueBikeTypes, getUniqueSportTypes, getUniqueTrainerTypes } from "@/lib/filters";
+import type { ActivityFilters, RidingLocation } from "@/app/(statistics)/_lib/filters";
+import { getUniqueBikeTypes, getUniqueSportTypes, getUniqueTrainerTypes } from "@/app/(statistics)/_lib/filters";
 import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
 import type { StravaActivity } from "@/types/strava";
