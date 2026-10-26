@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { StravaTokenResponse } from "@/src/types";
+import type { StravaTokenResponse } from "@/types/strava";
 import { dbUtils } from "./indexeddb";
 
 const STRAVA_AUTH_URL = "https://www.strava.com/oauth/authorize";
@@ -62,6 +62,7 @@ export const saveTokens = async (tokenResponse: StravaTokenResponse) => {
 		expiresAt: tokenResponse.expires_at,
 		athleteId,
 	});
+	await dbUtils.prepareAccountCache();
 };
 
 export const getStoredTokens = async () => {

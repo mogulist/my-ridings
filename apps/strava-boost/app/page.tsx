@@ -11,7 +11,7 @@ import { getStravaLocalYear } from "@/lib/strava-date";
 import { calculateStats } from "@/lib/stats";
 import type { SyncProgress } from "@/lib/sync";
 import { ACTIVITY_CHANGED, getLastSyncTime, getStoredActivities, syncActivities, syncActivity } from "@/lib/sync";
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 
 export default function Home() {
 	const { isAuthenticated, isLoading, login, logout } = useAuth();
@@ -43,18 +43,23 @@ export default function Home() {
 		setIsSyncInfoLoaded(true);
 	};
 
-	useEffect(() => {
-		if (isAuthenticated) {
-			loadSyncInfo();
-		}
-	}, [isAuthenticated]);
 
 	useEffect(() => {
-		const reload = () => { void loadSyncInfo(); };
+		if (!isAuthenticated) return;
+		const reload = () => {
+			void loadSyncInfo().catch((error: unknown) => {
+				const message = error instanceof Error ? error.message : "활동을 불러오지 못했습니다.";
+				setSyncProgress({ status: "error", current: 0, total: null, message, error: message });
+			});
+		};
+		reload();
 		window.addEventListener(ACTIVITY_CHANGED, reload);
 		window.addEventListener("focus", reload);
-		return () => { window.removeEventListener(ACTIVITY_CHANGED, reload); window.removeEventListener("focus", reload); };
-	}, []);
+		return () => {
+			window.removeEventListener(ACTIVITY_CHANGED, reload);
+			window.removeEventListener("focus", reload);
+		};
+	}, [isAuthenticated]);
 
 	// 동기화 제안 (최초 또는 24시간 경과)
 	useEffect(() => {
@@ -115,8 +120,8 @@ export default function Home() {
 			await loadSyncInfo();
 		} catch (error) {
 			console.error("동기화 오류:", error);
-			// 에러 발생 시에도 정보 갱신 시도
-			await loadSyncInfo();
+			const message = error instanceof Error ? error.message : "동기화 중 오류가 발생했습니다.";
+			setSyncProgress({ status: "error", current: 0, total: null, message, error: message });
 		}
 	};
 

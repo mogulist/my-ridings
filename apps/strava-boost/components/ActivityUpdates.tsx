@@ -2,9 +2,10 @@
 
 import axios from "axios";
 import { useEffect, useState } from "react";
+import { deleteStoredActivity } from "@/lib/activity-storage";
 import { dbUtils } from "@/lib/indexeddb";
 import { stravaApi } from "@/lib/strava-api";
-import { ACTIVITY_CHANGED, syncActivity } from "@/lib/sync";
+import { ACTIVITY_CHANGED, getStoredActivities, syncActivity } from "@/lib/sync";
 
 type Reader = { athleteId: number; expiresAt: number; ticket: string };
 type Change = { activity_id: number; version: string };
@@ -33,6 +34,9 @@ export function ActivityUpdates() {
 					if (!response.ok) throw new Error("변경 알림에 연결하지 못했습니다. 잠시 후 다시 시도합니다.");
 					const data = await response.json();
 					if (!data.enabled) { setMessage("자동 업데이트 설정이 필요합니다. 개별 재동기화는 사용할 수 있습니다."); retryDelay = 60000; return; }
+					// Hydrate imported cloud activities before deciding which invalidations to apply.
+					// A fresh browser cache must not mark existing cloud activities as unimported.
+					await getStoredActivities();
 					reader = data;
 				}
 				if (!reader || stopped) return;
@@ -58,7 +62,7 @@ export function ActivityUpdates() {
 							try { await syncActivity(change.activity_id); }
 							catch (error) {
 								if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error;
-								await dbUtils.deleteActivity(change.activity_id);
+								await deleteStoredActivity(change.activity_id);
 								window.dispatchEvent(new CustomEvent(ACTIVITY_CHANGED, { detail: change.activity_id }));
 							}
 						}

@@ -5,7 +5,7 @@ import type { ActivityFilters, RidingLocation } from "@/lib/filters";
 import { getUniqueBikeTypes, getUniqueSportTypes, getUniqueTrainerTypes } from "@/lib/filters";
 import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 
 type ActivityFiltersProps = {
 	activities: StravaActivity[];

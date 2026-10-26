@@ -1,6 +1,6 @@
 import axios from "axios";
 import { type NextRequest, NextResponse } from "next/server";
-import type { StravaTokenResponse } from "@/src/types";
+import type { StravaTokenResponse } from "@/types/strava";
 
 export async function POST(request: NextRequest) {
 	try {

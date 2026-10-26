@@ -1,4 +1,4 @@
-import type { StravaActivity, ActivityStreams } from "@/src/types";
+import type { StravaActivity, ActivityStreams } from "@/types/strava";
 
 const DB_NAME = "strava-stats";
 const DB_VERSION = 3;
@@ -90,6 +90,30 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 export const dbUtils = {
+	async prepareAccountCache(): Promise<void> {
+		const tokens = await this.getTokens();
+		if (!tokens) return;
+		const database = await openDB();
+		await new Promise<void>((resolve, reject) => {
+			const tx = database.transaction(
+				[STORE_NAMES.SYNC_META, STORE_NAMES.ACTIVITIES, STORE_NAMES.STREAMS, STORE_NAMES.GEAR],
+				"readwrite",
+			);
+			const meta = tx.objectStore(STORE_NAMES.SYNC_META);
+			const request = meta.get("cache-owner");
+			request.onsuccess = () => {
+				if (request.result?.athleteId === tokens.athleteId) return;
+				// Old unpartitioned caches cannot safely be attributed to the current account.
+				for (const name of [STORE_NAMES.ACTIVITIES, STORE_NAMES.STREAMS, STORE_NAMES.GEAR])
+					tx.objectStore(name).clear();
+				meta.delete("meta");
+				meta.put({ id: "cache-owner", athleteId: tokens.athleteId });
+			};
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+			tx.onabort = () => reject(tx.error);
+		});
+	},
 	async getTokens(): Promise<TokenData | null> {
 		const database = await openDB();
 		return new Promise((resolve, reject) => {

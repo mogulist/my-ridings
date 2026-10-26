@@ -7,7 +7,7 @@ import { getGearInfos } from "@/lib/gear-cache";
 import { getSportTypeDisplayName } from "@/lib/sport-types";
 import { type ActivitySortOrder, sortActivities } from "@/lib/sort";
 import { formatStravaLocalDate } from "@/lib/strava-date";
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 
 type ActivityListProps = {
 	activities: StravaActivity[];

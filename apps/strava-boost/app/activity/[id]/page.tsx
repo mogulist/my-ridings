@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowUp, Clock, MapPin, RefreshCw } from "lucide-react";
 import { ACTIVITY_CHANGED, syncActivity } from "@/lib/sync";
+import { storedActivity } from "@/lib/activity-storage";
 import { dbUtils } from "@/lib/indexeddb";
 import { stravaApi } from "@/lib/strava-api";
 import { RidingProfile } from "@/components/RidingProfile";
 import { RouteMap } from "@/components/RouteMap";
 import { formatStravaLocalDate } from "@/lib/strava-date";
-import type { ActivityStreams, EventInfo, SummitPoi, StravaActivity } from "@/src/types";
+import type { ActivityStreams, EventInfo, SummitPoi, StravaActivity } from "@/types/strava";
 import {
 	fetchSummitsForTrack,
 	findEventForActivity,
@@ -98,7 +99,7 @@ export default function ActivityDetailPage() {
 		async function load() {
 			let activityLoaded = false;
 			try {
-				const act = await dbUtils.getActivityById(id);
+				const act = await storedActivity(id);
 				if (cancelled) return;
 				if (!act) {
 					setError("활동을 찾을 수 없습니다.");

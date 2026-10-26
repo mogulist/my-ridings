@@ -1,7 +1,7 @@
 "use client";
 
 import { getStravaLocalYear } from "@/lib/strava-date";
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 
 export type ActivityStats = {
 	totalDistance: number; // kilometers

@@ -1,16 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+import { databaseConfigured, stravaStore } from "./strava-store";
 
-export function webhookStore() {
-	const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-	if (!url || !key) throw new Error("Webhook database is not configured");
-	return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+export const webhookStore = stravaStore;
 
 export function webhooksEnabled() {
-	return Boolean((process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-		process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.STRAVA_CLIENT_SECRET &&
+	return Boolean(databaseConfigured() && process.env.STRAVA_CLIENT_SECRET &&
 		process.env.STRAVA_WEBHOOK_VERIFY_TOKEN && process.env.STRAVA_WEBHOOK_CALLBACK_SECRET &&
 		process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID);
 }

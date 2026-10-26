@@ -1,5 +1,5 @@
 import { getStravaLocalTimestamp } from "@/lib/strava-date";
-import type { StravaActivity } from "@/src/types";
+import type { StravaActivity } from "@/types/strava";
 
 export type ActivitySortOrder = "date-desc" | "date-asc" | "distance-desc" | "duration-desc";
 
