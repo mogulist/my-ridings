@@ -58,6 +58,15 @@ plan-my-route의 기존 로그인과 경로 조회·저장이 정상인지 확�
 - 독립 브라우저 컨텍스트 2개에서 공유 저장소 응답을 모킹해 동일 활동 조회,
   개별 재동기화 반영, 필터·정렬 유지 확인. 운영 Supabase/Strava 연동 테스트는 아니다.
 - plan-my-route 및 공용 packages·의존성 lockfile·turbo 설정의 변경 없음.
-  plan-my-route 테스트 80개 통과. 1개는 elevation-profile의 React 의존성 경로를
-  찾지 못해 실행 실패했다. Auth/마이그레이션/DB 환경/API 권한 관련 18개는 별도 실행 통과.
+  최신 main 리베이스 후 의존성을 독립 설치하여 plan-my-route 테스트 83개가 모두 통과했다.
+  앞선 React 의존성 경로 오류는 재현되지 않았다.
 - 운영 DB 변경, Data API 설정, 배포는 수행하지 않았다. 위 적용 순서 이후 운영 확인이 필요하다.
+
+### 2026-10-26 main 리베이스 후 재검증
+
+- 기준 main: `ec190b0` (Critical 및 후속 의존성 보안 업데이트 포함).
+- `bun install --frozen-lockfile`로 별도 설치. lockfile 변경 없음.
+- 실제 설치 Next.js `16.4.3`, Axios `1.20.0` 확인.
+- 부스트 테스트 36개, plan-my-route 테스트 83개, 의존성 호환 테스트 3개 통과.
+- 부스트 webpack 프로덕션 빌드 및 재생성된 Next.js 타입 기준 타입 검사 통과.
+- 임시 DB에서 마이그레이션 격리·재실행 검증 재통과. 운영 DB 적용 여부는 그대로다.
