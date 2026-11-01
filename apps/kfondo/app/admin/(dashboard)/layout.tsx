@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAdminSession } from "@/lib/admin-session";
+import { AdminSessionRefresh } from "@/components/admin-session-refresh";
 import { redirect } from "next/navigation";
 import {
   Sidebar,
@@ -23,10 +24,8 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { needsRefresh, supabase, user } = await getAdminSession();
+  if (needsRefresh) return <AdminSessionRefresh />;
 
   if (!user) {
     redirect("/admin/login");

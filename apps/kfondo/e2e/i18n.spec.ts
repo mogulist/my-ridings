@@ -1,8 +1,25 @@
 import { test, expect } from "@playwright/test";
-test("영어 자동 감지와 한국어 수동 선택 기억", async ({ browser }) => {
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createChunks, stringToBase64URL, stringFromBase64URL } from "@supabase/ssr";
+
+test("캐시 조회 전에 실행되는 프록시와 미들웨어 진입점이 없음", () => {
+  for (const path of ["proxy.ts", "middleware.ts", "src/proxy.ts", "src/middleware.ts"]) {
+    expect(existsSync(join(process.cwd(), path)), path).toBe(false);
+  }
+  if (process.env.KFONDO_E2E_PRODUCTION === "1") {
+    const manifest = JSON.parse(readFileSync(".next-i18n-test/server/middleware-manifest.json", "utf8"));
+    expect(manifest.middleware).toEqual({});
+  }
+});
+test("비한국어 브라우저에도 한국어를 제공하고 전환은 동의 후 실행", async ({ browser }) => {
   const context = await browser.newContext({ locale: "en-US" });
   const page = await context.newPage();
   await page.goto("/");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(page.getByRole("heading", { name: "내 기록은 몇 등일까?" })).toBeVisible();
+  await page.getByRole("button", { name: "View in English", exact: true }).click();
   await expect(page).toHaveURL(/\/en$/);
   await expect(page.getByRole("heading", { name: "How does my time rank?" })).toBeVisible();
   await page.getByRole("button", { name: "한국어", exact: true }).click();
@@ -11,9 +28,110 @@ test("영어 자동 감지와 한국어 수동 선택 기억", async ({ browser 
   await page.goto("/");
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
-  const cookie = (await context.cookies()).find((c) => c.name === "NEXT_LOCALE");
-  expect(cookie?.value).toBe("ko");
+  await expect(page.getByRole("complementary", { name: "Language suggestion" })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("kfondo.language-choice"))).toBe("ko");
+  expect((await context.cookies()).find((c) => c.name === "NEXT_LOCALE")).toBeUndefined();
   await context.close();
+});
+
+test("한국어 유지 선택은 안내를 숨기고 URL과 브라우저 상태는 서버 언어를 바꾸지 않음", async ({ browser }) => {
+  const context = await browser.newContext({ locale: "fr-FR" });
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: "http://localhost:4320" }]);
+  const page = await context.newPage();
+  await page.goto("/hongcheon?year=2025#course");
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await page.getByRole("button", { name: "Keep Korean", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("complementary", { name: "Language suggestion" })).toHaveCount(0);
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page).toHaveURL(/\/en\/hongcheon\?year=2025#course$/);
+  await page.goto("/hongcheon");
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  // 기존 쿠키가 있어도 JavaScript 실행 전 응답의 언어는 URL로만 결정한다.
+  const response = await context.request.get("/", { maxRedirects: 0 });
+  expect(response.status()).toBe(200);
+  expect(response.headers()["location"]).toBeUndefined();
+  expect(response.headers()["set-cookie"]).toBeUndefined();
+  expect(await response.text()).toContain('lang="ko"');
+  await context.close();
+});
+
+test("한국어 브라우저에는 안내가 없고 관리자 응답은 캐시 금지", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "English", exact: true })).toBeEnabled();
+  await expect(page.getByRole("complementary", { name: "Language suggestion" })).toHaveCount(0);
+  const admin = await page.request.get("/admin/login");
+  expect(admin.headers()["cache-control"]).toContain("no-store");
+  expect(admin.headers()["cdn-cache-control"]).toBe("no-store");
+  const blocked = await page.request.post("/api/admin/event-editions/example/records-upload");
+  expect(blocked.status()).toBe(401);
+  expect(blocked.headers()["cdn-cache-control"]).toBe("no-store");
+});
+
+test("프록시 없이 만료된 관리자 세션을 갱신하고 원래 URL로 복귀", async ({ page, context }) => {
+  const cookies = createChunks("sb-127-auth-token", `base64-${stringToBase64URL(JSON.stringify({
+    access_token: "expired-token", refresh_token: "fixture-refresh-token",
+    expires_at: Math.floor(Date.now() / 1000) - 60, token_type: "bearer",
+    user: { id: "fixture-admin", email: "admin@example.test" },
+  }))}`);
+  await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: "http://localhost:4320" })));
+  await page.goto("/admin?tab=summary#check");
+  await expect(page.getByRole("heading", { name: "관리자 대시보드" })).toBeVisible({ timeout: 15000 });
+  await expect(page).toHaveURL(/\/admin\?tab=summary#check$/);
+  const stored = (await context.cookies()).filter((cookie) => cookie.name.startsWith("sb-127-auth-token"));
+  const raw = stored.sort((a, b) => a.name.localeCompare(b.name)).map((cookie) => cookie.value).join("");
+  const session = JSON.parse(stringFromBase64URL(raw.slice(7)));
+  expect(session.expires_at).toBeGreaterThan(Date.now() / 1000);
+  const denied = await page.request.get("/admin/auth/refresh?next=https://evil.example/admin", { maxRedirects: 0 });
+  expect(new URL(denied.headers()["location"]).pathname).toBe("/admin");
+  expect(new URL(denied.headers()["location"]).hostname).toBe("localhost");
+});
+
+test("만료된 잘못된 세션은 로그인으로 돌아가고 인증 없는 업로드는 거절", async ({ page, context }) => {
+  const cookies = createChunks("sb-127-auth-token", `base64-${stringToBase64URL(JSON.stringify({
+    access_token: "expired-token", refresh_token: "invalid-refresh-token", expires_at: 1,
+  }))}`);
+  await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: "http://localhost:4320" })));
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin\/login$/);
+  await expect(page.getByRole("heading", { name: "관리자 대시보드" })).toHaveCount(0);
+  expect((await page.request.post("/api/courses/gpx-upload")).status()).toBe(401);
+});
+
+test("쿠키의 사용자 정보가 아닌 Auth 검증과 관리자 목록으로 권한 확인", async ({ page, context }) => {
+  const cookies = createChunks("sb-127-auth-token", `base64-${stringToBase64URL(JSON.stringify({
+    access_token: "fixture-nonadmin-token", refresh_token: "fixture-refresh-token",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: { id: "fixture-admin", email: "admin@example.test" },
+  }))}`);
+  await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: "http://localhost:4320" })));
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "접근 거부 (Access Denied)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리자 대시보드" })).toHaveCount(0);
+});
+
+test("관리자 도메인 이동은 정적 규칙이며 API와 정적 파일은 제외", async ({ request }) => {
+  for (const path of ["/", "/hongcheon", "/en/hongcheon"]) {
+    const response = await request.get(path, {
+      headers: { host: "admin.kfondo.cc" }, maxRedirects: 0,
+    });
+    expect(response.status(), path).toBe(307);
+    expect(new URL(response.headers()["location"], "http://localhost:4320").pathname).toBe("/admin");
+  }
+  const publicAdmin = await request.get("/admin/login", {
+    headers: { host: "www.kfondo.cc" }, maxRedirects: 0,
+  });
+  expect(publicAdmin.status()).toBe(307);
+  expect(new URL(publicAdmin.headers()["location"], "http://localhost:4320").pathname).toBe("/");
+  for (const path of ["/api/revalidate", "/favicon.ico"]) {
+    const response = await request.get(path, {
+      headers: { host: "admin.kfondo.cc" }, maxRedirects: 0,
+    });
+    expect(response.headers()["location"]).toBeUndefined();
+  }
+  const koreanPrefix = await request.get("/ko/hongcheon?year=2025", { maxRedirects: 0 });
+  expect(koreanPrefix.status()).toBe(308);
+  expect(koreanPrefix.headers()["location"]).toBe("/hongcheon?year=2025");
 });
 test("영어 검색 및 전환에 hash 보존", async ({ page }) => {
   await page.goto("/en#q=Hongcheon");

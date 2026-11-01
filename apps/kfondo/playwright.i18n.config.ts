@@ -11,7 +11,9 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: "bun run dev --port 4320",
+      command: process.env.KFONDO_E2E_PRODUCTION === "1"
+        ? "bun run start --port 4320"
+        : "bun run dev --port 4320",
       url: "http://localhost:4320",
       timeout: 120000,
       reuseExistingServer: false,
