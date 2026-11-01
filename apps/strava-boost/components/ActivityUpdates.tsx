@@ -1,6 +1,7 @@
 "use client";
 
 import axios from "axios";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { deleteStoredActivity } from "@/lib/activity-storage";
 import { dbUtils } from "@/lib/indexeddb";
@@ -11,8 +12,10 @@ type Reader = { athleteId: number; expiresAt: number; ticket: string };
 type Change = { activity_id: number; version: string };
 
 export function ActivityUpdates() {
+	const pathname = usePathname();
 	const [message, setMessage] = useState<string | null>(null);
 	useEffect(() => {
+		if (pathname === "/demo") return;
 		let stopped = false;
 		let timer: ReturnType<typeof setTimeout>;
 		let reader: Reader | null = null;
@@ -86,6 +89,6 @@ export function ActivityUpdates() {
 		document.addEventListener("visibilitychange", check);
 		window.addEventListener("focus", check);
 		return () => { stopped = true; clearTimeout(timer); document.removeEventListener("visibilitychange", check); window.removeEventListener("focus", check); };
-	}, []);
-	return message ? <p role="status" className="bg-amber-50 px-4 py-2 text-xs text-amber-900">{message}</p> : null;
+	}, [pathname]);
+	return pathname !== "/demo" && message ? <p role="status" className="bg-amber-50 px-4 py-2 text-xs text-amber-900">{message}</p> : null;
 }

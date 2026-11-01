@@ -1,14 +1,16 @@
 "use client";
 
+import Link from "next/link";
+import { SiteNavigation } from "@/app/_components/SiteNavigation";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityFilters as ActivityFiltersComponent } from "@/components/ActivityFilters";
-import { ActivityList } from "@/components/ActivityList";
-import { OverallStats } from "@/components/OverallStats";
-import { YearlyStats } from "@/components/YearlyStats";
-import { useAuth } from "@/hooks/useAuth";
-import { type ActivityFilters, filterActivities } from "@/lib/filters";
+import { ActivityFilters as ActivityFiltersComponent } from "@/app/(statistics)/_components/ActivityFilters";
+import { ActivityList } from "@/app/(statistics)/_components/ActivityList";
+import { OverallStats } from "@/app/(statistics)/_components/OverallStats";
+import { YearlyStats } from "@/app/(statistics)/_components/YearlyStats";
+import { useAuth } from "@/app/(statistics)/_hooks/useAuth";
+import { type ActivityFilters, filterActivities } from "@/app/(statistics)/_lib/filters";
 import { getStravaLocalYear } from "@/lib/strava-date";
-import { calculateStats } from "@/lib/stats";
+import { calculateStats } from "@/app/(statistics)/_lib/stats";
 import type { SyncProgress } from "@/lib/sync";
 import { ACTIVITY_CHANGED, getLastSyncTime, getStoredActivities, syncActivities, syncActivity } from "@/lib/sync";
 import type { StravaActivity } from "@/types/strava";
@@ -202,6 +204,7 @@ export default function Home() {
 					>
 						Strava로 로그인
 					</button>
+					<Link href="/equipment" className="block mt-6 text-sm text-blue-700 underline">내 장비·정비 살펴보기</Link>
 				</div>
 			</div>
 		);
@@ -328,6 +331,8 @@ export default function Home() {
 					</button>
 				</div>
 			</div>
+
+			<SiteNavigation active="statistics" />
 
 			{/* 마지막 동기화 시점 */}
 			<div className="text-xs text-gray-500 mb-4">

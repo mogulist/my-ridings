@@ -3,7 +3,7 @@ import * as storage from "./activity-storage";
 import { dbUtils } from "./indexeddb";
 import { stravaApi } from "./strava-api";
 import { ACTIVITY_CHANGED, syncActivity, syncActivities } from "./sync";
-import type { StravaActivity } from "../types/strava";
+import type { StravaActivity } from "@/types/strava";
 
 const originalWindow = globalThis.window;
 const mocks: Array<{ mockRestore(): void }> = [];
