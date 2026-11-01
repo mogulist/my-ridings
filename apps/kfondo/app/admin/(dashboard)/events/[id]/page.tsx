@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAdminSession } from "@/lib/admin-session";
 import { notFound } from "next/navigation";
 import { EventDetailContent } from "./event-detail-content";
 
@@ -8,7 +8,8 @@ type PageProps = {
 
 export default async function EditEventPage({ params }: PageProps) {
   const { id } = await params;
-  const supabase = await createClient();
+  const { supabase, user } = await getAdminSession();
+  if (!supabase || !user) return null;
 
   const { data: event } = await supabase
     .from("events")

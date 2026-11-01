@@ -1,5 +1,5 @@
 import type { EventRow } from "@/lib/database.types";
-import { createClient } from "@/lib/supabase/server";
+import { getAdminSession } from "@/lib/admin-session";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ function getLatestEditionDate(editions: { date: string }[] | undefined): string 
 }
 
 export default async function EventsPage() {
-  const supabase = await createClient();
+  const { supabase, user } = await getAdminSession();
+  if (!supabase || !user) return null;
 
   const { data: rawEvents, error } = await supabase
     .from("events")

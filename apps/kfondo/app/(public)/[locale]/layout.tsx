@@ -12,6 +12,7 @@ import { Footer } from "@/components/footer";
 import { AnalyticsWithExclusions } from "@/components/analytics-with-exclusions";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LocaleAnalytics } from "@/components/locale-analytics";
+import { LanguageSuggestion } from "@/components/language-suggestion";
 const inter = Inter({ subsets: ["latin"] });
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -65,6 +66,7 @@ export default async function PublicLayout({
               <Footer />
             </div>
             <LocaleAnalytics />
+            <LanguageSuggestion />
             <AnalyticsWithExclusions />
             <SpeedInsights />
           </AppProviders>

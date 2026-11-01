@@ -1,6 +1,13 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 const origin = "http://127.0.0.1:4319";
+const adminUser = {
+  id: "fixture-admin", email: "admin@example.test", aud: "authenticated", role: "authenticated",
+  app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z",
+};
+const adminAccessToken = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({
+  sub: adminUser.id, exp: 4102444800, role: "authenticated",
+})).toString("base64url")}.fixture-signature`;
 const records = JSON.parse(
   readFileSync(
     new URL("../../tests/fixtures/stats-record-files/hongcheon_2025.json", import.meta.url),
@@ -63,10 +70,36 @@ const event = {
     },
   ],
 };
-createServer((req, res) => {
+createServer(async (req, res) => {
   const url = new URL(req.url, origin);
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Content-Type", "application/json");
+  if (url.pathname === "/auth/v1/token") {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    if (JSON.parse(body || "{}").refresh_token !== "fixture-refresh-token") {
+      res.statusCode = 400;
+      return res.end(JSON.stringify({ error_code: "refresh_token_not_found", msg: "Invalid token" }));
+    }
+    return res.end(JSON.stringify({
+      access_token: adminAccessToken, refresh_token: "fixture-refresh-token", token_type: "bearer",
+      expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: adminUser,
+    }));
+  }
+  if (url.pathname === "/auth/v1/user") {
+    if (req.headers.authorization === "Bearer fixture-nonadmin-token") {
+      return res.end(JSON.stringify({ ...adminUser, id: "fixture-viewer", email: "viewer@example.test" }));
+    }
+    if (req.headers.authorization !== `Bearer ${adminAccessToken}`) {
+      res.statusCode = 401;
+      return res.end(JSON.stringify({ msg: "Invalid token" }));
+    }
+    return res.end(JSON.stringify(adminUser));
+  }
+  if (url.pathname === "/rest/v1/admin_whitelist") {
+    return res.end(JSON.stringify(url.searchParams.get("email") === `eq.${adminUser.email}`
+      ? { id: adminUser.id } : null));
+  }
   if (url.pathname === "/rest/v1/events") {
     const slug = url.searchParams.get("slug");
     if (slug && slug !== "eq.hongcheon") {

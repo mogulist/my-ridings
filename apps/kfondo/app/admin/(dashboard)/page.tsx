@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAdminSession } from "@/lib/admin-session";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,10 +10,8 @@ import {
 } from "@/components/ui/card";
 
 export default async function AdminPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { needsRefresh, user } = await getAdminSession();
+  if (needsRefresh) return null;
 
   // 로그인하지 않은 경우 로그인 페이지로
   if (!user) {
