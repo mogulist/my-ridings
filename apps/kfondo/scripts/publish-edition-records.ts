@@ -399,13 +399,6 @@ const main = async () => {
         );
       }
 
-      const fullRevalidate = await fetch(revalidateUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-      });
-      await assertRevalidateOk(fullRevalidate, "layout 전체");
-
       const tagRes = await fetch(revalidateUrl, {
         method: "POST",
         headers,
@@ -413,15 +406,8 @@ const main = async () => {
       });
       await assertRevalidateOk(tagRes, `tag event-${slug}`);
 
-      const pathRes = await fetch(revalidateUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ path: `/${slug}` }),
-      });
-      await assertRevalidateOk(pathRes, `path /${slug}`);
-
       console.log(
-        `✓ 캐시 revalidate (layout + tag event-${slug} + path /${slug})`,
+        `✓ 캐시 revalidate (tag event-${slug}, 양쪽 언어 대회 및 홈)`,
         slug
       );
     }

@@ -1,3 +1,4 @@
+import { invalidatePublicEvent } from "@/lib/revalidate-public";
 import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { buildRecordsBlobPath } from "@/lib/records-blob-path";
@@ -194,12 +195,17 @@ export async function POST(
     if (komSortedRecordsBlobUrl)
       patch.kom_sorted_records_blob_url = komSortedRecordsBlobUrl;
 
-    const { error } = await supabase
+    const { data: updatedEdition, error } = await supabase
       .from("event_editions")
       .update(patch as never)
-      .eq("id", editionId);
+      .eq("id", editionId)
+      .select("events(slug)")
+      .single();
 
     if (error) throw error;
+    const event = (updatedEdition as unknown as { events: { slug: string } | null } | null)?.events;
+    if (!event?.slug) throw new Error("Updated event slug is missing");
+    invalidatePublicEvent(event.slug);
 
     const posthog = getPostHogClient();
     posthog.capture({

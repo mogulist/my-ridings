@@ -1,3 +1,4 @@
+import { RECORDS_REVALIDATE_SECONDS } from "./records-cache";
 /**
  * Blob URL만으로 기록을 불러옵니다. Node `fs` 없음 — 클라이언트에서 import 가능한 모듈이
  * 이 파일을 거치도록 해야 합니다 (예: eventFilter).
@@ -20,7 +21,7 @@ export async function tryFetchParticipantRecordsFromBlob(
 ): Promise<ParticipantRecord[] | null> {
   try {
     const response = await fetch(blobUrl, {
-      next: { revalidate: 3600, tags: [`event-${eventId}`] },
+      next: { revalidate: RECORDS_REVALIDATE_SECONDS, tags: [`event-${eventId}`] },
     });
     if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
     return await response.json();

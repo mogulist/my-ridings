@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { invalidatePublicHome, invalidatePublicEvent } from "@/lib/revalidate-public";
+import { requireAdmin } from "@/lib/require-admin";
 
 async function revalidateStaging(payload: { path?: string; tag?: string }) {
   const base = process.env.STAGING_SITE_URL;
@@ -22,18 +23,13 @@ async function revalidateStaging(payload: { path?: string; tag?: string }) {
 }
 
 export async function revalidateHomePage() {
-  revalidatePath("/");
-  revalidatePath("/en");
-  revalidatePath("/(public)/[locale]", "layout");
+  await requireAdmin();
+  invalidatePublicHome();
   await revalidateStaging({ path: "/" });
-  await revalidateStaging({ path: "/en" });
-  await revalidateStaging({ path: "/(public)/[locale]" });
 }
 
 export async function revalidateEventPage(slug: string) {
-  const tag = `event-${slug}`;
-  revalidateTag(tag, { expire: 0 });
-  revalidatePath("/", "layout");
-  await revalidateStaging({ tag });
-  await revalidateStaging({ path: "/(public)/[locale]" });
+  await requireAdmin();
+  invalidatePublicEvent(slug);
+  await revalidateStaging({ tag: `event-${slug}` });
 }
