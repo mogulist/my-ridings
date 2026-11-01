@@ -70,10 +70,15 @@ const event = {
     },
   ],
 };
+let cacheProbeVersion = 1;
 createServer(async (req, res) => {
   const url = new URL(req.url, origin);
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Content-Type", "application/json");
+  if (url.pathname === "/__fixture/cache-probe" && req.method === "POST") {
+    cacheProbeVersion++;
+    return res.end(JSON.stringify({ version: cacheProbeVersion }));
+  }
   if (url.pathname === "/auth/v1/token") {
     let body = "";
     for await (const chunk of req) body += chunk;
@@ -102,6 +107,10 @@ createServer(async (req, res) => {
   }
   if (url.pathname === "/rest/v1/events") {
     const slug = url.searchParams.get("slug");
+    if (slug === "eq.cache-probe") {
+      return res.end(JSON.stringify({ ...event, slug: "cache-probe",
+        name: `캐시 확인 ${cacheProbeVersion}`, name_en: `Cache probe ${cacheProbeVersion}` }));
+    }
     if (slug && slug !== "eq.hongcheon") {
       res.statusCode = 406;
       return res.end(JSON.stringify({ code: "PGRST116", message: "Not found" }));

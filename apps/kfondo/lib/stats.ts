@@ -1,3 +1,4 @@
+import { RECORDS_REVALIDATE_SECONDS } from "./records-cache";
 import path from "path";
 import fs from "fs";
 import type { Event, EventYearStats, EventYearStatsWithCourses, RaceRecord } from "./types";
@@ -12,7 +13,7 @@ async function fetchRecords(event: Event, year: number, dataDir: string): Promis
   if (blobUrl) {
     try {
       const response = await fetch(blobUrl, {
-        next: { revalidate: 3600, tags: [`event-${event.id}`] },
+        next: { revalidate: RECORDS_REVALIDATE_SECONDS, tags: [`event-${event.id}`] },
       });
       if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
       const rawRecords = await response.json();

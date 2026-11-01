@@ -1,18 +1,28 @@
-import { revalidatePath, revalidateTag } from "next/cache";
+jest.mock("@/lib/require-admin", () => ({ requireAdmin: jest.fn() }));
+jest.mock("@/lib/revalidate-public", () => ({ invalidatePublicHome: jest.fn(), invalidatePublicEvent: jest.fn() }));
+import { requireAdmin } from "@/lib/require-admin";
+import { invalidatePublicHome, invalidatePublicEvent } from "@/lib/revalidate-public";
 import { revalidateHomePage, revalidateEventPage } from "./revalidate";
-jest.mock("next/cache", () => ({ revalidatePath: jest.fn(), revalidateTag: jest.fn() }));
+
 beforeEach(() => {
   jest.clearAllMocks();
   global.fetch = jest.fn(async () => ({ ok: true })) as jest.Mock;
 });
-test("홈 수정은 두 언어와 공개 locale 레이아웃을 갱신", async () => {
-  await revalidateHomePage();
-  expect(revalidatePath).toHaveBeenCalledWith("/");
-  expect(revalidatePath).toHaveBeenCalledWith("/en");
-  expect(revalidatePath).toHaveBeenCalledWith("/(public)/[locale]", "layout");
+test("관리자 검증 실패 시 서버 액션으로 캐시를 무효화할 수 없다", async () => {
+  jest.mocked(requireAdmin).mockRejectedValue(new Error("Forbidden"));
+  await expect(revalidateHomePage()).rejects.toThrow("Forbidden");
+  await expect(revalidateEventPage("hongcheon")).rejects.toThrow("Forbidden");
+  expect(invalidatePublicHome).not.toHaveBeenCalled();
+  expect(invalidatePublicEvent).not.toHaveBeenCalled();
 });
-test("대회 수정은 기록 Blob 태그와 모든 locale 페이지를 갱신", async () => {
+test("관리자는 해당 대회 캐시를 갱신할 수 있다", async () => {
+  jest.mocked(requireAdmin).mockResolvedValue(undefined);
   await revalidateEventPage("hongcheon");
-  expect(revalidateTag).toHaveBeenCalledWith("event-hongcheon", { expire: 0 });
-  expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  expect(invalidatePublicEvent).toHaveBeenCalledWith("hongcheon");
+});
+
+test("관리자는 홈 캐시도 갱신할 수 있다", async () => {
+  jest.mocked(requireAdmin).mockResolvedValue(undefined);
+  await revalidateHomePage();
+  expect(invalidatePublicHome).toHaveBeenCalled();
 });

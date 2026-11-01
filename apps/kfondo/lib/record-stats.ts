@@ -64,7 +64,13 @@ export function generateTimeDistributionFromRecords(
   // 구간 수 계산
   const intervals = Math.ceil(((maxHours - minHours) * 60) / intervalMinutes);
 
-  // 각 구간별 참가자 수 카운트
+  // 기록을 한 번만 순회해 각 시간 구간에 배정한다.
+  const counts = new Array<number>(intervals).fill(0);
+  for (const record of filteredRecords) {
+    const index = Math.floor((record.timeInSeconds! - minTime) / intervalSeconds);
+    if (index >= 0 && index < intervals) counts[index]++;
+  }
+
   const distribution: TimeDistribution[] = [];
 
   for (let i = 0; i < intervals; i++) {
@@ -80,13 +86,7 @@ export function generateTimeDistributionFromRecords(
       .toString()
       .padStart(2, "0")} - ${endHour}:${endMin.toString().padStart(2, "0")}`;
 
-    // 해당 구간에 속하는 참가자 수 계산
-    const participants = filteredRecords.filter(
-      (r) =>
-        r.timeInSeconds &&
-        r.timeInSeconds >= startSeconds &&
-        r.timeInSeconds < endSeconds
-    ).length;
+    const participants = counts[i];
 
     distribution.push({
       timeRange,

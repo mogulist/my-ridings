@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
-  testMatch: "i18n.spec.ts",
+  testMatch: ["i18n.spec.ts", "cache.spec.ts"],
   fullyParallel: true,
   use: { baseURL: "http://localhost:4320", locale: "ko-KR" },
   webServer: [
@@ -22,6 +22,7 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:4319",
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-key",
         SUPABASE_SERVICE_ROLE_KEY: "test-key",
+        REVALIDATE_SECRET: "fixture-revalidate-secret",
         NEXT_PUBLIC_POSTHOG_KEY: "",
         NEXT_PUBLIC_NAVER_MAP_CLIENT_ID: "",
       },

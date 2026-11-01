@@ -1,3 +1,4 @@
+import { RECORDS_REVALIDATE_SECONDS } from "./records-cache";
 import type { Locale } from "@/i18n/routing";
 /**
  * 기록으로 찾기 결과 페이지 / OG 이미지 공통 데이터 로직
@@ -119,7 +120,7 @@ export async function getFindByRecordData(
   let sortedData: Record<string, number[]> = {};
   try {
     const response = await fetch(sortedBlobUrl, {
-      next: { revalidate: 3600, tags: [`event-${eventId}`] },
+      next: { revalidate: RECORDS_REVALIDATE_SECONDS, tags: [`event-${eventId}`] },
     });
     if (!response.ok) return null;
     sortedData = await response.json();
