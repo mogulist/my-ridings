@@ -19,6 +19,7 @@ export type Bike = {
 	stravaGearId: string | null;
 	usedFrom?: string | null;
 	usedUntil?: string | null;
+	note?: string;
 };
 export type Part = {
 	id: string;
@@ -245,6 +246,7 @@ export function validateGarage(value: unknown): asserts value is Garage {
 			(b.stravaGearId !== null && !/^b\d+$/.test(b.stravaGearId)) ||
 			(b.usedFrom != null && !calendarDate(b.usedFrom)) ||
 			(b.usedUntil != null && !calendarDate(b.usedUntil)) ||
+			(b.note !== undefined && (typeof b.note !== "string" || b.note.length > 4000)) ||
 			(b.usedFrom != null && b.usedUntil != null && b.usedFrom > b.usedUntil)
 		)
 			throw new Error("자전거 정보를 확인해 주세요.");

@@ -25,6 +25,7 @@ export function BikeForm({
 	const [gear, setGear] = useState(bike?.stravaGearId ?? "");
 	const [usedFrom, setUsedFrom] = useState(bike?.usedFrom ?? "");
 	const [usedUntil, setUsedUntil] = useState(bike?.usedUntil ?? "");
+	const [note, setNote] = useState(bike?.note ?? "");
 	return (
 		<Modal
 			title={bike ? "자전거 정보" : "자전거 등록"}
@@ -34,7 +35,8 @@ export function BikeForm({
 				name !== (bike?.name ?? "") ||
 				gear !== (bike?.stravaGearId ?? "") ||
 				usedFrom !== (bike?.usedFrom ?? "") ||
-				usedUntil !== (bike?.usedUntil ?? "")
+				usedUntil !== (bike?.usedUntil ?? "") ||
+				note !== (bike?.note ?? "")
 			}
 		>
 			<form
@@ -48,6 +50,7 @@ export function BikeForm({
 						stravaGearId: gear.trim() || null,
 						usedFrom: usedFrom || null,
 						usedUntil: usedUntil || null,
+						note: note.trim(),
 					};
 					if (
 						await save({
@@ -96,6 +99,16 @@ export function BikeForm({
 						max={localDateTime(new Date()).slice(0, 10)}
 					/>
 				</div>
+				<label className="boost-field">
+					구매·판매 메모 · 선택
+					<textarea
+						rows={4}
+						maxLength={4000}
+						value={note}
+						onChange={(e) => setNote(e.target.value)}
+						placeholder="구매일, 구매처, 구매·판매 금액, 거래 경위 등을 자유롭게 기록하세요"
+					/>
+				</label>
 				<p className="boost-muted">
 					판매한 자전거는 종료일을 기록하세요. 과거 라이딩과 부품 장착 이력은 유지됩니다. 이름과
 					사용 기간은 Trace에만 저장됩니다. Strava 동기화는 라이딩에 연결된 자전거를 가져옵니다.

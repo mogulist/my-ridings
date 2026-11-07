@@ -31,6 +31,23 @@ test("part notes reject non-text and oversized values at the server boundary", (
 	}
 });
 
+test("bike purchase and sale notes are optional, persist as text and reject invalid input", () => {
+	const g = fixture();
+	expect(() => validateGarage(g)).not.toThrow();
+	g.bikes[0].note = "2019-11-04 대구에서 중고 구매, 100만원.\n2020-03-28 중고 판매, 88만원.";
+	const restored = JSON.parse(JSON.stringify(g));
+	expect(() => validateGarage(restored)).not.toThrow();
+	expect(restored.bikes[0].note).toBe(g.bikes[0].note);
+	for (const note of ["", "x".repeat(4000)]) {
+		g.bikes[0].note = note;
+		expect(() => validateGarage(g)).not.toThrow();
+	}
+	for (const note of [123, null, {}, "x".repeat(4001)]) {
+		Object.assign(g.bikes[0], { note });
+		expect(() => validateGarage(g)).toThrow("자전거 정보");
+	}
+});
+
 function fixture(): Garage {
 	const g = emptyGarage();
 	g.bikes = [
