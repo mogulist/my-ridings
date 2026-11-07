@@ -4,6 +4,7 @@ import { useState } from "react";
 import { type Garage, type ServiceRule, serviceStatus } from "@/lib/equipment";
 import type { StravaActivity } from "@/types/strava";
 import { localDateTime } from "../_lib/local-date-time";
+import { DateInput } from "./DateInput";
 import { Modal } from "./Modal";
 export function Maintenance({
 	garage,
@@ -283,12 +284,12 @@ export function Maintenance({
 					>
 						<label className="boost-field">
 							정비 일시
-							<input
+							<DateInput
 								required
-								type="datetime-local"
+								withTime
 								max={localDateTime(new Date())}
 								value={at}
-								onChange={(e) => setAt(e.target.value)}
+								onChange={setAt}
 							/>
 						</label>
 						<label className="boost-field">

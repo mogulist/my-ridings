@@ -12,6 +12,25 @@ import {
 	validateGarage,
 } from "./equipment";
 
+test("optional part notes support old documents and free-form purchase details", () => {
+	const g = fixture();
+	expect(() => validateGarage(g)).not.toThrow();
+	g.parts[0].note = "2026.8.19 Bike24 구매\nA·B 합계 130유로. 8.27 장착.";
+	const restored = JSON.parse(JSON.stringify(g));
+	expect(() => validateGarage(restored)).not.toThrow();
+	expect(restored.parts[0].note).toBe(g.parts[0].note);
+	g.parts[0].note = "";
+	expect(() => validateGarage(g)).not.toThrow();
+});
+
+test("part notes reject non-text and oversized values at the server boundary", () => {
+	for (const note of [123, null, {}, "x".repeat(4001)]) {
+		const g = fixture();
+		Object.assign(g.parts[0], { note });
+		expect(() => validateGarage(g)).toThrow("부품 정보");
+	}
+});
+
 function fixture(): Garage {
 	const g = emptyGarage();
 	g.bikes = [
@@ -54,6 +73,30 @@ function fixture(): Garage {
 	];
 	return g;
 }
+
+test("bike usage periods are optional and retain historical installations", () => {
+	const g = fixture();
+	const installations = structuredClone(g.installations);
+	Object.assign(g.bikes[0], { usedFrom: "2020-02-15", usedUntil: "2026-08-27" });
+	expect(() => validateGarage(g)).not.toThrow();
+	expect(g.installations).toEqual(installations);
+	expect(JSON.parse(JSON.stringify(g)).bikes[0].usedUntil).toBe("2026-08-27");
+	g.bikes[0].usedFrom = null;
+	expect(() => validateGarage(g)).not.toThrow();
+});
+
+test("bike usage periods reject reversed ranges and invalid calendar dates", () => {
+	for (const period of [
+		{ usedFrom: "2026-08-27", usedUntil: "2020-02-15" },
+		{ usedFrom: "2026-02-30" },
+		{ usedUntil: "not-a-date" },
+		{ usedFrom: 2026 },
+	]) {
+		const g = fixture();
+		Object.assign(g.bikes[0], period);
+		expect(() => validateGarage(g)).toThrow("자전거 정보");
+	}
+});
 function ride(
 	id: number,
 	date: string,
@@ -205,4 +248,20 @@ test("virtual rides without a trainer flag still exclude tires and count the dri
 	];
 	expect(partDistance(g, activities, "t2")).toBe(0);
 	expect(partDistance(g, activities, "c1")).toBe(1100);
+});
+
+test("rear derailleurs can be installed and count indoor drivetrain use", () => {
+	const g = fixture();
+	g.parts.push({
+		id: "rd",
+		name: "GX Eagle AXS Transmission",
+		kind: "derailleur",
+		startedAt: "2026-01-01T00:00:00Z",
+		initialKm: 0,
+		retiredAt: null,
+	});
+	g.installations[0].parts.derailleur = "rd";
+	expect(() => validateGarage(g)).not.toThrow();
+	expect(partDistance(g, [{ ...ride(10, "2026-02-02T00:00:00Z"), trainer: true }], "rd")).toBe(100);
+	expect(() => validateConfiguration(g, { derailleur: "t1" })).toThrow();
 });

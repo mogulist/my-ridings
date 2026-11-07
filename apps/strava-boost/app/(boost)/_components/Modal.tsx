@@ -7,14 +7,25 @@ export function Modal({
 	close,
 	children,
 	sheet = false,
+	busy = false,
+	hasChanges,
 }: {
 	title: string;
 	close: () => void;
 	children: React.ReactNode;
 	sheet?: boolean;
+	busy?: boolean;
+	hasChanges?: boolean;
 }) {
 	const ref = useRef<HTMLDialogElement>(null);
+	const dirty = useRef(false);
 	const error = useContext(SaveErrorContext);
+	function requestClose() {
+		if (busy) return;
+		if ((hasChanges ?? dirty.current) && !window.confirm("작성 중인 내용을 버리고 닫을까요?"))
+			return;
+		close();
+	}
 	useEffect(() => {
 		const dialog = ref.current;
 		dialog?.showModal();
@@ -28,15 +39,21 @@ export function Modal({
 			aria-label={title}
 			onCancel={(e) => {
 				e.preventDefault();
-				close();
+				requestClose();
 			}}
-			onClick={(e) => {
-				if (e.target === e.currentTarget) close();
+			onChangeCapture={() => {
+				dirty.current = true;
 			}}
 		>
 			<div className="boost-dialog-head">
 				<h2>{title}</h2>
-				<button type="button" className="boost-icon" aria-label="닫기" onClick={close}>
+				<button
+					type="button"
+					className="boost-icon"
+					aria-label="닫기"
+					disabled={busy}
+					onClick={requestClose}
+				>
 					<X size={20} />
 				</button>
 			</div>
