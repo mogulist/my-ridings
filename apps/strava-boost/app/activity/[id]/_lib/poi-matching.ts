@@ -1,6 +1,7 @@
 import { snapLatLngToTrack } from "@my-ridings/plan-geometry";
 import type { TrackPoint } from "@my-ridings/plan-geometry";
-import type { ActivityStreams, SummitPoi, EventInfo, EventWaypointPoi } from "@/types/strava";
+import type { ActivityStreams } from "@/types/strava";
+import type { SummitPoi, EventInfo, EventWaypointPoi } from "@/app/activity/[id]/_lib/types";
 
 // 클라이언트에서 호출 시 same-origin 프록시 사용 (CORS 방지)
 // window가 있으면 브라우저 환경 → 상대 경로, 없으면 서버 환경 → 절대 경로 불필요 (직접 호출 X)
