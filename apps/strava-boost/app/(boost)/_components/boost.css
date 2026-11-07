@@ -942,3 +942,9 @@
 	min-width: 0;
 	flex: 1 1 auto;
 }
+
+.boost-quick-bikes { border: 0; padding: 0; min-width: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.boost-quick-bikes button { max-width: 100%; overflow-wrap: anywhere; }
+.boost-quick-bikes button[aria-pressed="true"] { border-color: var(--boost-blue); background: var(--boost-soft); }
+.boost-favorite-field { display: flex; align-items: center; gap: 10px; }
+.boost-favorite-field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }

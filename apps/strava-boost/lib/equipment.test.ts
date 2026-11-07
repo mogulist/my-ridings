@@ -2,15 +2,65 @@ import { expect, test } from "bun:test";
 import type { StravaActivity } from "@/types/strava";
 import {
 	assignmentFor,
+	bikeChoices,
 	configurationAt,
 	emptyGarage,
 	type Garage,
 	partDistance,
 	partPeriods,
+	preferredBikeId,
 	serviceStatus,
 	validateConfiguration,
 	validateGarage,
 } from "./equipment";
+
+test("current bikes rank favorites then recent ride frequency, ignoring retired bikes", () => {
+	const g = fixture();
+	g.bikes = [
+		{ id: "old", name: "Emonda", stravaGearId: "b0", usedUntil: "2020-03-28", favorite: true },
+		{ id: "sarana", name: "Sarana", stravaGearId: "b1" },
+		{ id: "ostro", name: "Ostro", stravaGearId: "b2" },
+		{ id: "spare", name: "Spare", stravaGearId: "b3" },
+	];
+	g.assignments = [{ activityId: 4, bikeId: "ostro", parts: {} }];
+	const now = Date.parse("2026-11-08T00:00:00Z");
+	const activities = [
+		ride(1, "2026-11-01T00:00:00Z", 1000, "b1"),
+		ride(2, "2026-11-02T00:00:00Z", 1000, "b2"),
+		ride(3, "2026-11-03T00:00:00Z", 1000, "b2"),
+		ride(4, "2026-11-04T00:00:00Z", 1000, "b1"),
+		ride(5, "2025-11-04T00:00:00Z", 1000, "b1"),
+		{ ...ride(6, "2026-11-07T00:00:00Z", 1000, "b1"), type: "Run" },
+	];
+	const original = structuredClone(g.bikes);
+	expect(bikeChoices(g, activities, now).current.map((b) => b.id)).toEqual([
+		"ostro",
+		"sarana",
+		"spare",
+	]);
+	expect(bikeChoices(g, activities, now).retired.map((b) => b.id)).toEqual(["old"]);
+	expect(g.bikes).toEqual(original);
+	g.bikes[1].favorite = true;
+	expect(bikeChoices(g, activities, now).current[0].id).toBe("sarana");
+});
+
+test("default selection avoids retired bikes but preserves explicit historical selection", () => {
+	const g = fixture();
+	g.bikes[0].usedUntil = "2020-03-28";
+	expect(preferredBikeId(g, [], "a")).toBe("b");
+	expect(preferredBikeId(g, [], "a", true)).toBe("a");
+	expect(preferredBikeId(g, [], "b")).toBe("b");
+	g.bikes[1].usedUntil = "2026-01-01";
+	expect(preferredBikeId(g, [])).toBe("");
+});
+
+test("bike favorites are optional booleans at the server boundary", () => {
+	const g = fixture();
+	g.bikes[0].favorite = true;
+	expect(() => validateGarage(g)).not.toThrow();
+	Object.assign(g.bikes[0], { favorite: "true" });
+	expect(() => validateGarage(g)).toThrow("자전거 정보");
+});
 
 test("optional part notes support old documents and free-form purchase details", () => {
 	const g = fixture();

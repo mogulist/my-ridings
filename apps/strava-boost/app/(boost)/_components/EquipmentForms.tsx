@@ -25,6 +25,7 @@ export function BikeForm({
 	const [gear, setGear] = useState(bike?.stravaGearId ?? "");
 	const [usedFrom, setUsedFrom] = useState(bike?.usedFrom ?? "");
 	const [usedUntil, setUsedUntil] = useState(bike?.usedUntil ?? "");
+	const [favorite, setFavorite] = useState(bike?.favorite ?? false);
 	const [note, setNote] = useState(bike?.note ?? "");
 	return (
 		<Modal
@@ -36,6 +37,7 @@ export function BikeForm({
 				gear !== (bike?.stravaGearId ?? "") ||
 				usedFrom !== (bike?.usedFrom ?? "") ||
 				usedUntil !== (bike?.usedUntil ?? "") ||
+				favorite !== (bike?.favorite ?? false) ||
 				note !== (bike?.note ?? "")
 			}
 		>
@@ -50,6 +52,7 @@ export function BikeForm({
 						stravaGearId: gear.trim() || null,
 						usedFrom: usedFrom || null,
 						usedUntil: usedUntil || null,
+						favorite,
 						note: note.trim(),
 					};
 					if (
@@ -81,6 +84,14 @@ export function BikeForm({
 						placeholder="b12345678"
 						pattern="b[0-9]+"
 					/>
+				</label>
+				<label className="boost-favorite-field">
+					<input
+						type="checkbox"
+						checked={favorite}
+						onChange={(e) => setFavorite(e.target.checked)}
+					/>
+					자주 사용하는 자전거 · 즐겨찾기
 				</label>
 				<div className="boost-field">
 					<span>사용 시작일 · 선택</span>

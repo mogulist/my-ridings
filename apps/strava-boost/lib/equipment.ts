@@ -19,6 +19,7 @@ export type Bike = {
 	stravaGearId: string | null;
 	usedFrom?: string | null;
 	usedUntil?: string | null;
+	favorite?: boolean;
 	note?: string;
 };
 export type Part = {
@@ -73,6 +74,46 @@ const isIndoorRide = (a: StravaActivity) =>
 export const appliesIndoors = (slot: Slot) =>
 	slot === "chain" || slot === "cassette" || slot === "derailleur";
 export const activityTime = (a: StravaActivity) => Date.parse(a.start_date);
+
+/** Rank current bikes without changing the stored order or historical assignments. */
+export function bikeChoices(garage: Garage, activities: StravaActivity[], now = Date.now()) {
+	const recent = now - 90 * 86400000;
+	const counts = new Map<string, number>();
+	const latest = new Map<string, number>();
+	const explicit = new Map(garage.assignments.map((a) => [a.activityId, a.bikeId]));
+	const linked = new Map(
+		garage.bikes.filter((b) => b.stravaGearId).map((b) => [b.stravaGearId, b.id]),
+	);
+	const seen = new Set<number>();
+	for (const a of activities) {
+		const at = activityTime(a);
+		if (!isRide(a) || !Number.isFinite(at) || at < recent || at > now || seen.has(a.id)) continue;
+		seen.add(a.id);
+		const id = explicit.get(a.id) ?? linked.get(a.gear_id);
+		if (!id) continue;
+		counts.set(id, (counts.get(id) ?? 0) + 1);
+		latest.set(id, Math.max(latest.get(id) ?? 0, at));
+	}
+	const current = garage.bikes
+		.filter((b) => !b.usedUntil)
+		.sort(
+			(a, b) =>
+				Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)) ||
+				(counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) ||
+				(latest.get(b.id) ?? 0) - (latest.get(a.id) ?? 0),
+		);
+	return { current, retired: garage.bikes.filter((b) => Boolean(b.usedUntil)) };
+}
+
+export function preferredBikeId(
+	garage: Garage,
+	activities: StravaActivity[],
+	selected = "",
+	historical = false,
+) {
+	if (garage.bikes.some((b) => b.id === selected && (historical || !b.usedUntil))) return selected;
+	return bikeChoices(garage, activities).current[0]?.id ?? "";
+}
 
 export function partPeriods(garage: Garage, partId: string, now = Date.now()) {
 	const part = garage.parts.find((p) => p.id === partId);
@@ -246,6 +287,7 @@ export function validateGarage(value: unknown): asserts value is Garage {
 			(b.stravaGearId !== null && !/^b\d+$/.test(b.stravaGearId)) ||
 			(b.usedFrom != null && !calendarDate(b.usedFrom)) ||
 			(b.usedUntil != null && !calendarDate(b.usedUntil)) ||
+			(b.favorite !== undefined && typeof b.favorite !== "boolean") ||
 			(b.note !== undefined && (typeof b.note !== "string" || b.note.length > 4000)) ||
 			(b.usedFrom != null && b.usedUntil != null && b.usedFrom > b.usedUntil)
 		)

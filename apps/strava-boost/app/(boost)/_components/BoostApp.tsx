@@ -6,11 +6,13 @@ import { SiteNavigation } from "@/app/_components/SiteNavigation";
 import { boostRequest, type CloudSession, cloudSession } from "@/app/(boost)/_lib/boost-client";
 import {
 	assignmentFor,
+	bikeChoices,
 	emptyGarage,
 	type Garage,
 	isRide,
 	kindLabels,
 	partDistance,
+	preferredBikeId,
 	validateGarage,
 } from "@/lib/equipment";
 import { getGearInfos } from "@/lib/gear-cache";
@@ -43,7 +45,10 @@ export function BoostApp({
 	);
 	const [revision, setRevision] = useState(0);
 	const [view, setView] = useState<View>("home");
-	const [bikeId, setBikeId] = useState(demo ? "bike-a" : "");
+	const [bikeId, setBikeId] = useState(() =>
+		initialData ? preferredBikeId(initialData.garage, initialData.activities) : "",
+	);
+	const viewingRide = useRef(false);
 	const [activityId, setActivityId] = useState<number | null>(null);
 	const [error, setError] = useState("");
 	const [message, setMessage] = useState("");
@@ -56,6 +61,8 @@ export function BoostApp({
 	const [filter, setFilter] = useState("");
 	const saving = useRef(false);
 	const dirty = useRef(false);
+	const choices = bikeChoices(garage, activities);
+	const quickBikes = choices.current.slice(0, 3);
 	const activity = activities.find((a) => a.id === activityId) ?? null;
 	const rides = activities
 		.filter(isRide)
@@ -76,9 +83,7 @@ export function BoostApp({
 		setGarage(data.garage);
 		setRevision(data.revision);
 		setActivities(rides);
-		setBikeId((id) =>
-			data.garage.bikes.some((b) => b.id === id) ? id : (data.garage.bikes[0]?.id ?? ""),
-		);
+		setBikeId((id) => preferredBikeId(data.garage, rides, id, viewingRide.current));
 	}, [demo]);
 	useEffect(() => {
 		if (new URL(window.location.href).searchParams.get("auth") === "failed")
@@ -156,7 +161,7 @@ export function BoostApp({
 					? "체험 화면에 반영했습니다. 실제 데이터는 변경하지 않습니다."
 					: "변경 사항을 저장했습니다.",
 			);
-			setBikeId((id) => (next.bikes.some((b) => b.id === id) ? id : (next.bikes[0]?.id ?? "")));
+			setBikeId((id) => preferredBikeId(next, activities, id, viewingRide.current));
 			return true;
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "저장하지 못했습니다.");
@@ -239,6 +244,7 @@ export function BoostApp({
 		)
 			return;
 		const assigned = assignmentFor(garage, a);
+		viewingRide.current = true;
 		setActivityId(a.id);
 		if (assigned) setBikeId(assigned.bikeId);
 		dirty.current = false;
@@ -522,6 +528,30 @@ export function BoostApp({
 										</div>
 									) : (
 										<>
+											{quickBikes.length > 0 && (
+												<fieldset className="boost-quick-bikes" aria-label="자전거 빠른 선택">
+													{quickBikes.map((b) => (
+														<button
+															type="button"
+															key={b.id}
+															className="boost-secondary"
+															aria-pressed={bikeId === b.id}
+															onClick={() => {
+																if (
+																	dirty.current &&
+																	!window.confirm("적용하지 않은 조합을 버리고 자전거를 바꿀까요?")
+																)
+																	return;
+																dirty.current = false;
+																setBikeId(b.id);
+															}}
+														>
+															{b.favorite ? "★ " : ""}
+															{b.name}
+														</button>
+													))}
+												</fieldset>
+											)}
 											<div className="boost-workbench-controls">
 												<label className="boost-field">
 													자전거
@@ -535,12 +565,28 @@ export function BoostApp({
 																setBikeId(e.target.value);
 														}}
 													>
-														{garage.bikes.map((b) => (
-															<option key={b.id} value={b.id}>
-																{b.name}
-																{b.usedUntil ? " · 사용 종료" : ""}
+														{!bikeId && (
+															<option value="" disabled>
+																자전거 선택
 															</option>
-														))}
+														)}
+														<optgroup label="현재 사용 중">
+															{choices.current.map((b) => (
+																<option key={b.id} value={b.id}>
+																	{b.favorite ? "★ " : ""}
+																	{b.name}
+																</option>
+															))}
+														</optgroup>
+														{choices.retired.length > 0 && (
+															<optgroup label="사용 종료">
+																{choices.retired.map((b) => (
+																	<option key={b.id} value={b.id}>
+																		{b.name} · 사용 종료
+																	</option>
+																))}
+															</optgroup>
+														)}
 													</select>
 												</label>
 												<label className="boost-field">
@@ -553,8 +599,12 @@ export function BoostApp({
 																!window.confirm("적용하지 않은 조합을 버리고 기록을 바꿀까요?")
 															)
 																return;
-															if (e.target.value === "current") setActivityId(null);
-															else {
+															if (e.target.value === "current") {
+																viewingRide.current = false;
+																dirty.current = false;
+																setActivityId(null);
+																setBikeId((id) => preferredBikeId(garage, activities, id));
+															} else {
 																const a = activities.find((a) => a.id === Number(e.target.value));
 																if (a) {
 																	dirty.current = false;
@@ -575,6 +625,7 @@ export function BoostApp({
 											<button
 												type="button"
 												className="boost-text"
+												disabled={!bikeId}
 												onClick={() => {
 													setEditingBike(bikeId);
 													setModal("bike");
@@ -587,18 +638,20 @@ export function BoostApp({
 												{garage.bikes.find((b) => b.id === bikeId)?.usedFrom || "시작일 미상"} ~{" "}
 												{garage.bikes.find((b) => b.id === bikeId)?.usedUntil || "현재"}
 											</p>
-											<Workbench
-												garage={garage}
-												activities={activities}
-												activity={activity}
-												bikeId={bikeId}
-												save={save}
-												busy={busy || syncing}
-												editPart={editPart}
-												onDirty={(value) => {
-													dirty.current = value;
-												}}
-											/>
+											{bikeId && (
+												<Workbench
+													garage={garage}
+													activities={activities}
+													activity={activity}
+													bikeId={bikeId}
+													save={save}
+													busy={busy || syncing}
+													editPart={editPart}
+													onDirty={(value) => {
+														dirty.current = value;
+													}}
+												/>
+											)}
 											{activity && (
 												<div className="boost-external-actions">
 													<Link
