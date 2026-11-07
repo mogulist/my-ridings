@@ -15,6 +15,7 @@ import {
 } from "@/lib/equipment";
 import type { StravaActivity } from "@/types/strava";
 import { localDateTime } from "../_lib/local-date-time";
+import { DateInput } from "./DateInput";
 import { Modal } from "./Modal";
 import { PartIcon } from "./PartIcon";
 
@@ -132,7 +133,8 @@ export function Workbench({
 						aria-pressed={kind === category}
 						onClick={() => {
 							setCategory(kind);
-							if (kind === "cassette" || kind === "brake") setExpanded(true);
+							if (kind === "cassette" || kind === "derailleur" || kind === "brake")
+								setExpanded(true);
 							if (slots[slot].kind !== kind)
 								setSlot((Object.keys(slots) as Slot[]).find((s) => slots[s].kind === kind)!);
 						}}
@@ -234,7 +236,7 @@ export function Workbench({
 								return (
 									<div
 										key={key}
-										className={`boost-slot ${key === slot ? "is-active" : ""} ${over === key ? "is-over" : ""} ${key === "wheelset" || key === "chain" || key === "cassette" ? "is-wide" : ""}`}
+										className={`boost-slot ${key === slot ? "is-active" : ""} ${over === key ? "is-over" : ""} ${key === "wheelset" || key === "chain" || key === "cassette" || key === "derailleur" ? "is-wide" : ""}`}
 										onDragOver={(e) => {
 											e.preventDefault();
 											setOver(key);
@@ -294,7 +296,7 @@ export function Workbench({
 						aria-expanded={expanded}
 						onClick={() => setExpanded((v) => !v)}
 					>
-						{expanded ? "추가 부품 접기" : "스프라켓·브레이크 펼치기"}
+						{expanded ? "추가 부품 접기" : "스프라켓·뒷변속기·브레이크 펼치기"}
 					</button>
 					<div className="boost-presets">
 						<span>빠른 조합</span>
@@ -327,12 +329,12 @@ export function Workbench({
 					{!activity && (
 						<label className="boost-field boost-effective">
 							장착 변경 일시
-							<input
-								type="datetime-local"
+							<DateInput
+								withTime
 								disabled={busy}
 								value={effective}
 								max={localDateTime(new Date())}
-								onChange={(e) => setEffective(e.target.value)}
+								onChange={setEffective}
 								required
 							/>
 						</label>

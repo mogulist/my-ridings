@@ -6,13 +6,20 @@ export const slots = {
 	tire_rear: { label: "뒤 타이어", kind: "tire" },
 	chain: { label: "체인", kind: "chain" },
 	cassette: { label: "스프라켓", kind: "cassette" },
+	derailleur: { label: "뒷변속기", kind: "derailleur" },
 	brake_front: { label: "앞 브레이크", kind: "brake" },
 	brake_rear: { label: "뒤 브레이크", kind: "brake" },
 } as const;
 export type Slot = keyof typeof slots;
 export type PartKind = (typeof slots)[Slot]["kind"];
 export type Configuration = Partial<Record<Slot, string>>;
-export type Bike = { id: string; name: string; stravaGearId: string | null };
+export type Bike = {
+	id: string;
+	name: string;
+	stravaGearId: string | null;
+	usedFrom?: string | null;
+	usedUntil?: string | null;
+};
 export type Part = {
 	id: string;
 	name: string;
@@ -20,6 +27,7 @@ export type Part = {
 	startedAt: string;
 	initialKm: number;
 	retiredAt: string | null;
+	note?: string;
 };
 export type Installation = { id: string; bikeId: string; at: string; parts: Configuration };
 export type Assignment = { activityId: number; bikeId: string; parts: Configuration };
@@ -55,12 +63,14 @@ export const kindLabels: Record<PartKind, string> = {
 	tire: "타이어",
 	chain: "체인",
 	cassette: "스프라켓",
+	derailleur: "뒷변속기",
 	brake: "브레이크",
 };
 export const isRide = (a: StravaActivity) => /ride$/i.test(a.sport_type || a.type);
 const isIndoorRide = (a: StravaActivity) =>
 	Boolean(a.trainer || (a.sport_type || a.type) === "VirtualRide");
-export const appliesIndoors = (slot: Slot) => slot === "chain" || slot === "cassette";
+export const appliesIndoors = (slot: Slot) =>
+	slot === "chain" || slot === "cassette" || slot === "derailleur";
 export const activityTime = (a: StravaActivity) => Date.parse(a.start_date);
 
 export function partPeriods(garage: Garage, partId: string, now = Date.now()) {
@@ -199,6 +209,11 @@ export function validateGarage(value: unknown): asserts value is Garage {
 	const text = (v: unknown, max = 160): v is string =>
 		typeof v === "string" && v.trim().length > 0 && v.length <= max;
 	const date = (v: unknown): v is string => typeof v === "string" && Number.isFinite(Date.parse(v));
+	const calendarDate = (v: unknown): v is string =>
+		typeof v === "string" &&
+		/^\d{4}-\d{2}-\d{2}$/.test(v) &&
+		date(v) &&
+		new Date(v).toISOString().slice(0, 10) === v;
 	const number = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 	for (const key of arrays) {
 		if (
@@ -225,7 +240,13 @@ export function validateGarage(value: unknown): asserts value is Garage {
 		if (!date(i.at) || Date.parse(i.at) > Date.now()) throw new Error("장착 일시를 확인해 주세요.");
 	for (const p of g.presets) if (!text(p.name)) throw new Error("조합 이름을 입력해 주세요.");
 	for (const b of g.bikes)
-		if (!text(b.name) || (b.stravaGearId !== null && !/^b\d+$/.test(b.stravaGearId)))
+		if (
+			!text(b.name) ||
+			(b.stravaGearId !== null && !/^b\d+$/.test(b.stravaGearId)) ||
+			(b.usedFrom != null && !calendarDate(b.usedFrom)) ||
+			(b.usedUntil != null && !calendarDate(b.usedUntil)) ||
+			(b.usedFrom != null && b.usedUntil != null && b.usedFrom > b.usedUntil)
+		)
 			throw new Error("자전거 정보를 확인해 주세요.");
 	const gearIds = g.bikes.map((b) => b.stravaGearId).filter(Boolean);
 	if (new Set(gearIds).size !== gearIds.length)
@@ -237,6 +258,7 @@ export function validateGarage(value: unknown): asserts value is Garage {
 			!date(p.startedAt) ||
 			Date.parse(p.startedAt) > Date.now() ||
 			!number(p.initialKm) ||
+			(p.note !== undefined && (typeof p.note !== "string" || p.note.length > 4000)) ||
 			(p.retiredAt !== null &&
 				(!date(p.retiredAt) || Date.parse(p.retiredAt) < Date.parse(p.startedAt)))
 		)

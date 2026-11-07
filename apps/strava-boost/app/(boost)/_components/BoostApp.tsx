@@ -538,6 +538,7 @@ export function BoostApp({
 														{garage.bikes.map((b) => (
 															<option key={b.id} value={b.id}>
 																{b.name}
+																{b.usedUntil ? " · 사용 종료" : ""}
 															</option>
 														))}
 													</select>
@@ -579,8 +580,13 @@ export function BoostApp({
 													setModal("bike");
 												}}
 											>
-												자전거 이름·Strava 연결 수정
+												자전거 정보·사용 기간 수정
 											</button>
+											<p className="boost-muted">
+												사용 기간:{" "}
+												{garage.bikes.find((b) => b.id === bikeId)?.usedFrom || "시작일 미상"} ~{" "}
+												{garage.bikes.find((b) => b.id === bikeId)?.usedUntil || "현재"}
+											</p>
 											<Workbench
 												garage={garage}
 												activities={activities}
