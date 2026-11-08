@@ -121,8 +121,9 @@ export function BikeForm({
 					/>
 				</label>
 				<p className="boost-muted">
-					판매한 자전거는 종료일을 기록하세요. 과거 라이딩과 부품 장착 이력은 유지됩니다. 이름과
-					사용 기간은 Trace에만 저장됩니다. Strava 동기화는 라이딩에 연결된 자전거를 가져옵니다.
+					자전거를 판매하거나 더 이상 사용하지 않을 때만 종료일을 기록하세요. 휠셋·구동계 변경은
+					조합과 장착 이력으로 관리하세요. 과거 라이딩과 부품 장착 이력은 유지됩니다. 이름과 사용
+					기간은 Trace에만 저장됩니다. Strava 동기화는 라이딩에 연결된 자전거를 가져옵니다.
 				</p>
 				<button className="boost-primary" disabled={busy}>
 					{bike ? "자전거 정보 저장" : "자전거 등록"}

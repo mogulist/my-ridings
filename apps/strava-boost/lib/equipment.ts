@@ -105,13 +105,9 @@ export function bikeChoices(garage: Garage, activities: StravaActivity[], now = 
 	return { current, retired: garage.bikes.filter((b) => Boolean(b.usedUntil)) };
 }
 
-export function preferredBikeId(
-	garage: Garage,
-	activities: StravaActivity[],
-	selected = "",
-	historical = false,
-) {
-	if (garage.bikes.some((b) => b.id === selected && (historical || !b.usedUntil))) return selected;
+/** Keep an existing selection; use current-bike ranking only when choosing a default. */
+export function preferredBikeId(garage: Garage, activities: StravaActivity[], selected = "") {
+	if (garage.bikes.some((b) => b.id === selected)) return selected;
 	return bikeChoices(garage, activities).current[0]?.id ?? "";
 }
 

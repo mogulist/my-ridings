@@ -396,17 +396,67 @@
 }
 
 .boost-presets {
-	display:flex;
-	align-items:center;
-	gap:8px;
-	flex-wrap:wrap;
-	margin-top:18px;
+	margin: 20px 0 24px;
+	padding-bottom: 20px;
+	border-bottom: 1px solid var(--boost-line);
 }
 
-.boost-presets>span {
-	font-size:12px;
-	color:var(--boost-muted);
+.boost-presets-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	margin-bottom: 12px;
 }
+
+.boost-presets-heading > span {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--boost-muted);
+}
+
+.boost-app .boost-preset-create {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 0;
+	font-size: 13px;
+}
+
+.boost-preset-list {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-width: 0;
+}
+
+.boost-app .boost-preset-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	min-height: 36px;
+	padding: 7px 13px;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	background: var(--boost-bg);
+	color: var(--boost-muted);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.4;
+	text-align: left;
+}
+
+.boost-preset-chip span { overflow-wrap: anywhere; }
+.boost-preset-chip svg { flex-shrink: 0; }
+.boost-preset-chip:hover:not(:disabled) { background: #e3eaf0; }
+.boost-preset-chip[aria-pressed="true"] { background: var(--boost-blue); color: #fff; }
+.boost-preset-chip[aria-pressed="true"]:hover:not(:disabled) { background: #104b98; }
+@media (pointer: coarse) { .boost-app .boost-preset-chip { min-height: 44px; } }
 
 .boost-effective {
 	margin-top:18px;
@@ -981,7 +1031,7 @@
 .boost-favorite-field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
 
 .boost-preset-editor { border: 1px solid var(--boost-line); background: var(--boost-surface); border-radius: 10px; padding: 16px; margin: 16px 0; display: grid; gap: 12px; }
-.boost-preset-editor button { justify-self: start; }
+.boost-preset-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
 
 .boost-snackbar {
 	position: fixed;

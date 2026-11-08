@@ -1,5 +1,5 @@
 "use client";
-import { GripVertical, X } from "lucide-react";
+import { Check, GripVertical, Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	assignmentFor,
@@ -19,6 +19,17 @@ import { DateInput } from "./DateInput";
 import { Modal } from "./Modal";
 import { PartIcon } from "./PartIcon";
 
+type WorkbenchProps = {
+	garage: Garage;
+	activities: StravaActivity[];
+	activity: StravaActivity | null;
+	bikeId: string;
+	save: (garage: Garage) => Promise<boolean>;
+	busy: boolean;
+	editPart: (id: string) => void;
+	onDirty: (dirty: boolean) => void;
+};
+
 export function Workbench({
 	garage,
 	activities,
@@ -28,16 +39,7 @@ export function Workbench({
 	busy,
 	editPart,
 	onDirty,
-}: {
-	garage: Garage;
-	activities: StravaActivity[];
-	activity: StravaActivity | null;
-	bikeId: string;
-	save: (garage: Garage) => Promise<boolean>;
-	busy: boolean;
-	editPart: (id: string) => void;
-	onDirty: (dirty: boolean) => void;
-}) {
+}: WorkbenchProps) {
 	const [draft, setDraft] = useState<Configuration>({});
 	const [slot, setSlot] = useState<Slot>("wheelset");
 	const [category, setCategory] = useState<PartKind>("wheelset");
@@ -47,6 +49,8 @@ export function Workbench({
 	const [presetName, setPresetName] = useState("");
 	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 	const [creatingPreset, setCreatingPreset] = useState(false);
+	const [showInstallationForm, setShowInstallationForm] = useState(false);
+	const [deletingPreset, setDeletingPreset] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [effective, setEffective] = useState(localDateTime(new Date()));
@@ -60,6 +64,8 @@ export function Workbench({
 		setDirty(false);
 		setSelectedPresetId(null);
 		setCreatingPreset(false);
+		setShowInstallationForm(false);
+		setDeletingPreset(false);
 		setPresetName("");
 		setMessage("");
 	}, [garage.installations, garage.assignments, bikeId, activity]);
@@ -89,6 +95,28 @@ export function Workbench({
 	function discardChanges() {
 		return !unsaved || window.confirm("저장하지 않은 조합 변경을 버릴까요?");
 	}
+	function showCurrentInstallation() {
+		setSelectedPresetId(null);
+		setCreatingPreset(false);
+		setShowInstallationForm(false);
+		setPresetName("");
+		setDraft({ ...appliedParts });
+		setDirty(false);
+		setMessage("");
+	}
+	async function deletePreset() {
+		if (!selectedPreset || busy) return;
+		if (
+			await save({
+				...garage,
+				presets: garage.presets.filter((p) => p.id !== selectedPreset.id),
+			})
+		) {
+			setDeletingPreset(false);
+			showCurrentInstallation();
+		}
+	}
+
 	async function savePreset() {
 		if (activity || busy || (!creatingPreset && !selectedPreset)) return;
 		try {
@@ -292,47 +320,57 @@ export function Workbench({
 						</span>
 					</div>
 					<div className="boost-presets">
-						<span>저장된 조합</span>
-						{garage.presets
-							.filter((p) => p.bikeId === bikeId)
-							.map((p) => (
+						<div className="boost-presets-heading">
+							<span>저장된 조합</span>
+							{!activity && (
 								<button
 									type="button"
-									className="boost-chip"
-									key={p.id}
-									aria-pressed={selectedPresetId === p.id}
+									className="boost-text boost-preset-create"
 									disabled={busy}
 									onClick={() => {
 										if (!discardChanges()) return;
-										setSelectedPresetId(p.id);
-										setCreatingPreset(false);
-										setPresetName(p.name);
-										setDraft({ ...p.parts });
+										setSelectedPresetId(null);
+										setCreatingPreset(true);
+										setShowInstallationForm(false);
+										setPresetName("");
+										setDraft({});
 										setDirty(false);
-										setMessage(`${p.name} 조합을 불러왔습니다. 적용 전 확인해 주세요.`);
+										setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
 									}}
 								>
-									{p.name}
+									<Plus size={16} aria-hidden="true" />새 조합 만들기
 								</button>
-							))}
-						{!activity && (
-							<button
-								type="button"
-								className="boost-text"
-								disabled={busy}
-								onClick={() => {
-									if (!discardChanges()) return;
-									setSelectedPresetId(null);
-									setCreatingPreset(true);
-									setPresetName("");
-									setDraft({});
-									setDirty(false);
-									setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
-								}}
-							>
-								새 조합 만들기
-							</button>
-						)}
+							)}
+						</div>
+						<fieldset className="boost-preset-list" aria-label="저장된 조합 선택">
+							{garage.presets
+								.filter((p) => p.bikeId === bikeId)
+								.map((p) => (
+									<button
+										type="button"
+										className="boost-preset-chip"
+										key={p.id}
+										aria-pressed={selectedPresetId === p.id}
+										disabled={busy}
+										onClick={() => {
+											if (!discardChanges()) return;
+											setSelectedPresetId(p.id);
+											setShowInstallationForm(false);
+											setCreatingPreset(false);
+											setPresetName(p.name);
+											setDraft({ ...p.parts });
+											setDirty(false);
+											setMessage(`${p.name} 조합을 불러왔습니다. 적용 전 확인해 주세요.`);
+										}}
+									>
+										{selectedPresetId === p.id && <Check size={14} aria-hidden="true" />}
+										<span>{p.name}</span>
+									</button>
+								))}
+							{!garage.presets.some((p) => p.bikeId === bikeId) && (
+								<span className="boost-muted">아직 저장된 조합이 없습니다.</span>
+							)}
+						</fieldset>
 					</div>
 					{!activity && (creatingPreset || selectedPreset) && (
 						<div className="boost-preset-editor">
@@ -353,35 +391,42 @@ export function Workbench({
 										? "변경사항 있음"
 										: "저장된 조합"}
 							</output>
-							<button
-								type="button"
-								className="boost-secondary"
-								disabled={
-									busy ||
-									!presetName.trim() ||
-									!Object.keys(draft).length ||
-									(!creatingPreset && !presetChanged)
-								}
-								onClick={savePreset}
-							>
-								{creatingPreset ? "새 조합 저장" : "조합 저장"}
-							</button>
-							<button
-								type="button"
-								className="boost-text"
-								disabled={busy}
-								onClick={() => {
-									if (!discardChanges()) return;
-									setSelectedPresetId(null);
-									setCreatingPreset(false);
-									setPresetName("");
-									setDraft({ ...appliedParts });
-									setDirty(false);
-									setMessage("");
-								}}
-							>
-								작성 취소 · 장착 상태로 돌아가기
-							</button>
+							<div className="boost-preset-actions">
+								<button
+									type="button"
+									className="boost-secondary"
+									disabled={
+										busy ||
+										!presetName.trim() ||
+										!Object.keys(draft).length ||
+										(!creatingPreset && !presetChanged)
+									}
+									onClick={savePreset}
+								>
+									{creatingPreset ? "새 조합 저장" : "조합 저장"}
+								</button>
+								<button
+									type="button"
+									className="boost-text"
+									disabled={busy}
+									onClick={() => {
+										if (!discardChanges()) return;
+										showCurrentInstallation();
+									}}
+								>
+									{presetUnsaved ? "작성 취소 · 장착 상태로 돌아가기" : "현재 장착 상태로 돌아가기"}
+								</button>
+								{selectedPreset && (
+									<button
+										type="button"
+										className="boost-text"
+										disabled={busy}
+										onClick={() => setDeletingPreset(true)}
+									>
+										조합 삭제
+									</button>
+								)}
+							</div>
 						</div>
 					)}
 
@@ -464,7 +509,7 @@ export function Workbench({
 					>
 						{expanded ? "추가 부품 접기" : "스프라켓·뒷변속기·브레이크 펼치기"}
 					</button>
-					{!activity && (
+					{!activity && ((!selectedPreset && !creatingPreset) || showInstallationForm) && (
 						<label className="boost-field boost-effective">
 							장착 변경 일시
 							<DateInput
@@ -477,31 +522,65 @@ export function Workbench({
 							/>
 						</label>
 					)}
-					<div className="boost-savebar">
-						<button
-							type="button"
-							className="boost-primary"
-							disabled={
-								busy ||
-								!bikeId ||
-								creatingPreset ||
-								presetChanged ||
-								(!activity && !needsApply) ||
-								!effective
-							}
-							onClick={apply}
-						>
-							{busy ? "저장 중…" : activity ? "이 라이딩에 적용" : "장착 변경 기록"}
-						</button>
-						<output aria-live="polite">
-							{message ||
-								(unsaved
-									? "변경사항을 저장해 주세요"
-									: needsApply
-										? "저장한 조합을 장착 이력에 적용할 수 있습니다"
-										: "저장된 기록")}
-						</output>
-					</div>
+					{(creatingPreset || (selectedPreset && !showInstallationForm)) && (
+						<output aria-live="polite">{message}</output>
+					)}
+					{!activity && selectedPreset && !showInstallationForm && (
+						<div className="boost-savebar">
+							<button
+								type="button"
+								className="boost-primary"
+								disabled={busy || presetUnsaved || !needsApply}
+								onClick={() => setShowInstallationForm(true)}
+							>
+								이 조합 사용 시작
+							</button>
+							<span>조합 저장은 부품 구성만 저장합니다. 사용 시작 시점은 별도로 기록하세요.</span>
+						</div>
+					)}
+					{!creatingPreset && (activity || !selectedPreset || showInstallationForm) && (
+						<div className="boost-savebar">
+							<button
+								type="button"
+								className="boost-primary"
+								disabled={
+									busy ||
+									!bikeId ||
+									creatingPreset ||
+									presetChanged ||
+									(!activity && !needsApply) ||
+									!effective
+								}
+								onClick={apply}
+							>
+								{busy
+									? "저장 중…"
+									: activity
+										? "이 라이딩에 적용"
+										: selectedPreset
+											? "조합 사용 시작 기록"
+											: "장착 변경 기록"}
+							</button>
+							<output aria-live="polite">
+								{message ||
+									(unsaved
+										? "변경사항을 저장해 주세요"
+										: needsApply
+											? "저장한 조합을 장착 이력에 적용할 수 있습니다"
+											: "저장된 기록")}
+							</output>
+							{showInstallationForm && (
+								<button
+									type="button"
+									className="boost-text"
+									disabled={busy}
+									onClick={() => setShowInstallationForm(false)}
+								>
+									사용 시작 취소
+								</button>
+							)}
+						</div>
+					)}
 				</section>
 				<aside className="boost-library" aria-label="부품 보관함">
 					{!picking && library}
@@ -512,6 +591,34 @@ export function Workbench({
 					이미 확정한 라이딩의 부품 기록은 유지됩니다. 부품을 옮길 때는 기존 자전거에서 먼저 분리해
 					주세요.
 				</p>
+			)}
+			{deletingPreset && selectedPreset && (
+				<Modal
+					title="조합 삭제"
+					close={() => setDeletingPreset(false)}
+					busy={busy}
+					hasChanges={false}
+				>
+					<p>“{selectedPreset.name}” 조합을 삭제할까요?</p>
+					{presetChanged && <p>저장하지 않은 조합 변경사항도 함께 사라집니다.</p>}
+					<p>
+						저장된 조합만 삭제합니다. 부품과 기존 장착 이력, 라이딩별 부품 기록은 유지됩니다. 삭제한
+						조합은 복구할 수 없습니다.
+					</p>
+					<div className="boost-savebar">
+						<button
+							type="button"
+							className="boost-secondary"
+							disabled={busy}
+							onClick={() => setDeletingPreset(false)}
+						>
+							취소
+						</button>
+						<button type="button" className="boost-primary" disabled={busy} onClick={deletePreset}>
+							조합 삭제하기
+						</button>
+					</div>
+				</Modal>
 			)}
 			{picking && (
 				<Modal title={`${slots[slot].label} 선택`} close={() => setPicking(false)} sheet>

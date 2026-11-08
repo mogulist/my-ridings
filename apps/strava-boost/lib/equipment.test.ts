@@ -44,13 +44,31 @@ test("current bikes rank favorites then recent ride frequency, ignoring retired 
 	expect(bikeChoices(g, activities, now).current[0].id).toBe("sarana");
 });
 
-test("default selection avoids retired bikes but preserves explicit historical selection", () => {
+test("opening without a selection defaults to a current bike", () => {
 	const g = fixture();
 	g.bikes[0].usedUntil = "2020-03-28";
+
+	expect(preferredBikeId(g, [])).toBe("b");
+});
+
+test("adding an end date to the selected bike keeps its ID selected", () => {
+	const g = fixture();
+	g.bikes[0].usedUntil = "2020-03-28";
+
+	expect(preferredBikeId(g, [], "a")).toBe("a");
+});
+
+test("a missing selected bike falls back to a current bike", () => {
+	const g = fixture();
+	g.bikes = g.bikes.filter((b) => b.id !== "a");
+
 	expect(preferredBikeId(g, [], "a")).toBe("b");
-	expect(preferredBikeId(g, [], "a", true)).toBe("a");
-	expect(preferredBikeId(g, [], "b")).toBe("b");
-	g.bikes[1].usedUntil = "2026-01-01";
+});
+
+test("opening with only retired bikes leaves the selection empty", () => {
+	const g = fixture();
+	for (const bike of g.bikes) bike.usedUntil = "2020-03-28";
+
 	expect(preferredBikeId(g, [])).toBe("");
 });
 
