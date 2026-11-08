@@ -1,6 +1,6 @@
 "use client";
 import { Check, GripVertical, Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	assignmentFor,
 	type Configuration,
@@ -73,7 +73,35 @@ export function Workbench({
 	const [expanded, setExpanded] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [effective, setEffective] = useState(localDateTime(new Date()));
+
+	const selectedPreset = garage.presets.find(
+		(p) => p.id === selectedPresetId && p.bikeId === bikeId,
+	);
+	const presetChanged = Boolean(
+		!activity &&
+			selectedPreset &&
+			(presetName.trim() !== selectedPreset.name ||
+				!sameConfiguration(draft, selectedPreset.parts)),
+	);
+	const presetUnsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
+	const assigned = activity ? assignmentFor(garage, activity) : null;
+	const appliedParts =
+		assigned?.bikeId === bikeId
+			? assigned.parts
+			: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString());
+	const needsApply = !sameConfiguration(draft, appliedParts);
+	const unsaved = activity
+		? dirty || needsApply || Boolean(assigned && assigned.bikeId !== bikeId)
+		: presetUnsaved;
+	const displayedContext = useRef<{ bikeId: string; activityId: number | undefined } | null>(null);
 	useEffect(() => {
+		const sameContext =
+			displayedContext.current?.bikeId === bikeId &&
+			displayedContext.current?.activityId === activity?.id;
+		// Focus refreshes replace garage arrays. Keep a draft until it is saved or discarded.
+		if (sameContext && unsaved) return;
+		displayedContext.current = { bikeId, activityId: activity?.id };
+
 		const assigned = activity ? assignmentFor(garage, activity) : null;
 		const installed = configurationAt(
 			garage,
@@ -97,25 +125,6 @@ export function Workbench({
 		if (preset && preset.id !== rememberedId) rememberPreset(bikeId, preset.id);
 	}, [garage.installations, garage.assignments, garage.presets, bikeId, activity]);
 
-	const selectedPreset = garage.presets.find(
-		(p) => p.id === selectedPresetId && p.bikeId === bikeId,
-	);
-	const presetChanged = Boolean(
-		!activity &&
-			selectedPreset &&
-			(presetName.trim() !== selectedPreset.name ||
-				!sameConfiguration(draft, selectedPreset.parts)),
-	);
-	const presetUnsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
-	const assigned = activity ? assignmentFor(garage, activity) : null;
-	const appliedParts =
-		assigned?.bikeId === bikeId
-			? assigned.parts
-			: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString());
-	const needsApply = !sameConfiguration(draft, appliedParts);
-	const unsaved = activity
-		? dirty || needsApply || Boolean(assigned && assigned.bikeId !== bikeId)
-		: presetUnsaved;
 	useEffect(() => {
 		onDirty(unsaved);
 	}, [unsaved, onDirty]);
