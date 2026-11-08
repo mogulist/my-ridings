@@ -979,3 +979,6 @@
 @media (pointer: coarse) { .boost-app .boost-bike-chip { min-height: 40px; } }
 .boost-favorite-field { display: flex; align-items: center; gap: 10px; }
 .boost-favorite-field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+
+.boost-preset-editor { border: 1px solid var(--boost-line); background: var(--boost-surface); border-radius: 10px; padding: 16px; margin: 16px 0; display: grid; gap: 12px; }
+.boost-preset-editor button { justify-self: start; }

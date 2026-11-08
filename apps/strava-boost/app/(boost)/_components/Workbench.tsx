@@ -44,7 +44,9 @@ export function Workbench({
 	const [over, setOver] = useState<Slot | null>(null);
 	const [message, setMessage] = useState("");
 	const [dirty, setDirty] = useState(false);
-	const [presetName, setPresetName] = useState<string | null>(null);
+	const [presetName, setPresetName] = useState("");
+	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+	const [creatingPreset, setCreatingPreset] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [effective, setEffective] = useState(localDateTime(new Date()));
@@ -56,11 +58,66 @@ export function Workbench({
 				: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString())),
 		});
 		setDirty(false);
+		setSelectedPresetId(null);
+		setCreatingPreset(false);
+		setPresetName("");
 		setMessage("");
 	}, [garage.installations, garage.assignments, bikeId, activity]);
+	const selectedPreset = garage.presets.find(
+		(p) => p.id === selectedPresetId && p.bikeId === bikeId,
+	);
+	const sameParts = (a: Configuration, b: Configuration) =>
+		(Object.keys(slots) as Slot[]).every((key) => a[key] === b[key]);
+	const presetChanged = Boolean(
+		selectedPreset &&
+			(presetName.trim() !== selectedPreset.name || !sameParts(draft, selectedPreset.parts)),
+	);
+	const unsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
+	const assigned = activity ? assignmentFor(garage, activity) : null;
+	const appliedParts =
+		assigned?.bikeId === bikeId
+			? assigned.parts
+			: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString());
+	const needsApply = !sameParts(draft, appliedParts);
 	useEffect(() => {
-		onDirty(dirty);
-	}, [dirty, onDirty]);
+		onDirty(unsaved);
+	}, [unsaved, onDirty]);
+	function discardChanges() {
+		return !unsaved || window.confirm("저장하지 않은 조합 변경을 버릴까요?");
+	}
+	async function savePreset() {
+		if (busy || (!creatingPreset && !selectedPreset)) return;
+		try {
+			const name = presetName.trim();
+			if (!name) throw new Error("조합 이름을 입력해 주세요.");
+			if (!Object.keys(draft).length) throw new Error("부품을 하나 이상 선택해 주세요.");
+			if (
+				garage.presets.some(
+					(p) => p.bikeId === bikeId && p.id !== selectedPresetId && p.name === name,
+				)
+			)
+				throw new Error("같은 이름의 조합이 있습니다. 다른 이름을 입력해 주세요.");
+			validateConfiguration(garage, draft);
+			const preset = {
+				id: selectedPreset?.id ?? crypto.randomUUID(),
+				bikeId,
+				name,
+				parts: { ...draft },
+			};
+			const presets = creatingPreset
+				? [...garage.presets, preset]
+				: garage.presets.map((p) => (p.id === preset.id ? preset : p));
+			if (await save({ ...garage, presets })) {
+				setSelectedPresetId(preset.id);
+				setCreatingPreset(false);
+				setPresetName(name);
+				setDirty(false);
+				setMessage(`${name} 조합을 저장했습니다. 실제 장착 이력은 변경하지 않았습니다.`);
+			}
+		} catch (error) {
+			setMessage(error instanceof Error ? error.message : "조합을 저장하지 못했습니다.");
+		}
+	}
 	const at =
 		activity?.start_date ??
 		(effective ? new Date(effective).toISOString() : new Date().toISOString());
@@ -207,6 +264,12 @@ export function Workbench({
 							<strong>{activity.name}</strong>
 							<b>{(activity.distance / 1000).toFixed(1)}km</b>
 						</>
+					) : creatingPreset ? (
+						"새 조합 작성 중"
+					) : selectedPreset ? (
+						`${selectedPreset.name} 조합 편집 중`
+					) : dirty ? (
+						"장착 변경 작성 중"
 					) : (
 						"현재 장착 상태"
 					)}
@@ -214,15 +277,115 @@ export function Workbench({
 				<span>
 					{activity
 						? new Date(activity.start_date).toLocaleDateString("ko-KR")
-						: "변경한 시점부터 사용 거리에 반영됩니다"}
+						: creatingPreset || selectedPreset
+							? "조합 저장 후 장착 이력에 별도로 적용하세요"
+							: "변경한 시점부터 사용 거리에 반영됩니다"}
 				</span>
 			</div>
 			<div className="boost-workspace">
 				<section className="boost-build" aria-label="부품 조합 작업대">
 					<div className="boost-section-head">
 						<h2>{garage.bikes.find((b) => b.id === bikeId)?.name}</h2>
-						<span className="boost-muted">{activity ? "이 라이딩의 사용 부품" : "장착 부품"}</span>
+						<span className="boost-muted">
+							{creatingPreset || selectedPreset
+								? "조합 구성"
+								: activity
+									? "이 라이딩의 사용 부품"
+									: "장착 부품"}
+						</span>
 					</div>
+					<div className="boost-presets">
+						<span>저장된 조합</span>
+						{garage.presets
+							.filter((p) => p.bikeId === bikeId)
+							.map((p) => (
+								<button
+									type="button"
+									className="boost-chip"
+									key={p.id}
+									aria-pressed={selectedPresetId === p.id}
+									disabled={busy}
+									onClick={() => {
+										if (!discardChanges()) return;
+										setSelectedPresetId(p.id);
+										setCreatingPreset(false);
+										setPresetName(p.name);
+										setDraft({ ...p.parts });
+										setDirty(false);
+										setMessage(`${p.name} 조합을 불러왔습니다. 적용 전 확인해 주세요.`);
+									}}
+								>
+									{p.name}
+								</button>
+							))}
+						<button
+							type="button"
+							className="boost-text"
+							disabled={busy}
+							onClick={() => {
+								if (!discardChanges()) return;
+								setSelectedPresetId(null);
+								setCreatingPreset(true);
+								setPresetName("");
+								setDraft({});
+								setDirty(false);
+								setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
+							}}
+						>
+							새 조합 만들기
+						</button>
+					</div>
+					{(creatingPreset || selectedPreset) && (
+						<div className="boost-preset-editor">
+							<label className="boost-field">
+								조합 이름
+								<input
+									value={presetName}
+									maxLength={80}
+									disabled={busy}
+									onChange={(e) => setPresetName(e.target.value)}
+									placeholder="사라나 그래블 등"
+								/>
+							</label>
+							<output className="boost-muted" aria-live="polite">
+								{creatingPreset
+									? "새 조합 작성 중"
+									: presetChanged
+										? "변경사항 있음"
+										: "저장된 조합"}
+							</output>
+							<button
+								type="button"
+								className="boost-secondary"
+								disabled={
+									busy ||
+									!presetName.trim() ||
+									!Object.keys(draft).length ||
+									(!creatingPreset && !presetChanged)
+								}
+								onClick={savePreset}
+							>
+								{creatingPreset ? "새 조합 저장" : "조합 저장"}
+							</button>
+							<button
+								type="button"
+								className="boost-text"
+								disabled={busy}
+								onClick={() => {
+									if (!discardChanges()) return;
+									setSelectedPresetId(null);
+									setCreatingPreset(false);
+									setPresetName("");
+									setDraft({ ...appliedParts });
+									setDirty(false);
+									setMessage("");
+								}}
+							>
+								작성 취소 · 장착 상태로 돌아가기
+							</button>
+						</div>
+					)}
+
 					<div className="boost-slots">
 						{(Object.entries(slots) as [Slot, (typeof slots)[Slot]][])
 							.filter(
@@ -298,34 +461,6 @@ export function Workbench({
 					>
 						{expanded ? "추가 부품 접기" : "스프라켓·뒷변속기·브레이크 펼치기"}
 					</button>
-					<div className="boost-presets">
-						<span>빠른 조합</span>
-						{garage.presets
-							.filter((p) => p.bikeId === bikeId)
-							.map((p) => (
-								<button
-									type="button"
-									className="boost-chip"
-									key={p.id}
-									disabled={busy}
-									onClick={() => {
-										setDraft({ ...p.parts });
-										setDirty(true);
-										setMessage(`${p.name} 조합을 불러왔습니다. 적용 전 확인해 주세요.`);
-									}}
-								>
-									{p.name}
-								</button>
-							))}
-						<button
-							type="button"
-							className="boost-text"
-							disabled={busy || !Object.keys(draft).length}
-							onClick={() => setPresetName("")}
-						>
-							조합 저장
-						</button>
-					</div>
 					{!activity && (
 						<label className="boost-field boost-effective">
 							장착 변경 일시
@@ -343,13 +478,25 @@ export function Workbench({
 						<button
 							type="button"
 							className="boost-primary"
-							disabled={busy || !bikeId || (!activity && !dirty) || !effective}
+							disabled={
+								busy ||
+								!bikeId ||
+								creatingPreset ||
+								presetChanged ||
+								(!activity && !needsApply) ||
+								!effective
+							}
 							onClick={apply}
 						>
 							{busy ? "저장 중…" : activity ? "이 라이딩에 적용" : "장착 변경 기록"}
 						</button>
 						<output aria-live="polite">
-							{message || (dirty ? "변경한 조합을 적용해 주세요" : "저장된 기록")}
+							{message ||
+								(unsaved
+									? "변경사항을 저장해 주세요"
+									: needsApply
+										? "저장한 조합을 장착 이력에 적용할 수 있습니다"
+										: "저장된 기록")}
 						</output>
 					</div>
 				</section>
@@ -370,45 +517,6 @@ export function Workbench({
 						</output>
 					)}
 					{library}
-				</Modal>
-			)}
-			{presetName !== null && (
-				<Modal title="빠른 조합 저장" close={() => setPresetName(null)}>
-					<form
-						className="boost-form"
-						onSubmit={async (e) => {
-							e.preventDefault();
-							if (
-								await save({
-									...garage,
-									presets: [
-										...garage.presets,
-										{
-											id: crypto.randomUUID(),
-											bikeId,
-											name: presetName.trim(),
-											parts: { ...draft },
-										},
-									],
-								})
-							)
-								setPresetName(null);
-						}}
-					>
-						<label className="boost-field">
-							조합 이름
-							<input
-								value={presetName}
-								onChange={(e) => setPresetName(e.target.value)}
-								required
-								maxLength={80}
-								placeholder="장거리, 업힐 등"
-							/>
-						</label>
-						<button className="boost-primary" disabled={busy}>
-							조합 저장
-						</button>
-					</form>
 				</Modal>
 			)}
 		</>
