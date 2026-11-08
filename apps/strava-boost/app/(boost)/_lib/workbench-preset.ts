@@ -18,3 +18,14 @@ export function preferredWorkbenchPreset(
 		bikePresets[0]
 	);
 }
+
+/** Preserve saved order within each group; undated combinations remain available. */
+export function orderedBikePresets(presets: Preset[], bikeId: string, today: string) {
+	const currentlyUsed = (preset: Preset) =>
+		(!preset.usedFrom || preset.usedFrom <= today) &&
+		(!preset.usedUntil || preset.usedUntil >= today);
+
+	return presets
+		.filter((preset) => preset.bikeId === bikeId)
+		.sort((a, b) => Number(currentlyUsed(b)) - Number(currentlyUsed(a)));
+}

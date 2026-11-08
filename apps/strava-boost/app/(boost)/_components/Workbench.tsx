@@ -16,7 +16,11 @@ import {
 } from "@/lib/equipment";
 import type { StravaActivity } from "@/types/strava";
 import { localDateTime } from "../_lib/local-date-time";
-import { preferredWorkbenchPreset, sameConfiguration } from "../_lib/workbench-preset";
+import {
+	orderedBikePresets,
+	preferredWorkbenchPreset,
+	sameConfiguration,
+} from "../_lib/workbench-preset";
 import { DateInput } from "./DateInput";
 import { Modal } from "./Modal";
 import { PartIcon } from "./PartIcon";
@@ -395,24 +399,26 @@ export function Workbench({
 							)}
 						</div>
 						<fieldset className="boost-preset-list" aria-label="저장된 조합 선택">
-							{garage.presets
-								.filter((p) => p.bikeId === bikeId)
-								.map((p) => (
-									<button
-										type="button"
-										className="boost-preset-chip"
-										key={p.id}
-										aria-pressed={selectedPresetId === p.id}
-										disabled={busy}
-										onClick={() => {
-											if (!discardChanges()) return;
-											showPreset(p);
-										}}
-									>
-										{selectedPresetId === p.id && <Check size={14} aria-hidden="true" />}
-										<span>{p.name}</span>
-									</button>
-								))}
+							{orderedBikePresets(
+								garage.presets,
+								bikeId,
+								localDateTime(new Date()).slice(0, 10),
+							).map((p) => (
+								<button
+									type="button"
+									className="boost-preset-chip"
+									key={p.id}
+									aria-pressed={selectedPresetId === p.id}
+									disabled={busy}
+									onClick={() => {
+										if (!discardChanges()) return;
+										showPreset(p);
+									}}
+								>
+									{selectedPresetId === p.id && <Check size={14} aria-hidden="true" />}
+									<span>{p.name}</span>
+								</button>
+							))}
 							{!garage.presets.some((p) => p.bikeId === bikeId) && (
 								<span className="boost-muted">아직 저장된 조합이 없습니다.</span>
 							)}

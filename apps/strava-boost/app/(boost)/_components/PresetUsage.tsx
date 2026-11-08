@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { type Garage, type Preset, validateGarage } from "@/lib/equipment";
 import { Modal } from "./Modal";
@@ -28,36 +29,22 @@ export function PresetUsage({
 	}
 	return (
 		<section className="boost-preset-usage" aria-label={`${preset.name} 사용 기간`}>
-			<div className="boost-presets-heading">
-				<h3>조합 사용 기간</h3>
-				<button
-					type="button"
-					className="boost-text"
-					disabled={busy || disabled}
-					onClick={() => {
-						setEditing(true);
-						onEditingChange(true);
-					}}
-				>
-					{preset.usedFrom || preset.usedUntil ? "기간 수정" : "기간 설정"}
-				</button>
-			</div>
-			{preset.usedFrom || preset.usedUntil ? (
-				<div className="boost-preset-usage-dates">
-					<strong>
-						{preset.usedFrom || "시작일 미상"} ~ {preset.usedUntil || "현재"}
-					</strong>
-					{preset.estimated && <span className="boost-muted">일부 날짜 추정</span>}
-				</div>
-			) : (
-				<p className="boost-muted">사용 기간 미지정</p>
-			)}
-			{preset.note && (
-				<details>
-					<summary>근거·메모</summary>
-					<p className="boost-muted">{preset.note}</p>
-				</details>
-			)}
+			<button
+				type="button"
+				className="boost-text boost-usage-link"
+				aria-label={`${preset.name} 사용 기간 수정`}
+				disabled={busy || disabled}
+				onClick={() => {
+					setEditing(true);
+					onEditingChange(true);
+				}}
+			>
+				{preset.usedFrom || preset.usedUntil
+					? `${preset.usedFrom || "시작일 미상"} ~ ${preset.usedUntil || "현재"}`
+					: "사용 기간 설정"}
+				{preset.estimated && <span className="boost-muted">(추정)</span>}
+				<Pencil size={13} aria-hidden="true" />
+			</button>
 			{editing && (
 				<PresetUsageForm garage={garage} preset={preset} busy={busy} save={save} close={close} />
 			)}
@@ -109,10 +96,6 @@ function PresetUsageForm({ garage, preset, busy, save, close }: PresetUsageFormP
 					}
 				}}
 			>
-				<p className="boost-muted">
-					최초 사용일과 종료일을 기록하세요. 다른 조합과 번갈아 사용해도 됩니다. 잠깐 테스트하거나
-					다시 사용한 내용은 메모에 남겨두세요.
-				</p>
 				<div className="boost-form-grid">
 					<label className="boost-field">
 						시작일 · 연-월-일
@@ -157,9 +140,7 @@ function PresetUsageForm({ garage, preset, busy, save, close }: PresetUsageFormP
 						placeholder="날짜 근거, 다시 사용한 시점 등을 자유롭게 기록하세요"
 					/>
 				</label>
-				<p className="boost-muted">
-					기간은 조합의 이력 정보입니다. 라이딩별 사용 조합과 현재 장착 상태는 바뀌지 않습니다.
-				</p>
+				<p className="boost-muted">라이딩별 조합은 라이딩 목록에서 수정할 수 있습니다.</p>
 				{error && (
 					<p role="alert" className="boost-error">
 						{error}

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Preset } from "@/lib/equipment";
-import { preferredWorkbenchPreset } from "./workbench-preset";
+import { orderedBikePresets, preferredWorkbenchPreset } from "./workbench-preset";
 
 const presets: Preset[] = [
 	{ id: "road", bikeId: "a", name: "로드", parts: { wheelset: "w1" } },
@@ -46,4 +46,33 @@ test("deleting the final combination leaves no selection", () => {
 	const remaining = presets.filter((preset) => preset.bikeId !== "a");
 
 	expect(preferredWorkbenchPreset(remaining, "a", "road", { wheelset: "w1" })).toBeUndefined();
+});
+
+test("currently used combinations appear before ended ones without changing saved order", () => {
+	const choices: Preset[] = [
+		{ ...presets[0], id: "ended", usedUntil: "2025-10-25" },
+		{ ...presets[0], id: "current", usedFrom: "2025-10-26" },
+		{ ...presets[0], id: "also-current", usedFrom: "2026-04-18" },
+	];
+	const original = structuredClone(choices);
+
+	const ordered = orderedBikePresets(choices, "a", "2026-11-08");
+
+	expect(ordered.map((preset) => preset.id)).toEqual(["current", "also-current", "ended"]);
+	expect(choices).toEqual(original);
+});
+
+test("a combination ending today remains current while a future combination follows current choices", () => {
+	const choices: Preset[] = [
+		{ ...presets[0], id: "future", usedFrom: "2026-11-09" },
+		{ ...presets[0], id: "last-day", usedUntil: "2026-11-08" },
+		{ ...presets[0], id: "undated" },
+		presets[2],
+	];
+
+	expect(orderedBikePresets(choices, "a", "2026-11-08").map((preset) => preset.id)).toEqual([
+		"last-day",
+		"undated",
+		"future",
+	]);
 });
