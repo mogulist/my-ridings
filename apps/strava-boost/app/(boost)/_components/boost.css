@@ -1053,3 +1053,11 @@
 }
 .boost-snackbar button { flex-shrink: 0; min-height: 32px; border: 0; background: transparent; color: #c8e0ff; padding: 4px; }
 .boost-ride-scope { margin: 16px 0 24px; color: var(--boost-muted); font-size: 14px; }
+
+.boost-preset-usage { margin: 0 0 20px; }
+.boost-preset-usage h3 { font-size: 14px; }
+.boost-preset-usage-dates { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 14px; }
+.boost-preset-usage details { margin-top: 8px; font-size: 13px; }
+.boost-preset-usage summary { cursor: pointer; color: var(--boost-muted); }
+.boost-preset-usage details p { margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .boost-usage-form .boost-form-grid { grid-template-columns: 1fr; } }

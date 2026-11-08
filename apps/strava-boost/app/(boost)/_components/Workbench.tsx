@@ -20,6 +20,7 @@ import { preferredWorkbenchPreset, sameConfiguration } from "../_lib/workbench-p
 import { DateInput } from "./DateInput";
 import { Modal } from "./Modal";
 import { PartIcon } from "./PartIcon";
+import { PresetUsage } from "./PresetUsage";
 
 // Bike IDs are unique across garages; preferences stay on this browser, without a server write.
 function rememberedPresetId(bikeId: string) {
@@ -69,6 +70,7 @@ export function Workbench({
 	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 	const [creatingPreset, setCreatingPreset] = useState(false);
 	const [showInstallationForm, setShowInstallationForm] = useState(false);
+	const [editingUsage, setEditingUsage] = useState(false);
 	const [deletingPreset, setDeletingPreset] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const [picking, setPicking] = useState(false);
@@ -83,7 +85,8 @@ export function Workbench({
 			(presetName.trim() !== selectedPreset.name ||
 				!sameConfiguration(draft, selectedPreset.parts)),
 	);
-	const presetUnsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
+	const presetUnsaved =
+		editingUsage || creatingPreset || presetChanged || (!selectedPreset && dirty);
 	const assigned = activity ? assignmentFor(garage, activity) : null;
 	const appliedParts =
 		assigned?.bikeId === bikeId
@@ -101,6 +104,7 @@ export function Workbench({
 		// Focus refreshes replace garage arrays. Keep a draft until it is saved or discarded.
 		if (sameContext && unsaved) return;
 		displayedContext.current = { bikeId, activityId: activity?.id };
+		setEditingUsage(false);
 
 		const assigned = activity ? assignmentFor(garage, activity) : null;
 		const installed = configurationAt(
@@ -181,6 +185,7 @@ export function Workbench({
 				throw new Error("같은 이름의 조합이 있습니다. 다른 이름을 입력해 주세요.");
 			validateConfiguration(garage, draft);
 			const preset = {
+				...selectedPreset,
 				id: selectedPreset?.id ?? crypto.randomUUID(),
 				bikeId,
 				name,
@@ -413,6 +418,16 @@ export function Workbench({
 							)}
 						</fieldset>
 					</div>
+					{!activity && selectedPreset && (
+						<PresetUsage
+							garage={garage}
+							preset={selectedPreset}
+							busy={busy}
+							disabled={creatingPreset || presetChanged}
+							save={save}
+							onEditingChange={setEditingUsage}
+						/>
+					)}
 					{!activity && (creatingPreset || selectedPreset) && (
 						<div className="boost-preset-editor">
 							<label className="boost-field">
@@ -573,9 +588,9 @@ export function Workbench({
 								disabled={busy || presetUnsaved || !needsApply}
 								onClick={() => setShowInstallationForm(true)}
 							>
-								이 조합 사용 시작
+								장착 이력에 적용
 							</button>
-							<span>조합 저장은 부품 구성만 저장합니다. 사용 시작 시점은 별도로 기록하세요.</span>
+							<span>장착 이력은 부품 사용 거리 계산에 반영됩니다.</span>
 						</div>
 					)}
 					{!creatingPreset && (activity || !selectedPreset || showInstallationForm) && (

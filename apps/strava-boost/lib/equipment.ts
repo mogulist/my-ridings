@@ -33,7 +33,16 @@ export type Part = {
 };
 export type Installation = { id: string; bikeId: string; at: string; parts: Configuration };
 export type Assignment = { activityId: number; bikeId: string; parts: Configuration };
-export type Preset = { id: string; bikeId: string; name: string; parts: Configuration };
+export type Preset = {
+	id: string;
+	bikeId: string;
+	name: string;
+	parts: Configuration;
+	usedFrom?: string | null;
+	usedUntil?: string | null;
+	estimated?: boolean;
+	note?: string;
+};
 export type ServiceRule = {
 	id: string;
 	targetId: string;
@@ -277,6 +286,16 @@ export function validateGarage(value: unknown): asserts value is Garage {
 	for (const i of g.installations)
 		if (!date(i.at) || Date.parse(i.at) > Date.now()) throw new Error("장착 일시를 확인해 주세요.");
 	for (const p of g.presets) if (!text(p.name)) throw new Error("조합 이름을 입력해 주세요.");
+	for (const preset of g.presets) {
+		if (
+			(preset.usedFrom != null && !calendarDate(preset.usedFrom)) ||
+			(preset.usedUntil != null && !calendarDate(preset.usedUntil)) ||
+			(preset.usedFrom != null && preset.usedUntil != null && preset.usedFrom > preset.usedUntil) ||
+			(preset.estimated !== undefined && typeof preset.estimated !== "boolean") ||
+			(preset.note !== undefined && (typeof preset.note !== "string" || preset.note.length > 4000))
+		)
+			throw new Error("조합의 시작일·종료일과 메모를 확인해 주세요.");
+	}
 	for (const b of g.bikes)
 		if (
 			!text(b.name) ||
