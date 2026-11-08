@@ -1,5 +1,13 @@
 "use client";
-import { Bike as BikeIcon, ChevronRight, LogOut, Plus, RefreshCw, Wrench } from "lucide-react";
+import {
+	Bike as BikeIcon,
+	Check,
+	ChevronRight,
+	LogOut,
+	Plus,
+	RefreshCw,
+	Wrench,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteNavigation } from "@/app/_components/SiteNavigation";
@@ -534,7 +542,8 @@ export function BoostApp({
 														<button
 															type="button"
 															key={b.id}
-															className="boost-secondary"
+															className="boost-bike-chip"
+															title={b.name}
 															aria-pressed={bikeId === b.id}
 															onClick={() => {
 																if (
@@ -546,8 +555,8 @@ export function BoostApp({
 																setBikeId(b.id);
 															}}
 														>
-															{b.favorite ? "★ " : ""}
-															{b.name}
+															{bikeId === b.id && <Check size={14} aria-hidden="true" />}
+															<span>{b.name}</span>
 														</button>
 													))}
 												</fieldset>
