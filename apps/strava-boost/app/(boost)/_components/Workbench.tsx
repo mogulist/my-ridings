@@ -69,16 +69,20 @@ export function Workbench({
 	const sameParts = (a: Configuration, b: Configuration) =>
 		(Object.keys(slots) as Slot[]).every((key) => a[key] === b[key]);
 	const presetChanged = Boolean(
-		selectedPreset &&
+		!activity &&
+			selectedPreset &&
 			(presetName.trim() !== selectedPreset.name || !sameParts(draft, selectedPreset.parts)),
 	);
-	const unsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
+	const presetUnsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
 	const assigned = activity ? assignmentFor(garage, activity) : null;
 	const appliedParts =
 		assigned?.bikeId === bikeId
 			? assigned.parts
 			: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString());
 	const needsApply = !sameParts(draft, appliedParts);
+	const unsaved = activity
+		? dirty || needsApply || Boolean(assigned && assigned.bikeId !== bikeId)
+		: presetUnsaved;
 	useEffect(() => {
 		onDirty(unsaved);
 	}, [unsaved, onDirty]);
@@ -86,7 +90,7 @@ export function Workbench({
 		return !unsaved || window.confirm("저장하지 않은 조합 변경을 버릴까요?");
 	}
 	async function savePreset() {
-		if (busy || (!creatingPreset && !selectedPreset)) return;
+		if (activity || busy || (!creatingPreset && !selectedPreset)) return;
 		try {
 			const name = presetName.trim();
 			if (!name) throw new Error("조합 이름을 입력해 주세요.");
@@ -112,7 +116,7 @@ export function Workbench({
 				setCreatingPreset(false);
 				setPresetName(name);
 				setDirty(false);
-				setMessage(`${name} 조합을 저장했습니다. 실제 장착 이력은 변경하지 않았습니다.`);
+				setMessage("");
 			}
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "조합을 저장하지 못했습니다.");
@@ -153,7 +157,7 @@ export function Workbench({
 				};
 				if (await save(next)) {
 					setDirty(false);
-					setMessage("이 라이딩의 부품 조합을 저장했습니다.");
+					setMessage("");
 				}
 			} else {
 				if (Date.parse(at) > Date.now()) throw new Error("장착 일시는 미래로 지정할 수 없습니다.");
@@ -167,7 +171,7 @@ export function Workbench({
 				};
 				if (await save(next)) {
 					setDirty(false);
-					setMessage("장착 이력을 저장했습니다.");
+					setMessage("");
 				}
 			}
 		} catch (error) {
@@ -180,7 +184,7 @@ export function Workbench({
 				<h2>부품 보관함</h2>
 				<GripVertical size={18} aria-hidden="true" />
 			</div>
-			<p className="boost-muted">부품을 끌어 놓거나 눌러서 선택하세요.</p>
+			<p className="boost-muted">장착 위치를 고른 뒤 부품을 선택하거나 끌어 놓으세요.</p>
 			<div className="boost-categories">
 				{(Object.keys(kindLabels) as PartKind[]).map((kind) => (
 					<button
@@ -257,31 +261,24 @@ export function Workbench({
 	);
 	return (
 		<>
-			<div className="boost-context">
-				<span>
-					{activity ? (
-						<>
-							<strong>{activity.name}</strong>
-							<b>{(activity.distance / 1000).toFixed(1)}km</b>
-						</>
-					) : creatingPreset ? (
-						"새 조합 작성 중"
-					) : selectedPreset ? (
-						`${selectedPreset.name} 조합 편집 중`
-					) : dirty ? (
-						"장착 변경 작성 중"
-					) : (
-						"현재 장착 상태"
-					)}
-				</span>
-				<span>
-					{activity
-						? new Date(activity.start_date).toLocaleDateString("ko-KR")
-						: creatingPreset || selectedPreset
+			{!activity && (
+				<div className="boost-context">
+					<span>
+						{creatingPreset
+							? "새 조합 작성 중"
+							: selectedPreset
+								? `${selectedPreset.name} 조합 편집 중`
+								: dirty
+									? "장착 변경 작성 중"
+									: "현재 장착 상태"}
+					</span>
+					<span>
+						{creatingPreset || selectedPreset
 							? "조합 저장 후 장착 이력에 별도로 적용하세요"
 							: "변경한 시점부터 사용 거리에 반영됩니다"}
-				</span>
-			</div>
+					</span>
+				</div>
+			)}
 			<div className="boost-workspace">
 				<section className="boost-build" aria-label="부품 조합 작업대">
 					<div className="boost-section-head">
@@ -318,24 +315,26 @@ export function Workbench({
 									{p.name}
 								</button>
 							))}
-						<button
-							type="button"
-							className="boost-text"
-							disabled={busy}
-							onClick={() => {
-								if (!discardChanges()) return;
-								setSelectedPresetId(null);
-								setCreatingPreset(true);
-								setPresetName("");
-								setDraft({});
-								setDirty(false);
-								setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
-							}}
-						>
-							새 조합 만들기
-						</button>
+						{!activity && (
+							<button
+								type="button"
+								className="boost-text"
+								disabled={busy}
+								onClick={() => {
+									if (!discardChanges()) return;
+									setSelectedPresetId(null);
+									setCreatingPreset(true);
+									setPresetName("");
+									setDraft({});
+									setDirty(false);
+									setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
+								}}
+							>
+								새 조합 만들기
+							</button>
+						)}
 					</div>
-					{(creatingPreset || selectedPreset) && (
+					{!activity && (creatingPreset || selectedPreset) && (
 						<div className="boost-preset-editor">
 							<label className="boost-field">
 								조합 이름
@@ -427,11 +426,15 @@ export function Workbench({
 												{definition.label}
 											</span>
 											<strong>{part?.name ?? "부품 선택"}</strong>
-											<small>
-												{part
-													? `누적 ${partDistance(garage, activities, part.id).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}km`
-													: "보관함에서 끌어 놓거나 눌러 선택"}
-											</small>
+											{part && (
+												<small>
+													누적{" "}
+													{partDistance(garage, activities, part.id).toLocaleString("ko-KR", {
+														maximumFractionDigits: 1,
+													})}
+													km
+												</small>
+											)}
 										</button>
 										{part && (
 											<button
@@ -504,11 +507,12 @@ export function Workbench({
 					{!picking && library}
 				</aside>
 			</div>
-			<p className="boost-footnote">
-				{activity
-					? "이 라이딩만 수정합니다. 현재 장착 상태와 다른 라이딩은 유지됩니다."
-					: "이미 확정한 라이딩의 부품 기록은 유지됩니다. 부품을 옮길 때는 기존 자전거에서 먼저 분리해 주세요."}
-			</p>
+			{!activity && (
+				<p className="boost-footnote">
+					이미 확정한 라이딩의 부품 기록은 유지됩니다. 부품을 옮길 때는 기존 자전거에서 먼저 분리해
+					주세요.
+				</p>
+			)}
 			{picking && (
 				<Modal title={`${slots[slot].label} 선택`} close={() => setPicking(false)} sheet>
 					{message && (

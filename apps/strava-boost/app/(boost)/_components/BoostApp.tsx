@@ -32,6 +32,7 @@ import { BikeForm, PartForm } from "./EquipmentForms";
 import { Maintenance } from "./Maintenance";
 import { SaveErrorContext } from "./Modal";
 import { PartIcon } from "./PartIcon";
+import { RideAssignmentEditor } from "./RideAssignmentEditor";
 import { Workbench } from "./Workbench";
 
 import "./boost.css";
@@ -56,7 +57,7 @@ export function BoostApp({
 	const [bikeId, setBikeId] = useState(() =>
 		initialData ? preferredBikeId(initialData.garage, initialData.activities) : "",
 	);
-	const viewingRide = useRef(false);
+	const rideListScroll = useRef(0);
 	const [activityId, setActivityId] = useState<number | null>(null);
 	const [error, setError] = useState("");
 	const [message, setMessage] = useState("");
@@ -67,14 +68,25 @@ export function BoostApp({
 	const [partId, setPartId] = useState<string | undefined>();
 	const [editingBike, setEditingBike] = useState<string | undefined>();
 	const [filter, setFilter] = useState("");
+	const [rideBikeFilter, setRideBikeFilter] = useState("");
 	const saving = useRef(false);
 	const dirty = useRef(false);
 	const choices = bikeChoices(garage, activities);
 	const quickBikes = choices.current.slice(0, 3);
+	useEffect(() => {
+		if (!message || syncing || busy) return;
+		const timeout = window.setTimeout(() => setMessage(""), 4000);
+		return () => window.clearTimeout(timeout);
+	}, [message, syncing, busy]);
 	const activity = activities.find((a) => a.id === activityId) ?? null;
 	const rides = activities
 		.filter(isRide)
 		.sort((a, b) => Date.parse(b.start_date) - Date.parse(a.start_date));
+	const filteredRides = rides.filter(
+		(a) =>
+			a.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()) &&
+			(!rideBikeFilter || assignmentFor(garage, a)?.bikeId === rideBikeFilter),
+	);
 	const load = useCallback(async () => {
 		if (demo) return;
 		const s = await cloudSession();
@@ -91,7 +103,7 @@ export function BoostApp({
 		setGarage(data.garage);
 		setRevision(data.revision);
 		setActivities(rides);
-		setBikeId((id) => preferredBikeId(data.garage, rides, id, viewingRide.current));
+		setBikeId((id) => preferredBikeId(data.garage, rides, id));
 	}, [demo]);
 	useEffect(() => {
 		if (new URL(window.location.href).searchParams.get("auth") === "failed")
@@ -169,7 +181,7 @@ export function BoostApp({
 					? "체험 화면에 반영했습니다. 실제 데이터는 변경하지 않습니다."
 					: "변경 사항을 저장했습니다.",
 			);
-			setBikeId((id) => preferredBikeId(next, activities, id, viewingRide.current));
+			setBikeId((id) => preferredBikeId(next, activities, id));
 			return true;
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "저장하지 못했습니다.");
@@ -243,6 +255,7 @@ export function BoostApp({
 		)
 			return;
 		dirty.current = false;
+		setActivityId(null);
 		setView(next);
 	}
 	function openActivity(a: StravaActivity) {
@@ -251,13 +264,19 @@ export function BoostApp({
 			!window.confirm("아직 적용하지 않은 조합이 있습니다. 다른 라이딩을 열까요?")
 		)
 			return;
-		const assigned = assignmentFor(garage, a);
-		viewingRide.current = true;
+		rideListScroll.current = window.scrollY;
 		setActivityId(a.id);
-		if (assigned) setBikeId(assigned.bikeId);
 		dirty.current = false;
-		setView("garage");
+		setView("rides");
+		window.requestAnimationFrame(() => window.scrollTo({ top: 0 }));
 	}
+	function closeActivity() {
+		if (dirty.current && !window.confirm("저장하지 않은 라이딩 변경을 버릴까요?")) return;
+		dirty.current = false;
+		setActivityId(null);
+		window.requestAnimationFrame(() => window.scrollTo({ top: rideListScroll.current }));
+	}
+
 	async function logout() {
 		if (!demo) {
 			await clearAuth();
@@ -398,7 +417,7 @@ export function BoostApp({
 							</button>
 						</div>
 					)}
-					{message && (
+					{message && syncing && (
 						<output aria-live="polite" className="boost-feedback">
 							{message}
 						</output>
@@ -598,38 +617,6 @@ export function BoostApp({
 														)}
 													</select>
 												</label>
-												<label className="boost-field">
-													수정할 기록
-													<select
-														value={activityId ?? "current"}
-														onChange={(e) => {
-															if (
-																dirty.current &&
-																!window.confirm("적용하지 않은 조합을 버리고 기록을 바꿀까요?")
-															)
-																return;
-															if (e.target.value === "current") {
-																viewingRide.current = false;
-																dirty.current = false;
-																setActivityId(null);
-																setBikeId((id) => preferredBikeId(garage, activities, id));
-															} else {
-																const a = activities.find((a) => a.id === Number(e.target.value));
-																if (a) {
-																	dirty.current = false;
-																	openActivity(a);
-																}
-															}
-														}}
-													>
-														<option value="current">현재 장착 상태</option>
-														{rides.map((a) => (
-															<option key={a.id} value={a.id}>
-																{new Date(a.start_date).toLocaleDateString("ko-KR")} · {a.name}
-															</option>
-														))}
-													</select>
-												</label>
 											</div>
 											<button
 												type="button"
@@ -651,7 +638,7 @@ export function BoostApp({
 												<Workbench
 													garage={garage}
 													activities={activities}
-													activity={activity}
+													activity={null}
 													bikeId={bikeId}
 													save={save}
 													busy={busy || syncing}
@@ -660,16 +647,6 @@ export function BoostApp({
 														dirty.current = value;
 													}}
 												/>
-											)}
-											{activity && (
-												<div className="boost-external-actions">
-													<Link
-														href={demo ? "/demo" : `/activity/${activity.id}`}
-														className="boost-text"
-													>
-														{demo ? "체험 데이터" : "경로·고도 프로필 보기"}
-													</Link>
-												</div>
 											)}
 										</>
 									)}
@@ -712,49 +689,89 @@ export function BoostApp({
 									</section>
 								</>
 							)}
-							{view === "rides" && (
-								<>
-									<div className="boost-page-title">
-										<div>
-											<p className="boost-eyebrow">기록과 장비를 한곳에</p>
-											<h1>라이딩</h1>
+							{view === "rides" &&
+								(activity ? (
+									<RideAssignmentEditor
+										key={activity.id}
+										activity={activity}
+										activities={activities}
+										garage={garage}
+										save={save}
+										busy={busy || syncing}
+										editPart={editPart}
+										close={closeActivity}
+										onDirty={(value) => {
+											dirty.current = value;
+										}}
+										demo={demo}
+									/>
+								) : (
+									<>
+										<div className="boost-page-title">
+											<div>
+												<p className="boost-eyebrow">기록과 장비를 한곳에</p>
+												<h1>라이딩</h1>
+											</div>
+											{!demo && (
+												<Link href="/" className="boost-secondary">
+													기간별 통계 보기
+												</Link>
+											)}
 										</div>
-										{!demo && (
-											<Link href="/" className="boost-secondary">
-												기간별 통계 보기
-											</Link>
-										)}
-									</div>
-									<label className="boost-field boost-search">
-										라이딩 검색
-										<input
-											type="search"
-											value={filter}
-											onChange={(e) => setFilter(e.target.value)}
-											placeholder="라이딩 이름으로 검색"
-										/>
-									</label>
-									{rides
-										.filter((a) => a.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()))
-										.map(rideRow)}
-									{!rides.length && (
-										<div className="boost-empty">
-											<p>아직 동기화한 라이딩이 없습니다.</p>
-											<button
-												type="button"
-												className="boost-primary"
-												disabled={syncing}
-												onClick={sync}
+										<label className="boost-field boost-search">
+											라이딩 검색
+											<input
+												type="search"
+												value={filter}
+												onChange={(e) => setFilter(e.target.value)}
+												placeholder="라이딩 이름으로 검색"
+											/>
+										</label>
+										<label className="boost-field boost-search">
+											자전거별 라이딩
+											<select
+												value={rideBikeFilter}
+												onChange={(e) => setRideBikeFilter(e.target.value)}
 											>
-												라이딩 가져오기
-											</button>
-										</div>
-									)}
-								</>
-							)}
+												<option value="">모든 자전거</option>
+												{[...choices.current, ...choices.retired].map((b) => (
+													<option key={b.id} value={b.id}>
+														{b.name}
+														{b.usedUntil ? " · 사용 종료" : ""}
+													</option>
+												))}
+											</select>
+										</label>
+										{filteredRides.map(rideRow)}
+										{rides.length > 0 && filteredRides.length === 0 && (
+											<p className="boost-empty-small">검색 조건에 맞는 라이딩이 없습니다.</p>
+										)}
+										{!rides.length && (
+											<div className="boost-empty">
+												<p>아직 동기화한 라이딩이 없습니다.</p>
+												<button
+													type="button"
+													className="boost-primary"
+													disabled={syncing}
+													onClick={sync}
+												>
+													라이딩 가져오기
+												</button>
+											</div>
+										)}
+									</>
+								))}
 						</>
 					)}
 				</main>
+				{message && !syncing && (
+					<output className="boost-snackbar" aria-live="polite">
+						{message}
+						<button type="button" aria-label="알림 닫기" onClick={() => setMessage("")}>
+							닫기
+						</button>
+					</output>
+				)}
 				{modal === "bike" && (
 					<BikeForm
 						key={editingBike ?? "new-bike"}
