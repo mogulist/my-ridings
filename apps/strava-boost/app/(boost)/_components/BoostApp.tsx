@@ -1,16 +1,27 @@
 "use client";
-import { Bike as BikeIcon, ChevronRight, LogOut, Plus, RefreshCw, Wrench } from "lucide-react";
+import {
+	Bike as BikeIcon,
+	Check,
+	ChevronRight,
+	LogOut,
+	Plus,
+	RefreshCw,
+	Wrench,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteNavigation } from "@/app/_components/SiteNavigation";
 import { boostRequest, type CloudSession, cloudSession } from "@/app/(boost)/_lib/boost-client";
 import {
 	assignmentFor,
+	bikeChoices,
 	emptyGarage,
 	type Garage,
 	isRide,
 	kindLabels,
+	type PartKind,
 	partDistance,
+	preferredBikeId,
 	validateGarage,
 } from "@/lib/equipment";
 import { getGearInfos } from "@/lib/gear-cache";
@@ -22,6 +33,7 @@ import { BikeForm, PartForm } from "./EquipmentForms";
 import { Maintenance } from "./Maintenance";
 import { SaveErrorContext } from "./Modal";
 import { PartIcon } from "./PartIcon";
+import { RideAssignments } from "./RideAssignments";
 import { Workbench } from "./Workbench";
 
 import "./boost.css";
@@ -43,7 +55,9 @@ export function BoostApp({
 	);
 	const [revision, setRevision] = useState(0);
 	const [view, setView] = useState<View>("home");
-	const [bikeId, setBikeId] = useState(demo ? "bike-a" : "");
+	const [bikeId, setBikeId] = useState(() =>
+		initialData ? preferredBikeId(initialData.garage, initialData.activities) : "",
+	);
 	const [activityId, setActivityId] = useState<number | null>(null);
 	const [error, setError] = useState("");
 	const [message, setMessage] = useState("");
@@ -53,10 +67,18 @@ export function BoostApp({
 	const [modal, setModal] = useState<"bike" | "part" | null>(null);
 	const [partId, setPartId] = useState<string | undefined>();
 	const [editingBike, setEditingBike] = useState<string | undefined>();
-	const [filter, setFilter] = useState("");
+	const [assignmentPresetId, setAssignmentPresetId] = useState<string | null>(null);
+	const [garageSection, setGarageSection] = useState<"bikes" | "parts">("bikes");
+	const [partKind, setPartKind] = useState<PartKind | "">("");
 	const saving = useRef(false);
 	const dirty = useRef(false);
-	const activity = activities.find((a) => a.id === activityId) ?? null;
+	const choices = bikeChoices(garage, activities);
+	const quickBikes = choices.current.slice(0, 3);
+	useEffect(() => {
+		if (!message || syncing || busy) return;
+		const timeout = window.setTimeout(() => setMessage(""), 4000);
+		return () => window.clearTimeout(timeout);
+	}, [message, syncing, busy]);
 	const rides = activities
 		.filter(isRide)
 		.sort((a, b) => Date.parse(b.start_date) - Date.parse(a.start_date));
@@ -76,9 +98,7 @@ export function BoostApp({
 		setGarage(data.garage);
 		setRevision(data.revision);
 		setActivities(rides);
-		setBikeId((id) =>
-			data.garage.bikes.some((b) => b.id === id) ? id : (data.garage.bikes[0]?.id ?? ""),
-		);
+		setBikeId((id) => preferredBikeId(data.garage, rides, id));
 	}, [demo]);
 	useEffect(() => {
 		if (new URL(window.location.href).searchParams.get("auth") === "failed")
@@ -156,7 +176,7 @@ export function BoostApp({
 					? "체험 화면에 반영했습니다. 실제 데이터는 변경하지 않습니다."
 					: "변경 사항을 저장했습니다.",
 			);
-			setBikeId((id) => (next.bikes.some((b) => b.id === id) ? id : (next.bikes[0]?.id ?? "")));
+			setBikeId((id) => preferredBikeId(next, activities, id));
 			return true;
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "저장하지 못했습니다.");
@@ -230,6 +250,8 @@ export function BoostApp({
 		)
 			return;
 		dirty.current = false;
+		setActivityId(null);
+		setAssignmentPresetId(null);
 		setView(next);
 	}
 	function openActivity(a: StravaActivity) {
@@ -238,12 +260,13 @@ export function BoostApp({
 			!window.confirm("아직 적용하지 않은 조합이 있습니다. 다른 라이딩을 열까요?")
 		)
 			return;
-		const assigned = assignmentFor(garage, a);
+		setAssignmentPresetId(null);
 		setActivityId(a.id);
-		if (assigned) setBikeId(assigned.bikeId);
 		dirty.current = false;
-		setView("garage");
+		setView("rides");
+		window.requestAnimationFrame(() => window.scrollTo({ top: 0 }));
 	}
+
 	async function logout() {
 		if (!demo) {
 			await clearAuth();
@@ -340,7 +363,7 @@ export function BoostApp({
 							[
 								["home", "정비 현황"],
 								["garage", "내 장비"],
-								["rides", "라이딩별 조합"],
+								["rides", "라이딩"],
 							] as const
 						).map(([id, label]) => (
 							<button
@@ -384,7 +407,7 @@ export function BoostApp({
 							</button>
 						</div>
 					)}
-					{message && (
+					{message && syncing && (
 						<output aria-live="polite" className="boost-feedback">
 							{message}
 						</output>
@@ -479,7 +502,7 @@ export function BoostApp({
 									<div className="boost-page-title">
 										<div>
 											<p className="boost-eyebrow">자전거는 단순하게, 조합은 자유롭게</p>
-											<h1>내 장비 작업대</h1>
+											<h1>내 장비</h1>
 										</div>
 										<div className="boost-toolbar">
 											<button
@@ -506,193 +529,252 @@ export function BoostApp({
 											</button>
 										</div>
 									</div>
-									{!garage.bikes.length ? (
-										<div className="boost-empty">
-											<BikeIcon size={42} />
-											<h2>먼저 자전거를 등록하세요.</h2>
-											<p>Strava에서 가져오거나 직접 등록할 수 있습니다.</p>
+									<nav className="boost-garage-tabs" aria-label="장비 관리 구분">
+										{(
+											[
+												["bikes", "자전거·조합"],
+												["parts", "부품"],
+											] as const
+										).map(([section, label]) => (
 											<button
 												type="button"
-												className="boost-primary"
-												disabled={syncing}
-												onClick={sync}
-											>
-												Strava 자전거 가져오기
-											</button>
-										</div>
-									) : (
-										<>
-											<div className="boost-workbench-controls">
-												<label className="boost-field">
-													자전거
-													<select
-														value={bikeId}
-														onChange={(e) => {
-															if (
-																!dirty.current ||
-																window.confirm("적용하지 않은 조합을 버리고 자전거를 바꿀까요?")
-															)
-																setBikeId(e.target.value);
-														}}
-													>
-														{garage.bikes.map((b) => (
-															<option key={b.id} value={b.id}>
-																{b.name}
-																{b.usedUntil ? " · 사용 종료" : ""}
-															</option>
-														))}
-													</select>
-												</label>
-												<label className="boost-field">
-													수정할 기록
-													<select
-														value={activityId ?? "current"}
-														onChange={(e) => {
-															if (
-																dirty.current &&
-																!window.confirm("적용하지 않은 조합을 버리고 기록을 바꿀까요?")
-															)
-																return;
-															if (e.target.value === "current") setActivityId(null);
-															else {
-																const a = activities.find((a) => a.id === Number(e.target.value));
-																if (a) {
-																	dirty.current = false;
-																	openActivity(a);
-																}
-															}
-														}}
-													>
-														<option value="current">현재 장착 상태</option>
-														{rides.map((a) => (
-															<option key={a.id} value={a.id}>
-																{new Date(a.start_date).toLocaleDateString("ko-KR")} · {a.name}
-															</option>
-														))}
-													</select>
-												</label>
-											</div>
-											<button
-												type="button"
-												className="boost-text"
+												key={section}
+												className="boost-chip"
+												aria-pressed={garageSection === section}
+												disabled={busy || syncing}
 												onClick={() => {
-													setEditingBike(bikeId);
-													setModal("bike");
+													if (
+														dirty.current &&
+														!window.confirm("저장하지 않은 조합 변경을 버릴까요?")
+													)
+														return;
+													dirty.current = false;
+													setGarageSection(section);
 												}}
 											>
-												자전거 정보·사용 기간 수정
-											</button>
-											<p className="boost-muted">
-												사용 기간:{" "}
-												{garage.bikes.find((b) => b.id === bikeId)?.usedFrom || "시작일 미상"} ~{" "}
-												{garage.bikes.find((b) => b.id === bikeId)?.usedUntil || "현재"}
-											</p>
-											<Workbench
-												garage={garage}
-												activities={activities}
-												activity={activity}
-												bikeId={bikeId}
-												save={save}
-												busy={busy || syncing}
-												editPart={editPart}
-												onDirty={(value) => {
-													dirty.current = value;
-												}}
-											/>
-											{activity && (
-												<div className="boost-external-actions">
-													<Link
-														href={demo ? "/demo" : `/activity/${activity.id}`}
-														className="boost-text"
-													>
-														{demo ? "체험 데이터" : "경로·고도 프로필 보기"}
-													</Link>
-												</div>
-											)}
-										</>
-									)}
-									<section className="boost-inventory">
-										<div className="boost-section-head">
-											<h2>
-												모든 부품 <span className="boost-count">{garage.parts.length}</span>
-											</h2>
-										</div>
-										{garage.parts.map((p) => (
-											<button
-												type="button"
-												className="boost-inventory-row"
-												key={p.id}
-												onClick={() => editPart(p.id)}
-											>
-												<PartIcon kind={p.kind} />
-												<span>
-													<strong>{p.name}</strong>
-													<small>
-														{kindLabels[p.kind]} ·{" "}
-														{new Date(p.startedAt).toLocaleDateString("ko-KR")}
-														부터{p.retiredAt ? " · 사용 종료" : ""}
-													</small>
-												</span>
-												<b>
-													{partDistance(garage, activities, p.id).toLocaleString("ko-KR", {
-														maximumFractionDigits: 1,
-													})}
-													km
-												</b>
-												<ChevronRight size={16} />
+												{label}
 											</button>
 										))}
-										{!garage.parts.length && (
-											<p className="boost-empty-small">
-												타이어 두 개도 각각 등록해 사용 이력을 따로 추적하세요.
-											</p>
-										)}
-									</section>
+									</nav>
+									{garageSection === "bikes" &&
+										(!garage.bikes.length ? (
+											<div className="boost-empty">
+												<BikeIcon size={42} />
+												<h2>먼저 자전거를 등록하세요.</h2>
+												<p>Strava에서 가져오거나 직접 등록할 수 있습니다.</p>
+												<button
+													type="button"
+													className="boost-primary"
+													disabled={syncing}
+													onClick={sync}
+												>
+													Strava 자전거 가져오기
+												</button>
+											</div>
+										) : (
+											<>
+												{quickBikes.length > 0 && (
+													<fieldset className="boost-quick-bikes" aria-label="자전거 빠른 선택">
+														{quickBikes.map((b) => (
+															<button
+																type="button"
+																key={b.id}
+																className="boost-bike-chip"
+																title={b.name}
+																aria-pressed={bikeId === b.id}
+																onClick={() => {
+																	if (
+																		dirty.current &&
+																		!window.confirm(
+																			"적용하지 않은 조합을 버리고 자전거를 바꿀까요?",
+																		)
+																	)
+																		return;
+																	dirty.current = false;
+																	setBikeId(b.id);
+																}}
+															>
+																{bikeId === b.id && <Check size={14} aria-hidden="true" />}
+																<span>{b.name}</span>
+															</button>
+														))}
+													</fieldset>
+												)}
+												<div className="boost-workbench-controls">
+													<label className="boost-field">
+														자전거
+														<select
+															value={bikeId}
+															onChange={(e) => {
+																if (
+																	!dirty.current ||
+																	window.confirm("적용하지 않은 조합을 버리고 자전거를 바꿀까요?")
+																)
+																	setBikeId(e.target.value);
+															}}
+														>
+															{!bikeId && (
+																<option value="" disabled>
+																	자전거 선택
+																</option>
+															)}
+															<optgroup label="현재 사용 중">
+																{choices.current.map((b) => (
+																	<option key={b.id} value={b.id}>
+																		{b.favorite ? "★ " : ""}
+																		{b.name}
+																	</option>
+																))}
+															</optgroup>
+															{choices.retired.length > 0 && (
+																<optgroup label="사용 종료">
+																	{choices.retired.map((b) => (
+																		<option key={b.id} value={b.id}>
+																			{b.name} · 사용 종료
+																		</option>
+																	))}
+																</optgroup>
+															)}
+														</select>
+													</label>
+												</div>
+												<button
+													type="button"
+													className="boost-text"
+													disabled={!bikeId}
+													onClick={() => {
+														setEditingBike(bikeId);
+														setModal("bike");
+													}}
+												>
+													자전거 정보·사용 기간 수정
+												</button>
+												<p className="boost-muted">
+													사용 기간:{" "}
+													{garage.bikes.find((b) => b.id === bikeId)?.usedFrom || "시작일 미상"} ~{" "}
+													{garage.bikes.find((b) => b.id === bikeId)?.usedUntil || "현재"}
+												</p>
+												{bikeId && (
+													<Workbench
+														garage={garage}
+														activities={activities}
+														bikeId={bikeId}
+														save={save}
+														busy={busy || syncing}
+														editPart={editPart}
+														onAssign={(preset) => {
+															setAssignmentPresetId(preset.id);
+															setActivityId(null);
+															dirty.current = false;
+															setView("rides");
+															window.scrollTo({ top: 0 });
+														}}
+														onDirty={(value) => {
+															dirty.current = value;
+														}}
+													/>
+												)}
+											</>
+										))}
+									{garageSection === "parts" && (
+										<section className="boost-inventory">
+											<fieldset className="boost-categories" aria-label="부품 종류">
+												<button
+													type="button"
+													className="boost-chip"
+													aria-pressed={!partKind}
+													onClick={() => setPartKind("")}
+												>
+													전체
+												</button>
+												{(Object.keys(kindLabels) as PartKind[]).map((kind) => (
+													<button
+														type="button"
+														key={kind}
+														className="boost-chip"
+														aria-pressed={partKind === kind}
+														onClick={() => setPartKind(kind)}
+													>
+														{kindLabels[kind]}
+													</button>
+												))}
+											</fieldset>
+											<div className="boost-section-head">
+												<h2>
+													{partKind ? kindLabels[partKind] : "모든 부품"}{" "}
+													<span className="boost-count">
+														{
+															garage.parts.filter((part) => !partKind || part.kind === partKind)
+																.length
+														}
+													</span>
+												</h2>
+											</div>
+											{garage.parts
+												.filter((part) => !partKind || part.kind === partKind)
+												.map((p) => (
+													<button
+														type="button"
+														className="boost-inventory-row"
+														key={p.id}
+														onClick={() => editPart(p.id)}
+													>
+														<PartIcon kind={p.kind} />
+														<span>
+															<strong>{p.name}</strong>
+															<small>
+																{kindLabels[p.kind]} ·{" "}
+																{new Date(p.startedAt).toLocaleDateString("ko-KR")}
+																부터{p.retiredAt ? " · 사용 종료" : ""}
+															</small>
+														</span>
+														<b>
+															{partDistance(garage, activities, p.id).toLocaleString("ko-KR", {
+																maximumFractionDigits: 1,
+															})}
+															km
+														</b>
+														<ChevronRight size={16} />
+													</button>
+												))}
+											{!garage.parts.some((part) => !partKind || part.kind === partKind) && (
+												<p className="boost-empty-small">
+													등록된 부품이 없습니다. 부품 등록으로 추가해 주세요.
+												</p>
+											)}
+										</section>
+									)}
 								</>
 							)}
 							{view === "rides" && (
-								<>
-									<div className="boost-page-title">
-										<div>
-											<p className="boost-eyebrow">기록과 장비를 한곳에</p>
-											<h1>라이딩</h1>
-										</div>
-										{!demo && (
-											<Link href="/" className="boost-secondary">
-												기간별 통계 보기
-											</Link>
-										)}
-									</div>
-									<label className="boost-field boost-search">
-										라이딩 검색
-										<input
-											type="search"
-											value={filter}
-											onChange={(e) => setFilter(e.target.value)}
-											placeholder="라이딩 이름으로 검색"
-										/>
-									</label>
-									{rides
-										.filter((a) => a.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()))
-										.map(rideRow)}
-									{!rides.length && (
-										<div className="boost-empty">
-											<p>아직 동기화한 라이딩이 없습니다.</p>
-											<button
-												type="button"
-												className="boost-primary"
-												disabled={syncing}
-												onClick={sync}
-											>
-												라이딩 가져오기
-											</button>
-										</div>
-									)}
-								</>
+								<RideAssignments
+									key={`${activityId ?? "list"}:${assignmentPresetId ?? "choose"}`}
+									garage={garage}
+									activities={activities}
+									initialActivityId={activityId}
+									initialPresetId={assignmentPresetId}
+									save={save}
+									busy={busy || syncing}
+									demo={demo}
+									sync={sync}
+									manageBike={(id) => {
+										setBikeId(id);
+										setGarageSection("bikes");
+										setView("garage");
+									}}
+								/>
 							)}
 						</>
 					)}
 				</main>
+				{message && !syncing && (
+					<output className="boost-snackbar" aria-live="polite">
+						{message}
+						<button type="button" aria-label="알림 닫기" onClick={() => setMessage("")}>
+							닫기
+						</button>
+					</output>
+				)}
 				{modal === "bike" && (
 					<BikeForm
 						key={editingBike ?? "new-bike"}

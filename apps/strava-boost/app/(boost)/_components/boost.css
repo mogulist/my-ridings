@@ -260,6 +260,18 @@
 	min-width:0;
 }
 
+.boost-field select {
+	appearance: none;
+	padding-right: 40px;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23526b80' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 14px center;
+	background-size: 16px;
+}
+@media (forced-colors: active) {
+	.boost-field select { appearance: auto; background-image: none; }
+}
+
 .boost-field textarea {
 	resize:vertical;
 }
@@ -383,18 +395,39 @@
 	background:#d9e5f3;
 }
 
-.boost-presets {
-	display:flex;
-	align-items:center;
-	gap:8px;
-	flex-wrap:wrap;
-	margin-top:18px;
+.boost-preset-list {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-width: 0;
 }
 
-.boost-presets>span {
-	font-size:12px;
-	color:var(--boost-muted);
+.boost-app .boost-preset-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	min-height: 36px;
+	padding: 7px 13px;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	background: var(--boost-bg);
+	color: var(--boost-muted);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.4;
+	text-align: left;
 }
+
+.boost-preset-chip span { overflow-wrap: anywhere; }
+.boost-preset-chip svg { flex-shrink: 0; }
+.boost-preset-chip:hover:not(:disabled) { background: #e3eaf0; }
+.boost-preset-chip[aria-pressed="true"] { background: var(--boost-blue); color: #fff; }
+.boost-preset-chip[aria-pressed="true"]:hover:not(:disabled) { background: #104b98; }
+@media (pointer: coarse) { .boost-app .boost-preset-chip { min-height: 44px; } }
 
 .boost-effective {
 	margin-top:18px;
@@ -942,3 +975,107 @@
 	min-width: 0;
 	flex: 1 1 auto;
 }
+
+.boost-quick-bikes { border: 0; padding: 0; min-width: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+/* Compact pills are shortcuts; full-width selects below remain form controls. */
+.boost-app .boost-bike-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	min-height: 34px;
+	padding: 6px 12px;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	background: #e3eaf0;
+	color: var(--boost-muted);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.3;
+}
+.boost-bike-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boost-bike-chip svg { flex-shrink: 0; }
+.boost-bike-chip:hover { background: #d6e2ed; }
+.boost-bike-chip[aria-pressed="true"] { background: var(--boost-blue); color: #fff; }
+@media (pointer: coarse) { .boost-app .boost-bike-chip { min-height: 40px; } }
+.boost-favorite-field { display: flex; align-items: center; gap: 10px; }
+.boost-favorite-field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+
+
+.boost-snackbar {
+	position: fixed;
+	left: 50%;
+	bottom: max(24px, env(safe-area-inset-bottom));
+	transform: translateX(-50%);
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	width: max-content;
+	max-width: calc(100vw - 32px);
+	padding: 12px 18px;
+	border-radius: 10px;
+	background: var(--boost-ink);
+	color: #fff;
+	box-shadow: 0 6px 24px #16344e33;
+	font-size: 14px;
+}
+.boost-snackbar button { flex-shrink: 0; min-height: 32px; border: 0; background: transparent; color: #c8e0ff; padding: 4px; }
+
+.boost-preset-usage { margin: -12px 0 8px; }
+.boost-app .boost-usage-link { min-height: 36px; padding: 4px 0; color: var(--boost-muted); font-size: 14px; }
+.boost-usage-link:hover:not(:disabled) { color: var(--boost-blue); text-decoration: underline; text-underline-offset: 3px; }
+.boost-usage-link svg { flex-shrink: 0; opacity: .7; }
+@media (pointer: coarse) { .boost-app .boost-usage-link { min-height: 44px; } }
+@media (max-width: 480px) { .boost-usage-form .boost-form-grid { grid-template-columns: 1fr; } }
+
+/* Saved combinations are read-only until the user explicitly starts editing. */
+.boost-garage-tabs { display:flex; gap:8px; margin-bottom:24px; }
+.boost-combination-toolbar { margin:28px 0 18px; }
+.boost-combination-overview { margin-top:20px; padding:24px; border:1px solid var(--boost-line); border-radius:14px; background:var(--boost-surface); }
+.boost-combination-overview .boost-preset-usage { margin:0 0 20px; }
+.boost-configuration-summary { margin:0; }
+.boost-configuration-summary > div { display:grid; grid-template-columns:100px minmax(0,1fr); gap:16px; padding:14px 0; border-bottom:1px solid var(--boost-line); }
+.boost-configuration-summary > div:last-child { border-bottom:0; }
+.boost-configuration-summary dt { color:var(--boost-muted); font-size:13px; }
+.boost-configuration-summary dd { margin:0; overflow-wrap:anywhere; }
+.boost-combination-use { display:flex; justify-content:flex-end; margin-top:24px; padding-top:20px; border-top:1px solid var(--boost-line); }
+.boost-installation-history { margin-top:24px; padding-top:18px; border-top:1px solid var(--boost-line); }
+.boost-installation-history summary { cursor:pointer; color:var(--boost-muted); }
+.boost-installation-history > p { margin-top:12px; }
+.boost-installation-history .boost-text { margin-top:12px; }
+.boost-editor-back { margin:4px 0 18px; }
+.boost-combination-name { margin-bottom:24px; }
+.boost-combination-savebar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:24px; padding-top:24px; border-top:1px solid var(--boost-line); }
+.boost-combination-savebar > div { display:flex; gap:12px; margin-left:auto; }
+.boost-app .boost-danger { color:#a43e32; }
+.boost-assignment-layout { display:grid; grid-template-columns:minmax(320px,1fr) minmax(360px,1fr); gap:24px; align-items:start; }
+.boost-assignment-list { border:1px solid var(--boost-line); border-radius:14px; background:var(--boost-surface); overflow:hidden; }
+.boost-assignment-filters { padding:20px; display:grid; gap:12px; }
+.boost-ride-selection { padding:12px 20px; border-block:1px solid var(--boost-line); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:var(--boost-muted); }
+.boost-ride-selection label { display:flex; align-items:center; gap:10px; }
+.boost-assignment-layout input[type=checkbox] { accent-color:var(--boost-blue); width:17px; height:17px; flex-shrink:0; }
+.boost-assignment-ride { display:flex; align-items:flex-start; gap:12px; padding:17px 20px; border-bottom:1px solid var(--boost-line); }
+.boost-assignment-ride.is-selected { background:var(--boost-soft); box-shadow:inset 3px 0 var(--boost-blue); }
+.boost-assignment-ride > input { margin-top:4px; }
+.boost-app .boost-assignment-ride-body { padding:0; background:none; border:0; text-align:left; color:var(--boost-ink); min-width:0; flex:1; }
+.boost-assignment-ride-body > small { display:flex; justify-content:space-between; gap:12px; color:var(--boost-muted); font-size:12px; }
+.boost-assignment-ride-body > strong { display:block; margin:5px 0; overflow-wrap:anywhere; font-size:16px; }
+.boost-assignment-ride-body > span { display:block; font-size:12px; color:var(--boost-muted); }
+.boost-assignment-ride-body > .boost-assigned-label { margin-top:7px; color:var(--boost-blue); }
+.boost-assignment-ride-body > .boost-unassigned-label { margin-top:7px; color:#89601e; }
+.boost-assignment-target { position:sticky; top:20px; padding:26px; border:1px solid var(--boost-line); border-radius:14px; background:var(--boost-surface); }
+.boost-assignment-target > .boost-field { margin-top:24px; }
+.boost-assignment-target > .boost-preset-list { margin:18px 0 24px; }
+.boost-assignment-target > .boost-text { margin-top:20px; }
+.boost-assignment-footer { display:grid; gap:14px; margin-top:24px; padding-top:20px; border-top:1px solid var(--boost-line); }
+.boost-more-rides { display:block; margin:20px auto; }
+@media (max-width:720px) {
+ .boost-assignment-layout { grid-template-columns:1fr; }
+ .boost-assignment-list { max-height:55svh; overflow-y:auto; }
+ .boost-assignment-target { position:static; padding:20px; }
+ .boost-combination-overview { padding:20px; }
+ .boost-combination-savebar { flex-wrap:wrap; }
+ .boost-configuration-summary > div { grid-template-columns:80px minmax(0,1fr); gap:12px; }
+}
+.boost-assignment-filters .boost-field > span { display:inline-flex; align-items:center; gap:6px; }

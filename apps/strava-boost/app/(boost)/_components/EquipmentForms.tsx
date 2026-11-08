@@ -25,6 +25,8 @@ export function BikeForm({
 	const [gear, setGear] = useState(bike?.stravaGearId ?? "");
 	const [usedFrom, setUsedFrom] = useState(bike?.usedFrom ?? "");
 	const [usedUntil, setUsedUntil] = useState(bike?.usedUntil ?? "");
+	const [favorite, setFavorite] = useState(bike?.favorite ?? false);
+	const [note, setNote] = useState(bike?.note ?? "");
 	return (
 		<Modal
 			title={bike ? "자전거 정보" : "자전거 등록"}
@@ -34,7 +36,9 @@ export function BikeForm({
 				name !== (bike?.name ?? "") ||
 				gear !== (bike?.stravaGearId ?? "") ||
 				usedFrom !== (bike?.usedFrom ?? "") ||
-				usedUntil !== (bike?.usedUntil ?? "")
+				usedUntil !== (bike?.usedUntil ?? "") ||
+				favorite !== (bike?.favorite ?? false) ||
+				note !== (bike?.note ?? "")
 			}
 		>
 			<form
@@ -48,6 +52,8 @@ export function BikeForm({
 						stravaGearId: gear.trim() || null,
 						usedFrom: usedFrom || null,
 						usedUntil: usedUntil || null,
+						favorite,
+						note: note.trim(),
 					};
 					if (
 						await save({
@@ -79,6 +85,14 @@ export function BikeForm({
 						pattern="b[0-9]+"
 					/>
 				</label>
+				<label className="boost-favorite-field">
+					<input
+						type="checkbox"
+						checked={favorite}
+						onChange={(e) => setFavorite(e.target.checked)}
+					/>
+					자주 사용하는 자전거 · 즐겨찾기
+				</label>
 				<div className="boost-field">
 					<span>사용 시작일 · 선택</span>
 					<DateInput
@@ -96,9 +110,20 @@ export function BikeForm({
 						max={localDateTime(new Date()).slice(0, 10)}
 					/>
 				</div>
+				<label className="boost-field">
+					구매·판매 메모 · 선택
+					<textarea
+						rows={4}
+						maxLength={4000}
+						value={note}
+						onChange={(e) => setNote(e.target.value)}
+						placeholder="구매일, 구매처, 구매·판매 금액, 거래 경위 등을 자유롭게 기록하세요"
+					/>
+				</label>
 				<p className="boost-muted">
-					판매한 자전거는 종료일을 기록하세요. 과거 라이딩과 부품 장착 이력은 유지됩니다. 이름과
-					사용 기간은 Trace에만 저장됩니다. Strava 동기화는 라이딩에 연결된 자전거를 가져옵니다.
+					자전거를 판매하거나 더 이상 사용하지 않을 때만 종료일을 기록하세요. 휠셋·구동계 변경은
+					조합과 장착 이력으로 관리하세요. 과거 라이딩과 부품 장착 이력은 유지됩니다. 이름과 사용
+					기간은 Trace에만 저장됩니다. Strava 동기화는 라이딩에 연결된 자전거를 가져옵니다.
 				</p>
 				<button className="boost-primary" disabled={busy}>
 					{bike ? "자전거 정보 저장" : "자전거 등록"}

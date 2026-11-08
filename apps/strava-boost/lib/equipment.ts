@@ -19,6 +19,8 @@ export type Bike = {
 	stravaGearId: string | null;
 	usedFrom?: string | null;
 	usedUntil?: string | null;
+	favorite?: boolean;
+	note?: string;
 };
 export type Part = {
 	id: string;
@@ -31,7 +33,16 @@ export type Part = {
 };
 export type Installation = { id: string; bikeId: string; at: string; parts: Configuration };
 export type Assignment = { activityId: number; bikeId: string; parts: Configuration };
-export type Preset = { id: string; bikeId: string; name: string; parts: Configuration };
+export type Preset = {
+	id: string;
+	bikeId: string;
+	name: string;
+	parts: Configuration;
+	usedFrom?: string | null;
+	usedUntil?: string | null;
+	estimated?: boolean;
+	note?: string;
+};
 export type ServiceRule = {
 	id: string;
 	targetId: string;
@@ -72,6 +83,42 @@ const isIndoorRide = (a: StravaActivity) =>
 export const appliesIndoors = (slot: Slot) =>
 	slot === "chain" || slot === "cassette" || slot === "derailleur";
 export const activityTime = (a: StravaActivity) => Date.parse(a.start_date);
+
+/** Rank current bikes without changing the stored order or historical assignments. */
+export function bikeChoices(garage: Garage, activities: StravaActivity[], now = Date.now()) {
+	const recent = now - 90 * 86400000;
+	const counts = new Map<string, number>();
+	const latest = new Map<string, number>();
+	const explicit = new Map(garage.assignments.map((a) => [a.activityId, a.bikeId]));
+	const linked = new Map(
+		garage.bikes.filter((b) => b.stravaGearId).map((b) => [b.stravaGearId, b.id]),
+	);
+	const seen = new Set<number>();
+	for (const a of activities) {
+		const at = activityTime(a);
+		if (!isRide(a) || !Number.isFinite(at) || at < recent || at > now || seen.has(a.id)) continue;
+		seen.add(a.id);
+		const id = explicit.get(a.id) ?? linked.get(a.gear_id);
+		if (!id) continue;
+		counts.set(id, (counts.get(id) ?? 0) + 1);
+		latest.set(id, Math.max(latest.get(id) ?? 0, at));
+	}
+	const current = garage.bikes
+		.filter((b) => !b.usedUntil)
+		.sort(
+			(a, b) =>
+				Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)) ||
+				(counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) ||
+				(latest.get(b.id) ?? 0) - (latest.get(a.id) ?? 0),
+		);
+	return { current, retired: garage.bikes.filter((b) => Boolean(b.usedUntil)) };
+}
+
+/** Keep an existing selection; use current-bike ranking only when choosing a default. */
+export function preferredBikeId(garage: Garage, activities: StravaActivity[], selected = "") {
+	if (garage.bikes.some((b) => b.id === selected)) return selected;
+	return bikeChoices(garage, activities).current[0]?.id ?? "";
+}
 
 export function partPeriods(garage: Garage, partId: string, now = Date.now()) {
 	const part = garage.parts.find((p) => p.id === partId);
@@ -239,12 +286,24 @@ export function validateGarage(value: unknown): asserts value is Garage {
 	for (const i of g.installations)
 		if (!date(i.at) || Date.parse(i.at) > Date.now()) throw new Error("장착 일시를 확인해 주세요.");
 	for (const p of g.presets) if (!text(p.name)) throw new Error("조합 이름을 입력해 주세요.");
+	for (const preset of g.presets) {
+		if (
+			(preset.usedFrom != null && !calendarDate(preset.usedFrom)) ||
+			(preset.usedUntil != null && !calendarDate(preset.usedUntil)) ||
+			(preset.usedFrom != null && preset.usedUntil != null && preset.usedFrom > preset.usedUntil) ||
+			(preset.estimated !== undefined && typeof preset.estimated !== "boolean") ||
+			(preset.note !== undefined && (typeof preset.note !== "string" || preset.note.length > 4000))
+		)
+			throw new Error("조합의 시작일·종료일과 메모를 확인해 주세요.");
+	}
 	for (const b of g.bikes)
 		if (
 			!text(b.name) ||
 			(b.stravaGearId !== null && !/^b\d+$/.test(b.stravaGearId)) ||
 			(b.usedFrom != null && !calendarDate(b.usedFrom)) ||
 			(b.usedUntil != null && !calendarDate(b.usedUntil)) ||
+			(b.favorite !== undefined && typeof b.favorite !== "boolean") ||
+			(b.note !== undefined && (typeof b.note !== "string" || b.note.length > 4000)) ||
 			(b.usedFrom != null && b.usedUntil != null && b.usedFrom > b.usedUntil)
 		)
 			throw new Error("자전거 정보를 확인해 주세요.");

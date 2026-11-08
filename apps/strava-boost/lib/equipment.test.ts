@@ -2,15 +2,83 @@ import { expect, test } from "bun:test";
 import type { StravaActivity } from "@/types/strava";
 import {
 	assignmentFor,
+	bikeChoices,
 	configurationAt,
 	emptyGarage,
 	type Garage,
 	partDistance,
 	partPeriods,
+	preferredBikeId,
 	serviceStatus,
 	validateConfiguration,
 	validateGarage,
 } from "./equipment";
+
+test("current bikes rank favorites then recent ride frequency, ignoring retired bikes", () => {
+	const g = fixture();
+	g.bikes = [
+		{ id: "old", name: "Emonda", stravaGearId: "b0", usedUntil: "2020-03-28", favorite: true },
+		{ id: "sarana", name: "Sarana", stravaGearId: "b1" },
+		{ id: "ostro", name: "Ostro", stravaGearId: "b2" },
+		{ id: "spare", name: "Spare", stravaGearId: "b3" },
+	];
+	g.assignments = [{ activityId: 4, bikeId: "ostro", parts: {} }];
+	const now = Date.parse("2026-11-08T00:00:00Z");
+	const activities = [
+		ride(1, "2026-11-01T00:00:00Z", 1000, "b1"),
+		ride(2, "2026-11-02T00:00:00Z", 1000, "b2"),
+		ride(3, "2026-11-03T00:00:00Z", 1000, "b2"),
+		ride(4, "2026-11-04T00:00:00Z", 1000, "b1"),
+		ride(5, "2025-11-04T00:00:00Z", 1000, "b1"),
+		{ ...ride(6, "2026-11-07T00:00:00Z", 1000, "b1"), type: "Run" },
+	];
+	const original = structuredClone(g.bikes);
+	expect(bikeChoices(g, activities, now).current.map((b) => b.id)).toEqual([
+		"ostro",
+		"sarana",
+		"spare",
+	]);
+	expect(bikeChoices(g, activities, now).retired.map((b) => b.id)).toEqual(["old"]);
+	expect(g.bikes).toEqual(original);
+	g.bikes[1].favorite = true;
+	expect(bikeChoices(g, activities, now).current[0].id).toBe("sarana");
+});
+
+test("opening without a selection defaults to a current bike", () => {
+	const g = fixture();
+	g.bikes[0].usedUntil = "2020-03-28";
+
+	expect(preferredBikeId(g, [])).toBe("b");
+});
+
+test("adding an end date to the selected bike keeps its ID selected", () => {
+	const g = fixture();
+	g.bikes[0].usedUntil = "2020-03-28";
+
+	expect(preferredBikeId(g, [], "a")).toBe("a");
+});
+
+test("a missing selected bike falls back to a current bike", () => {
+	const g = fixture();
+	g.bikes = g.bikes.filter((b) => b.id !== "a");
+
+	expect(preferredBikeId(g, [], "a")).toBe("b");
+});
+
+test("opening with only retired bikes leaves the selection empty", () => {
+	const g = fixture();
+	for (const bike of g.bikes) bike.usedUntil = "2020-03-28";
+
+	expect(preferredBikeId(g, [])).toBe("");
+});
+
+test("bike favorites are optional booleans at the server boundary", () => {
+	const g = fixture();
+	g.bikes[0].favorite = true;
+	expect(() => validateGarage(g)).not.toThrow();
+	Object.assign(g.bikes[0], { favorite: "true" });
+	expect(() => validateGarage(g)).toThrow("자전거 정보");
+});
 
 test("optional part notes support old documents and free-form purchase details", () => {
 	const g = fixture();
@@ -28,6 +96,23 @@ test("part notes reject non-text and oversized values at the server boundary", (
 		const g = fixture();
 		Object.assign(g.parts[0], { note });
 		expect(() => validateGarage(g)).toThrow("부품 정보");
+	}
+});
+
+test("bike purchase and sale notes are optional, persist as text and reject invalid input", () => {
+	const g = fixture();
+	expect(() => validateGarage(g)).not.toThrow();
+	g.bikes[0].note = "2019-11-04 대구에서 중고 구매, 100만원.\n2020-03-28 중고 판매, 88만원.";
+	const restored = JSON.parse(JSON.stringify(g));
+	expect(() => validateGarage(restored)).not.toThrow();
+	expect(restored.bikes[0].note).toBe(g.bikes[0].note);
+	for (const note of ["", "x".repeat(4000)]) {
+		g.bikes[0].note = note;
+		expect(() => validateGarage(g)).not.toThrow();
+	}
+	for (const note of [123, null, {}, "x".repeat(4001)]) {
+		Object.assign(g.bikes[0], { note });
+		expect(() => validateGarage(g)).toThrow("자전거 정보");
 	}
 });
 
