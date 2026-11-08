@@ -395,35 +395,6 @@
 	background:#d9e5f3;
 }
 
-.boost-presets {
-	margin: 20px 0 24px;
-	padding-bottom: 20px;
-	border-bottom: 1px solid var(--boost-line);
-}
-
-.boost-presets-heading {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	flex-wrap: wrap;
-	gap: 8px 16px;
-	margin-bottom: 12px;
-}
-
-.boost-presets-heading > span {
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--boost-muted);
-}
-
-.boost-app .boost-preset-create {
-	display: inline-flex;
-	align-items: center;
-	gap: 5px;
-	padding: 5px 0;
-	font-size: 13px;
-}
-
 .boost-preset-list {
 	border: 0;
 	padding: 0;
@@ -1030,8 +1001,6 @@
 .boost-favorite-field { display: flex; align-items: center; gap: 10px; }
 .boost-favorite-field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
 
-.boost-preset-editor { border: 1px solid var(--boost-line); background: var(--boost-surface); border-radius: 10px; padding: 16px; margin: 16px 0; display: grid; gap: 12px; }
-.boost-preset-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
 
 .boost-snackbar {
 	position: fixed;
@@ -1052,7 +1021,6 @@
 	font-size: 14px;
 }
 .boost-snackbar button { flex-shrink: 0; min-height: 32px; border: 0; background: transparent; color: #c8e0ff; padding: 4px; }
-.boost-ride-scope { margin: 16px 0 24px; color: var(--boost-muted); font-size: 14px; }
 
 .boost-preset-usage { margin: -12px 0 8px; }
 .boost-app .boost-usage-link { min-height: 36px; padding: 4px 0; color: var(--boost-muted); font-size: 14px; }
@@ -1110,3 +1078,4 @@
  .boost-combination-savebar { flex-wrap:wrap; }
  .boost-configuration-summary > div { grid-template-columns:80px minmax(0,1fr); gap:12px; }
 }
+.boost-assignment-filters .boost-field > span { display:inline-flex; align-items:center; gap:6px; }
