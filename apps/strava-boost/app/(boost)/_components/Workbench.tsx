@@ -8,6 +8,7 @@ import {
 	type Garage,
 	kindLabels,
 	type PartKind,
+	type Preset,
 	partDistance,
 	type Slot,
 	slots,
@@ -15,9 +16,27 @@ import {
 } from "@/lib/equipment";
 import type { StravaActivity } from "@/types/strava";
 import { localDateTime } from "../_lib/local-date-time";
+import { preferredWorkbenchPreset, sameConfiguration } from "../_lib/workbench-preset";
 import { DateInput } from "./DateInput";
 import { Modal } from "./Modal";
 import { PartIcon } from "./PartIcon";
+
+// Bike IDs are unique across garages; preferences stay on this browser, without a server write.
+function rememberedPresetId(bikeId: string) {
+	try {
+		return localStorage.getItem(`trace:bike:${bikeId}:preset`);
+	} catch {
+		return null;
+	}
+}
+
+function rememberPreset(bikeId: string, presetId: string) {
+	try {
+		localStorage.setItem(`trace:bike:${bikeId}:preset`, presetId);
+	} catch {
+		// A blocked or full browser store must not prevent viewing and editing a combination.
+	}
+}
 
 type WorkbenchProps = {
 	garage: Garage;
@@ -56,28 +75,36 @@ export function Workbench({
 	const [effective, setEffective] = useState(localDateTime(new Date()));
 	useEffect(() => {
 		const assigned = activity ? assignmentFor(garage, activity) : null;
-		setDraft({
-			...(assigned?.bikeId === bikeId
-				? assigned.parts
-				: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString())),
-		});
+		const installed = configurationAt(
+			garage,
+			bikeId,
+			activity?.start_date ?? new Date().toISOString(),
+		);
+		const rememberedId = activity ? null : rememberedPresetId(bikeId);
+		const preset = activity
+			? undefined
+			: preferredWorkbenchPreset(garage.presets, bikeId, rememberedId, installed);
+
+		setDraft({ ...(preset?.parts ?? (assigned?.bikeId === bikeId ? assigned.parts : installed)) });
+		setSelectedPresetId(preset?.id ?? null);
+		setPresetName(preset?.name ?? "");
 		setDirty(false);
-		setSelectedPresetId(null);
 		setCreatingPreset(false);
 		setShowInstallationForm(false);
 		setDeletingPreset(false);
-		setPresetName("");
+		setPicking(false);
 		setMessage("");
-	}, [garage.installations, garage.assignments, bikeId, activity]);
+		if (preset && preset.id !== rememberedId) rememberPreset(bikeId, preset.id);
+	}, [garage.installations, garage.assignments, garage.presets, bikeId, activity]);
+
 	const selectedPreset = garage.presets.find(
 		(p) => p.id === selectedPresetId && p.bikeId === bikeId,
 	);
-	const sameParts = (a: Configuration, b: Configuration) =>
-		(Object.keys(slots) as Slot[]).every((key) => a[key] === b[key]);
 	const presetChanged = Boolean(
 		!activity &&
 			selectedPreset &&
-			(presetName.trim() !== selectedPreset.name || !sameParts(draft, selectedPreset.parts)),
+			(presetName.trim() !== selectedPreset.name ||
+				!sameConfiguration(draft, selectedPreset.parts)),
 	);
 	const presetUnsaved = creatingPreset || presetChanged || (!selectedPreset && dirty);
 	const assigned = activity ? assignmentFor(garage, activity) : null;
@@ -85,7 +112,7 @@ export function Workbench({
 		assigned?.bikeId === bikeId
 			? assigned.parts
 			: configurationAt(garage, bikeId, activity?.start_date ?? new Date().toISOString());
-	const needsApply = !sameParts(draft, appliedParts);
+	const needsApply = !sameConfiguration(draft, appliedParts);
 	const unsaved = activity
 		? dirty || needsApply || Boolean(assigned && assigned.bikeId !== bikeId)
 		: presetUnsaved;
@@ -95,25 +122,39 @@ export function Workbench({
 	function discardChanges() {
 		return !unsaved || window.confirm("저장하지 않은 조합 변경을 버릴까요?");
 	}
-	function showCurrentInstallation() {
-		setSelectedPresetId(null);
+	function showPreset(preset: Preset | undefined) {
+		setSelectedPresetId(preset?.id ?? null);
+		setPresetName(preset?.name ?? "");
+		setDraft({ ...preset?.parts });
 		setCreatingPreset(false);
 		setShowInstallationForm(false);
-		setPresetName("");
-		setDraft({ ...appliedParts });
+		setDeletingPreset(false);
 		setDirty(false);
 		setMessage("");
+		if (!activity && preset) rememberPreset(bikeId, preset.id);
 	}
+
+	function createPreset() {
+		if (!discardChanges()) return;
+		showPreset(undefined);
+		setCreatingPreset(true);
+		setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
+	}
+
+	function cancelPresetChanges() {
+		if (!discardChanges()) return;
+		showPreset(
+			preferredWorkbenchPreset(garage.presets, bikeId, rememberedPresetId(bikeId), appliedParts),
+		);
+	}
+
 	async function deletePreset() {
 		if (!selectedPreset || busy) return;
-		if (
-			await save({
-				...garage,
-				presets: garage.presets.filter((p) => p.id !== selectedPreset.id),
-			})
-		) {
-			setDeletingPreset(false);
-			showCurrentInstallation();
+		const presets = garage.presets.filter((p) => p.id !== selectedPreset.id);
+		if (await save({ ...garage, presets })) {
+			showPreset(
+				preferredWorkbenchPreset(presets, bikeId, rememberedPresetId(bikeId), appliedParts),
+			);
 		}
 	}
 
@@ -140,11 +181,7 @@ export function Workbench({
 				? [...garage.presets, preset]
 				: garage.presets.map((p) => (p.id === preset.id ? preset : p));
 			if (await save({ ...garage, presets })) {
-				setSelectedPresetId(preset.id);
-				setCreatingPreset(false);
-				setPresetName(name);
-				setDirty(false);
-				setMessage("");
+				showPreset(preset);
 			}
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "조합을 저장하지 못했습니다.");
@@ -206,6 +243,18 @@ export function Workbench({
 			setMessage(error instanceof Error ? error.message : "조합을 확인해 주세요.");
 		}
 	}
+	if (!activity && !creatingPreset && !selectedPreset) {
+		return (
+			<section className="boost-empty" aria-label="저장된 조합 없음">
+				<h2>{garage.bikes.find((b) => b.id === bikeId)?.name}</h2>
+				<p>아직 조합이 없습니다. 부품을 골라 첫 조합을 만들어 보세요.</p>
+				<button type="button" className="boost-primary" disabled={busy} onClick={createPreset}>
+					<Plus size={16} aria-hidden="true" /> 첫 조합 만들기
+				</button>
+			</section>
+		);
+	}
+
 	const library = (
 		<>
 			<div className="boost-section-head">
@@ -296,9 +345,7 @@ export function Workbench({
 							? "새 조합 작성 중"
 							: selectedPreset
 								? `${selectedPreset.name} 조합 편집 중`
-								: dirty
-									? "장착 변경 작성 중"
-									: "현재 장착 상태"}
+								: "저장된 조합 없음"}
 					</span>
 					<span>
 						{creatingPreset || selectedPreset
@@ -327,16 +374,7 @@ export function Workbench({
 									type="button"
 									className="boost-text boost-preset-create"
 									disabled={busy}
-									onClick={() => {
-										if (!discardChanges()) return;
-										setSelectedPresetId(null);
-										setCreatingPreset(true);
-										setShowInstallationForm(false);
-										setPresetName("");
-										setDraft({});
-										setDirty(false);
-										setMessage("조합 이름과 부품을 선택한 뒤 저장해 주세요.");
-									}}
+									onClick={createPreset}
 								>
 									<Plus size={16} aria-hidden="true" />새 조합 만들기
 								</button>
@@ -354,13 +392,7 @@ export function Workbench({
 										disabled={busy}
 										onClick={() => {
 											if (!discardChanges()) return;
-											setSelectedPresetId(p.id);
-											setShowInstallationForm(false);
-											setCreatingPreset(false);
-											setPresetName(p.name);
-											setDraft({ ...p.parts });
-											setDirty(false);
-											setMessage(`${p.name} 조합을 불러왔습니다. 적용 전 확인해 주세요.`);
+											showPreset(p);
 										}}
 									>
 										{selectedPresetId === p.id && <Check size={14} aria-hidden="true" />}
@@ -405,17 +437,16 @@ export function Workbench({
 								>
 									{creatingPreset ? "새 조합 저장" : "조합 저장"}
 								</button>
-								<button
-									type="button"
-									className="boost-text"
-									disabled={busy}
-									onClick={() => {
-										if (!discardChanges()) return;
-										showCurrentInstallation();
-									}}
-								>
-									{presetUnsaved ? "작성 취소 · 장착 상태로 돌아가기" : "현재 장착 상태로 돌아가기"}
-								</button>
+								{presetUnsaved && (
+									<button
+										type="button"
+										className="boost-text"
+										disabled={busy}
+										onClick={cancelPresetChanges}
+									>
+										{creatingPreset ? "새 조합 작성 취소" : "변경 취소"}
+									</button>
+								)}
 								{selectedPreset && (
 									<button
 										type="button"
