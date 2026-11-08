@@ -25,13 +25,15 @@ export function InstallationHistory({
 	const [recording, setRecording] = useState(false);
 	const [detachAll, setDetachAll] = useState(false);
 	const [effective, setEffective] = useState("");
+	const [editedTime, setEditedTime] = useState(false);
 	const [error, setError] = useState("");
 	const installed = configurationAt(garage, bikeId, new Date().toISOString());
 
 	async function record() {
 		if (busy || (!detachAll && !preset)) return;
 		try {
-			const at = new Date(effective).toISOString();
+			// The date control shows minutes; default-now records still need distinct timestamps.
+			const at = editedTime ? new Date(effective).toISOString() : new Date().toISOString();
 			if (Date.parse(at) > Date.now()) throw new Error("장착 일시는 미래로 지정할 수 없습니다.");
 			const parts = detachAll ? {} : { ...preset!.parts };
 			validateConfiguration(garage, parts, at);
@@ -61,6 +63,7 @@ export function InstallationHistory({
 				disabled={busy || (!preset && !Object.keys(installed).length)}
 				onClick={() => {
 					setEffective(localDateTime(new Date()));
+					setEditedTime(false);
 					setDetachAll(!preset);
 					setError("");
 					setRecording(true);
@@ -101,7 +104,10 @@ export function InstallationHistory({
 								disabled={busy}
 								value={effective}
 								max={localDateTime(new Date())}
-								onChange={setEffective}
+								onChange={(value) => {
+									setEffective(value);
+									setEditedTime(true);
+								}}
 							/>
 						</label>
 						{error && (
