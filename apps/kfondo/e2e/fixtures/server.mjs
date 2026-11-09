@@ -107,6 +107,13 @@ createServer(async (req, res) => {
   }
   if (url.pathname === "/rest/v1/events") {
     const slug = url.searchParams.get("slug");
+    if (slug === "eq.buyeo") {
+      return res.end(JSON.stringify({ ...event, slug: "buyeo", name: "부여 굿뜨래 그란폰도", name_en: "Buyeo Goodtrae Gran Fondo",
+        event_editions: [{ ...edition, year: 2026, date: "2026-10-31", records_blob_url: null, sorted_records_blob_url: null,
+          kom_records_blob_url: `${origin}/kom-only-records.json`, kom_sorted_records_blob_url: `${origin}/kom-only-sorted.json`,
+          comment: "공식 공개 자료는 KOM 구간 기록만 제공합니다.", comment_en: "Only KOM segment records are officially available." }],
+      }));
+    }
     if (slug === "eq.cache-probe") {
       return res.end(JSON.stringify({ ...event, slug: "cache-probe",
         name: `캐시 확인 ${cacheProbeVersion}`, name_en: `Cache probe ${cacheProbeVersion}` }));
@@ -117,6 +124,13 @@ createServer(async (req, res) => {
     }
     return res.end(JSON.stringify(slug ? event : [event]));
   }
+  if (url.pathname === "/kom-only-records.json") return res.end(JSON.stringify([
+    { BIB_NO: "1", Event: "그란폰도(kom)", Gender: "남", Time: "00:05:00", Status: "FINISH" },
+    { BIB_NO: "2", Event: "그란폰도(kom)", Gender: "여", Time: "00:06:00", Status: "FINISH" },
+  ]));
+  if (url.pathname === "/kom-only-sorted.json") return res.end(JSON.stringify({
+    "그란폰도(kom)": [300000, 360000], "그란폰도(kom)_M": [300000], "그란폰도(kom)_F": [360000],
+  }));
   if (url.pathname === "/records.json") return res.end(JSON.stringify(records));
   if (url.pathname === "/sorted.json")
     return res.end(

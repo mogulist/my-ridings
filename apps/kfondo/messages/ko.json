@@ -103,7 +103,9 @@
     "scopedPeople": "{v0}{v1}명",
     "genderRankValue": "{v0} {v1}위",
     "peopleBasis": "{v0}명 기준",
-    "nearby": "{v0} 주변 기록"
+    "nearby": "{v0} 주변 기록",
+    "komOnly": "공식 공개 자료는 KOM 구간 기록만 제공합니다.",
+    "komBasis": "KOM 기록 기준"
   },
   "errors": {
     "loadTitle": "일시적으로 페이지를 불러오지 못했습니다",

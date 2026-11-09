@@ -19,6 +19,7 @@ type RecordResultHeroProps = {
   scopeRankLabel: string;
   scopeLabel: string;
   isKomScope: boolean;
+  komOnly?: boolean;
   scopePeoplePrefix: string;
   courseInfo: { name: string; distance: number; elevation: number } | undefined;
   rank: number | null;
@@ -43,6 +44,7 @@ const RecordResultHero = ({
   scopeRankLabel,
   scopeLabel,
   isKomScope,
+  komOnly = false,
   scopePeoplePrefix,
   courseInfo,
   rank,
@@ -123,28 +125,30 @@ const RecordResultHero = ({
 
         {/* 통계 3종 (한 줄) */}
         {hasStats ? (
-          <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+          <div className={`mt-6 grid ${komOnly ? "grid-cols-2" : "grid-cols-3"} gap-2 sm:gap-3`}>
             <Stat
               testId="rank"
               value={t("record.rankValue", { v0: rank })}
               valueClassName="text-foreground"
               label={scopeRankLabel}
             />
-            <Stat
-              value={fmtPct(percentileByParticipants)}
-              valueClassName="text-foreground"
-              testId="participant"
-              label={t("stats.byParticipants")}
-              sub={t("record.scopedPeople", {
-                v0: scopePeoplePrefix,
-                v1: totalParticipants.toLocaleString(locale),
-              })}
-            />
+            {!komOnly ? (
+              <Stat
+                value={fmtPct(percentileByParticipants)}
+                valueClassName="text-foreground"
+                testId="participant"
+                label={t("stats.byParticipants")}
+                sub={t("record.scopedPeople", {
+                  v0: scopePeoplePrefix,
+                  v1: totalParticipants.toLocaleString(locale),
+                })}
+              />
+            ) : null}
             <Stat
               value={fmtPct(percentile)}
               valueClassName="text-emerald-600 dark:text-emerald-400"
               testId="finisher"
-              label={t("stats.byFinishers")}
+              label={komOnly ? t("record.komBasis") : t("stats.byFinishers")}
               sub={t("record.scopedPeople", {
                 v0: scopePeoplePrefix,
                 v1: finishers.toLocaleString(locale),

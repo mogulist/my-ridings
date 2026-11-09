@@ -1,3 +1,4 @@
+import { courseHasOnlyKomRecords } from "./record-scope";
 import { RECORDS_REVALIDATE_SECONDS } from "./records-cache";
 import type { Locale } from "@/i18n/routing";
 /**
@@ -108,6 +109,8 @@ export async function getFindByRecordData(
 
   const yearDetail = event.yearDetails[Number(year)];
   if (!yearDetail) return null;
+  // 완주 시간으로 입력한 값을 KOM 시간으로 해석하지 않는다.
+  if (scope === "full" && courseHasOnlyKomRecords(yearDetail, courseId)) return null;
 
   const courseRow = yearDetail.courses?.find((c) => c.id === courseId);
   const hasKomSortedBlob = Boolean(yearDetail.komSortedRecordsBlobUrl?.trim());

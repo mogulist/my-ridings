@@ -103,7 +103,9 @@
     "scopedPeople": "{v0}{v1} riders",
     "genderRankValue": "{v0} #{v1}",
     "peopleBasis": "Based on {v0} riders",
-    "nearby": "Times around your {v0}"
+    "nearby": "Times around your {v0}",
+    "komOnly": "Only KOM segment records are officially available.",
+    "komBasis": "Based on KOM records"
   },
   "errors": {
     "loadTitle": "This page is temporarily unavailable",

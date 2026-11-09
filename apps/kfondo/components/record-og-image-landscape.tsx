@@ -26,6 +26,7 @@ export type RecordOGImageLandscapeProps = {
   finisherLabel?: string;
   scopeLabel?: string;
   isKom?: boolean;
+  komOnly?: boolean;
 };
 
 export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
@@ -51,6 +52,7 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
     finisherLabel,
     scopeLabel,
     isKom = false,
+    komOnly = false,
   } = props;
 
   const rankStr = rank != null ? String(rank) : "-";
@@ -251,34 +253,35 @@ export function RecordOGImageLandscape(props: RecordOGImageLandscapeProps) {
             </span>
           </StatCard>
 
-          <StatCard
-            label={participantLabel ?? t("stats.byParticipants")}
-            sub={t("stats.riderCount", { v0: totalParticipants.toLocaleString(locale) })}
-          >
-            <span
-              style={{
-                display: "flex",
-                fontSize: 52,
-                color: "#0f172a",
-                fontWeight: 900,
-                letterSpacing: "-0.03em",
-                lineHeight: 1,
-              }}
+          {!komOnly ? (
+            <StatCard
+              label={participantLabel ?? t("stats.byParticipants")}
+              sub={t("stats.riderCount", { v0: totalParticipants.toLocaleString(locale) })}
             >
-              {participantPct}
-            </span>
-            <span
-              style={{
-                display: "flex",
-                fontSize: 28,
-                color: "#0f172a",
-                fontWeight: 800,
-              }}
-            >
-              %
-            </span>
-          </StatCard>
-
+              <span
+                style={{
+                  display: "flex",
+                  fontSize: 52,
+                  color: "#0f172a",
+                  fontWeight: 900,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1,
+                }}
+              >
+                {participantPct}
+              </span>
+              <span
+                style={{
+                  display: "flex",
+                  fontSize: 28,
+                  color: "#0f172a",
+                  fontWeight: 800,
+                }}
+              >
+                %
+              </span>
+            </StatCard>
+          ) : null}
           <StatCard
             label={finisherLabel ?? t("stats.byFinishers")}
             sub={t("stats.riderCount", { v0: finishers.toLocaleString(locale) })}

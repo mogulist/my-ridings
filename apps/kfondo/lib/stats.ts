@@ -1,3 +1,4 @@
+import { hasOnlyKomRecords } from "./record-scope";
 import { RECORDS_REVALIDATE_SECONDS } from "./records-cache";
 import path from "path";
 import fs from "fs";
@@ -72,11 +73,22 @@ export async function getYearStatsWithCourses(
   dataDir: string,
 ): Promise<EventYearStatsWithCourses[]> {
   const statsPromises = event.years.map(async (year) => {
-    const records = await fetchRecords(event, year, dataDir);
-
-    if (records.length === 0) return null;
-
     const detail = event.yearDetails[year];
+    // KOM 분포는 브라우저가 Blob에서 읽으므로 서버는 연도와 코스만 준비한다.
+    if (hasOnlyKomRecords(detail)) {
+      return {
+        year,
+        distributions: detail.courses.filter((course) => course.hasKom).map((course) => ({
+          courseId: course.id,
+          courseName: course.name,
+          distribution: [],
+        })),
+        comment: detail.comment,
+      };
+    }
+
+    const records = await fetchRecords(event, year, dataDir);
+    if (records.length === 0) return null;
     const distributions = detail.courses.map((course) => ({
       courseId: course.id,
       courseName: course.name,

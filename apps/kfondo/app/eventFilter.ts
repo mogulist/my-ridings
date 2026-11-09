@@ -12,7 +12,8 @@ function yearDetailHasPublishedRecords(detail: EventYearDetail | undefined): boo
   return (
     (detail.totalRegistered ?? 0) > 0 ||
     Boolean(detail.recordsBlobUrl?.trim()) ||
-    Boolean(detail.sortedRecordsBlobUrl?.trim())
+    Boolean(detail.sortedRecordsBlobUrl?.trim()) ||
+    Boolean(detail.komSortedRecordsBlobUrl?.trim())
   );
 }
 

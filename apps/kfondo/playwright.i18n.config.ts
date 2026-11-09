@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
-  testMatch: ["i18n.spec.ts", "cache.spec.ts"],
+  testMatch: ["i18n.spec.ts", "cache.spec.ts", "kom-only.spec.ts"],
   fullyParallel: true,
   use: { baseURL: "http://localhost:4320", locale: "ko-KR" },
   webServer: [

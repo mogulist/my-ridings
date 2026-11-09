@@ -1,3 +1,5 @@
+import { courseHasOnlyKomRecords } from "@/lib/record-scope";
+import { getEventById } from "@/lib/db/events";
 import { getTranslations } from "next-intl/server";
 import { setRequestLocale } from "next-intl/server";
 import type { Locale } from "@/i18n/routing";
@@ -22,13 +24,15 @@ async function loadLocalFont(filename: string) {
 }
 
 // 메타데이터 이미지 규약(opengraph-image)은 `params`만 받고 `searchParams`는
-// 전달하지 않는다. 따라서 KOM 여부는 쿼리로 알 수 없어 항상 완주(full) 기준으로 그린다.
+// 전달하지 않는다. KOM 전용 코스는 공개된 기록 종류로 판단한다.
 export default async function Image(props: Props) {
   const { locale, event: eventId, courseId, year, time } = await props.params;
   setRequestLocale(locale);
   const t = await getTranslations();
 
-  const data = await getFindByRecordData(eventId, courseId, year, time, "full", locale);
+  const sourceEvent = await getEventById(eventId, locale);
+  const komOnly = courseHasOnlyKomRecords(sourceEvent?.yearDetails[Number(year)], courseId);
+  const data = await getFindByRecordData(eventId, courseId, year, time, komOnly ? "kom" : "full", locale);
 
   if (!data) {
     return new ImageResponse(
@@ -99,12 +103,13 @@ export default async function Image(props: Props) {
         totalParticipants={totalParticipants}
         finishers={finishers}
         eventDate={eventDate}
-        recordLabel={t("record.fullRecord")}
-        rankLabel={t("record.finishRank")}
+        recordLabel={t(komOnly ? "record.komRecord" : "record.fullRecord")}
+        rankLabel={t(komOnly ? "record.komRank" : "record.finishRank")}
         participantLabel={t("stats.byParticipants")}
-        finisherLabel={t("stats.byFinishers")}
-        scopeLabel={t("record.full")}
-        isKom={false}
+        finisherLabel={t(komOnly ? "record.komBasis" : "stats.byFinishers")}
+        scopeLabel={komOnly ? "KOM" : t("record.full")}
+        isKom={komOnly}
+        komOnly={komOnly}
       />
     </div>,
     {

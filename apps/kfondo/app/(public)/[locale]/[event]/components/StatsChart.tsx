@@ -1,5 +1,7 @@
 "use client";
 
+import { courseHasOnlyKomRecords } from "@/lib/record-scope";
+
 import { useTranslations, useLocale } from "next-intl";
 
 import { motion } from "framer-motion";
@@ -99,27 +101,8 @@ const YearChartsSection = ({
   >({});
   const [genderSegment, setGenderSegment] = React.useState<GenderSegment>("open");
 
-  React.useEffect(() => {
-    if (!hasKomBlob) {
-      setRecordScopeByCourseId({});
-      return;
-    }
-    setRecordScopeByCourseId((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const id of Object.keys(next)) {
-        if (next[id] !== "kom") continue;
-        const meta = courses?.find((c) => c.id === id);
-        if (meta?.hasKom !== true) {
-          delete next[id];
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [hasKomBlob, courses, yearData.year]);
-
   const scopeForDistribution = (courseId: string): RecordScope => {
+    if (courseHasOnlyKomRecords(event.yearDetails[yearData.year], courseId)) return "kom";
     if (!courseAllowsKom(courseId)) return "full";
     return recordScopeByCourseId[courseId] ?? "full";
   };
@@ -132,24 +115,7 @@ const YearChartsSection = ({
     return stateForScope(scope).status === "loaded";
   });
 
-  React.useEffect(() => {
-    if (genderSegment === "open") return;
-    const broken = yearData.distributions.some((d) => {
-      const allowKom = hasKomBlob && courses?.find((c) => c.id === d.courseId)?.hasKom === true;
-      const scope = allowKom && recordScopeByCourseId[d.courseId] === "kom" ? "kom" : "full";
-      const st = scope === "kom" ? komRaceRecordsState : raceRecordsState;
-      return st.status === "error" || st.status === "no_blob";
-    });
-    if (broken) setGenderSegment("open");
-  }, [
-    genderSegment,
-    yearData.distributions,
-    recordScopeByCourseId,
-    komRaceRecordsState,
-    raceRecordsState,
-    hasKomBlob,
-    courses,
-  ]);
+  const activeGenderSegment = canFilterByGender ? genderSegment : "open";
 
   return (
     <motion.div
@@ -171,7 +137,7 @@ const YearChartsSection = ({
           if (courseScope === "kom") {
             const komOpts = { matchKomEventLabel: true } as const;
             if (effectiveState.status === "loaded") {
-              if (genderSegment === "open") {
+              if (activeGenderSegment === "open") {
                 chartData = generateTimeDistributionFromRecords(
                   effectiveState.records,
                   rawCourseName,
@@ -181,7 +147,7 @@ const YearChartsSection = ({
                   komOpts,
                 );
               } else {
-                const filtered = filterRaceRecordsByGender(effectiveState.records, genderSegment);
+                const filtered = filterRaceRecordsByGender(effectiveState.records, activeGenderSegment);
                 chartData = generateTimeDistributionFromRecords(
                   filtered,
                   rawCourseName,
@@ -194,10 +160,10 @@ const YearChartsSection = ({
             } else {
               chartData = [];
             }
-          } else if (genderSegment === "open") {
+          } else if (activeGenderSegment === "open") {
             chartData = distribution.distribution;
           } else if (raceRecordsState.status === "loaded") {
-            const filtered = filterRaceRecordsByGender(raceRecordsState.records, genderSegment);
+            const filtered = filterRaceRecordsByGender(raceRecordsState.records, activeGenderSegment);
             chartData = generateTimeDistributionFromRecords(
               filtered,
               rawCourseName,
@@ -264,7 +230,9 @@ const YearChartsSection = ({
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {courseAllowsKom(distribution.courseId) ? (
+                {courseHasOnlyKomRecords(event.yearDetails[yearData.year], distribution.courseId) ? (
+                  <span className="text-sm font-medium">KOM</span>
+                ) : courseAllowsKom(distribution.courseId) ? (
                   <ToggleGroup
                     type="single"
                     value={recordScopeByCourseId[distribution.courseId] ?? "full"}
@@ -292,7 +260,7 @@ const YearChartsSection = ({
                 ) : null}
                 <ToggleGroup
                   type="single"
-                  value={genderSegment}
+                  value={activeGenderSegment}
                   onValueChange={(value) => {
                     if (value) setGenderSegment(value as GenderSegment);
                   }}
@@ -389,9 +357,14 @@ const formatTooltipTimeRange = (timeRange: string, intervalMinutes = 2) => {
   return `${startTime.format("HH:mm:00")} - ${endTime.format("HH:mm:ss")}`;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+type CustomTooltipProps = {
+  active?: boolean;
+  payload?: { value: number; payload: { interval?: number; percentile: number; cumulativeCount: number } }[];
+  label?: string;
+};
+
+const CustomTooltip = ({ active, payload, label = "" }: CustomTooltipProps) => {
   const t = useTranslations();
-  const locale = useLocale();
 
   if (active && payload && payload.length) {
     const timeRange = formatTooltipTimeRange(label, payload[0]?.payload?.interval ?? 2);
