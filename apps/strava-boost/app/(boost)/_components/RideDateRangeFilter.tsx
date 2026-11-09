@@ -42,6 +42,7 @@ export function RideDateRangeFilter({
 	const today = new Date();
 	const dateLabel = (date: Date | undefined) =>
 		date ? localDateTime(date).slice(0, 10).replaceAll("-", ".") : "선택하세요";
+
 	return (
 		<div className="boost-ride-date-filter">
 			<Popover.Root

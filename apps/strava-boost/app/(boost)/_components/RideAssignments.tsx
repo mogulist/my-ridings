@@ -239,7 +239,7 @@ export function RideAssignments({
 									onClick={() => setSelectedIds([ride.id])}
 								>
 									<small>
-										{new Date(ride.start_date).toLocaleDateString("ko-KR")}
+										{new Date(`${rideCalendarDate(ride)}T00:00:00`).toLocaleDateString("ko-KR")}
 										<span>{(ride.distance / 1000).toFixed(1)} km</span>
 									</small>
 									<strong>{ride.name}</strong>
