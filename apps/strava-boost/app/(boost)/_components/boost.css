@@ -1062,8 +1062,10 @@
 .boost-assignment-ride-body > small { display:flex; justify-content:space-between; gap:12px; color:var(--boost-muted); font-size:12px; }
 .boost-assignment-ride-body > strong { display:block; margin:5px 0; overflow-wrap:anywhere; font-size:16px; }
 .boost-assignment-ride-body > span { display:block; font-size:12px; color:var(--boost-muted); }
-.boost-assignment-ride-body > .boost-assigned-label { margin-top:7px; color:var(--boost-blue); }
-.boost-assignment-ride-body > .boost-unassigned-label { margin-top:7px; color:#89601e; }
+.boost-ride-equipment { overflow-wrap:anywhere; }
+.boost-ride-equipment .boost-assigned-label { color:var(--boost-blue); }
+.boost-ride-equipment .boost-unassigned-label { color:#89601e; }
+.boost-unassigned-filter { display:flex; align-items:center; gap:9px; font-size:13px; }
 .boost-assignment-target { position:sticky; top:20px; padding:26px; border:1px solid var(--boost-line); border-radius:14px; background:var(--boost-surface); }
 .boost-assignment-target > .boost-field { margin-top:24px; }
 .boost-assignment-target > .boost-preset-list { margin:18px 0 24px; }
