@@ -1,0 +1,20 @@
+.boost-ride-date-filter { display:flex; align-items:center; gap:8px; }
+.boost-date-trigger { display:flex; align-items:center; gap:9px; width:100%; min-height:44px; border:1px solid var(--boost-line); border-radius:7px; padding:10px 12px; background:var(--boost-surface); color:var(--boost-ink); text-align:left; }
+.boost-date-trigger span { flex:1; font-size:13px; }
+.boost-date-trigger > svg { flex-shrink:0; color:var(--boost-muted); }
+.boost-date-trigger[data-state=open] { border-color:var(--boost-blue); box-shadow:0 0 0 2px #175bb412; }
+.boost-date-clear { display:grid; place-items:center; flex-shrink:0; width:34px; height:40px; border:0; background:none; color:var(--boost-muted); }
+.boost-date-popover { z-index:80; max-width:calc(100vw - 24px); max-height:var(--radix-popover-content-available-height); overflow-y:auto; overscroll-behavior:contain; padding:20px; border:1px solid #d8e2eb; border-radius:16px; background:#fff; color:#20394e; box-shadow:0 12px 42px #20394e26; font:14px/1.5 "Avenir Next","Apple SD Gothic Neo",sans-serif; }
+.boost-date-popover * { box-sizing:border-box; }
+.boost-date-popover :focus-visible { outline:2px solid #4790e7; outline-offset:2px; }
+.boost-date-popover button { cursor:pointer; font:inherit; }
+.boost-date-selection { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:17px; margin-bottom:16px; border-bottom:1px solid #e7edf3; }
+.boost-date-selection > div { display:grid; gap:5px; min-width:105px; }
+.boost-date-selection span { font-size:11px; color:#526b80; }
+.boost-date-selection strong { font-weight:600; font-size:14px; font-variant-numeric:tabular-nums; }
+.boost-date-selection > svg { color:#7a91a5; }
+.boost-date-popover .boost-ride-calendar { --rdp-accent-color:#175bb4; --rdp-accent-background-color:#e8f1fc; --rdp-day-height:40px; --rdp-day-width:40px; --rdp-day_button-height:38px; --rdp-day_button-width:38px; --rdp-selected-border:0; --rdp-dropdown-gap:6px; font:inherit; }
+.boost-date-popover-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid #e7edf3; padding-top:14px; margin-top:12px; font-size:11px; color:#526b80; }
+.boost-date-popover-footer button { border:0; padding:4px 0; color:#175bb4; background:none; white-space:nowrap; }
+.boost-calendar-loading { display:grid; place-items:center; min-height:300px; margin:0; color:#526b80; }
+@media (max-width:380px) { .boost-date-popover { padding:14px; } .boost-date-popover .boost-ride-calendar { --rdp-day-height:38px; --rdp-day-width:38px; --rdp-day_button-height:36px; --rdp-day_button-width:36px; } }

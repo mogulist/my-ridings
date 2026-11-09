@@ -7,8 +7,10 @@ import { assignmentFor, bikeChoices, type Garage, isRide, preferredBikeId } from
 import type { StravaActivity } from "@/types/strava";
 import { localDateTime } from "../_lib/local-date-time";
 import { assignPresetToRides } from "../_lib/ride-assignment";
+import { type RideDateRange, rideCalendarDate, rideIsInDateRange } from "../_lib/ride-date-range";
 import { orderedBikePresets, sameConfiguration } from "../_lib/workbench-preset";
 import { ConfigurationSummary } from "./ConfigurationSummary";
+import { RideDateRangeFilter } from "./RideDateRangeFilter";
 
 type RideAssignmentsProps = {
 	garage: Garage;
@@ -54,6 +56,8 @@ export function RideAssignments({
 	);
 	const [query, setQuery] = useState("");
 	const [bikeFilter, setBikeFilter] = useState("");
+	const [unassignedOnly, setUnassignedOnly] = useState(false);
+	const [dateRange, setDateRange] = useState<RideDateRange | null>(null);
 	const [visibleCount, setVisibleCount] = useState(50);
 	const [error, setError] = useState("");
 	const rides = activities
@@ -72,9 +76,15 @@ export function RideAssignments({
 	const filtered = rides.filter(
 		(ride) =>
 			ride.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()) &&
-			(!bikeFilter || rideBikeId(ride) === bikeFilter),
+			(!bikeFilter || rideBikeId(ride) === bikeFilter) &&
+			(!unassignedOnly || !assignments.has(ride.id)) &&
+			rideIsInDateRange(ride, dateRange),
 	);
-	const selected = rides.filter((ride) => selectedIds.includes(ride.id));
+	const filteredIds = new Set(filtered.map((ride) => ride.id));
+	// Pending-only batches must never include already assigned or hidden rides.
+	const selected = rides.filter(
+		(ride) => selectedIds.includes(ride.id) && (!unassignedOnly || filteredIds.has(ride.id)),
+	);
 	const presets = orderedBikePresets(
 		garage.presets,
 		bikeId,
@@ -96,7 +106,9 @@ export function RideAssignments({
 		if (!preset || busy) return;
 		setError("");
 		try {
-			await save(assignPresetToRides(garage, selected, preset));
+			if (await save(assignPresetToRides(garage, selected, preset))) {
+				if (unassignedOnly) setSelectedIds([]);
+			}
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "조합을 배정하지 못했습니다.");
 		}
@@ -141,6 +153,30 @@ export function RideAssignments({
 									</option>
 								))}
 							</select>
+						</label>
+						<RideDateRangeFilter
+							value={dateRange}
+							disabled={busy}
+							earliestDate={rides.length ? rideCalendarDate(rides[rides.length - 1]) : undefined}
+							latestDate={rides.length ? rideCalendarDate(rides[0]) : undefined}
+							onChange={(value) => {
+								setDateRange(value);
+								setSelectedIds([]);
+								setVisibleCount(50);
+							}}
+						/>
+						<label className="boost-unassigned-filter">
+							<input
+								type="checkbox"
+								checked={unassignedOnly}
+								disabled={busy}
+								onChange={(event) => {
+									setUnassignedOnly(event.target.checked);
+									setSelectedIds([]);
+									setVisibleCount(50);
+								}}
+							/>
+							조합 배정 전만
 						</label>
 					</div>
 					<div className="boost-ride-selection">
@@ -203,13 +239,18 @@ export function RideAssignments({
 									onClick={() => setSelectedIds([ride.id])}
 								>
 									<small>
-										{new Date(ride.start_date).toLocaleDateString("ko-KR")}
+										{new Date(`${rideCalendarDate(ride)}T00:00:00`).toLocaleDateString("ko-KR")}
 										<span>{(ride.distance / 1000).toFixed(1)} km</span>
 									</small>
 									<strong>{ride.name}</strong>
-									<span>{currentBike?.name ?? "자전거 미지정"}</span>
-									<span className={assignment ? "boost-assigned-label" : "boost-unassigned-label"}>
-										{matched?.name ?? (assignment ? "개별 부품 구성" : "조합 배정 전")}
+									<span className="boost-ride-equipment">
+										<span>{currentBike?.name ?? "자전거 미지정"}</span>
+										<span aria-hidden="true"> · </span>
+										<span
+											className={assignment ? "boost-assigned-label" : "boost-unassigned-label"}
+										>
+											{matched?.name ?? (assignment ? "개별 부품 구성" : "조합 배정 전")}
+										</span>
 									</span>
 								</button>
 								{!demo && (
