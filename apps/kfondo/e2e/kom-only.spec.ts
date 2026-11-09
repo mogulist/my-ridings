@@ -16,7 +16,11 @@ test("KOM만 공개된 대회는 전체 선택 없이 남녀 구분과 KOM 검�
   await expect(page.getByText("2위", { exact: true })).toBeVisible();
   await expect(page.getByText("KOM 기록 기준", { exact: true })).toBeVisible();
   await expect(page.getByText("완주자 기준", { exact: true })).toHaveCount(0);
-  const image = await page.request.get("/find-by-record/buyeo/granfondo/2026/000600/opengraph-image");
+  const imageUrl = await page.locator('meta[property="og:image"]').getAttribute("content");
+  const localImage = new URL(imageUrl!);
+  localImage.host = "localhost:4320";
+  localImage.protocol = "http:";
+  const image = await page.request.get(localImage.toString());
   expect(image.status()).toBe(200);
   expect(image.headers()["content-type"]).toContain("image/png");
   await page.getByRole("radio", { name: "여", exact: true }).click();
