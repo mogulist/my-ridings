@@ -1,3 +1,6 @@
+import { courseHasOnlyKomRecords } from "@/lib/record-scope";
+import { redirect } from "@/i18n/navigation";
+import { getEventById } from "@/lib/db/events";
 import { localePath, pageAlternates, SITE_URL } from "@/i18n/urls";
 import { getTranslations } from "next-intl/server";
 import { setRequestLocale } from "next-intl/server";
@@ -32,6 +35,13 @@ const ResultPage = async (props: Props) => {
   setRequestLocale(locale);
   const t = await getTranslations();
   const requestedScope = parseScope(awaitedSearchParams.scope);
+
+  if (requestedScope === "full") {
+    const event = await getEventById(eventId, locale);
+    if (courseHasOnlyKomRecords(event?.yearDetails[Number(year)], courseId)) {
+      redirect({ href: `/find-by-record/${eventId}/${courseId}/${year}?scope=kom`, locale });
+    }
+  }
 
   const data = await getFindByRecordData(eventId, courseId, year, time, requestedScope, locale);
   if (!data) notFound();
@@ -70,7 +80,7 @@ const ResultPage = async (props: Props) => {
         <div className="text-lg text-red-500">
           {isKomScope ? t("record.noKom") : t("record.noFinishers")}
         </div>
-        {isKomScope ? (
+        {isKomScope && !courseHasOnlyKomRecords(event.yearDetails[Number(year)], courseId) ? (
           <Link className="text-sm text-primary underline" href={toFullResultHref}>
             {t("record.viewFull")}
           </Link>
@@ -124,6 +134,7 @@ const ResultPage = async (props: Props) => {
               scopeRankLabel={scopeRankLabel}
               scopeLabel={scopeLabel}
               isKomScope={isKomScope}
+              komOnly={courseHasOnlyKomRecords(event.yearDetails[Number(year)], courseId)}
               scopePeoplePrefix={scopePeoplePrefix}
               courseInfo={courseInfo}
               rank={rank}

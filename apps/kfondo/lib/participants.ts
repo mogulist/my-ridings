@@ -1,3 +1,4 @@
+import { hasOnlyKomRecords } from "./record-scope";
 import fs from "fs";
 import path from "path";
 import type { Event } from "./types";
@@ -182,7 +183,7 @@ export const getEventParticipantTrend = async (event: Event): Promise<EventParti
   const participantsByYear = new Map<number, Participant[]>();
   await Promise.all(
     recentlyFirstSortedYears.map(async (year) => {
-      if (event.yearDetails[year].status !== "preparing") {
+      if (event.yearDetails[year].status !== "preparing" && !hasOnlyKomRecords(event.yearDetails[year])) {
         const data = await fetchParticipants(event, year);
         participantsByYear.set(year, data);
       }
@@ -195,7 +196,7 @@ export const getEventParticipantTrend = async (event: Event): Promise<EventParti
     recentlyFirstSortedYears.forEach((year) => {
       const yearDetail = event.yearDetails[year];
 
-      if (yearDetail.status === "preparing") {
+      if (yearDetail.status === "preparing" || hasOnlyKomRecords(yearDetail)) {
         return;
       }
 
@@ -229,5 +230,5 @@ export const getEventParticipantTrend = async (event: Event): Promise<EventParti
     };
   });
 
-  return eventParticipantTrends;
+  return eventParticipantTrends.filter((course) => course.yearlyData.length > 0);
 };

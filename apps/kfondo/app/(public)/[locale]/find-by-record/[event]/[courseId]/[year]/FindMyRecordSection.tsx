@@ -1,5 +1,6 @@
 "use client";
 
+import { courseHasOnlyKomRecords } from "@/lib/record-scope";
 import { useTranslations } from "next-intl";
 
 import { useState } from "react";
@@ -54,7 +55,8 @@ const FindMyRecordSection = ({ event, eventName, courseId, year, initialScope }:
   const courseInfo = yearDetail?.courses.find((course) => course.id === courseId);
   const hasKomBlob = Boolean(yearDetail?.komSortedRecordsBlobUrl?.trim());
   const courseAllowsKom = hasKomBlob && courseInfo?.hasKom === true;
-  const activeScope: RecordScope = courseAllowsKom && recordScope === "kom" ? "kom" : "full";
+  const komOnly = courseHasOnlyKomRecords(yearDetail, courseId);
+  const activeScope: RecordScope = komOnly || (courseAllowsKom && recordScope === "kom") ? "kom" : "full";
 
   return (
     <div className="max-w-full px-4 py-4">
@@ -70,7 +72,9 @@ const FindMyRecordSection = ({ event, eventName, courseId, year, initialScope }:
           )}
         </div>
       )}
-      {courseAllowsKom ? (
+      {komOnly ? (
+        <p className="mt-3 text-sm text-muted-foreground">{t("record.komOnly")}</p>
+      ) : courseAllowsKom ? (
         <div className="mt-3">
           <ToggleGroup
             type="single"

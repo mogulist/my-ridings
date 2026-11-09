@@ -11,6 +11,7 @@ export const ParticipantTrendSection = async ({ event }: Props) => {
   const t = await getTranslations();
 
   const eventData = await getEventParticipantTrend(event);
+  if (eventData.length === 0) return null;
 
   return (
     <section className="space-y-4">
