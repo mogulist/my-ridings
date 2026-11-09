@@ -7,8 +7,10 @@ import { assignmentFor, bikeChoices, type Garage, isRide, preferredBikeId } from
 import type { StravaActivity } from "@/types/strava";
 import { localDateTime } from "../_lib/local-date-time";
 import { assignPresetToRides } from "../_lib/ride-assignment";
+import { type RideDateRange, rideCalendarDate, rideIsInDateRange } from "../_lib/ride-date-range";
 import { orderedBikePresets, sameConfiguration } from "../_lib/workbench-preset";
 import { ConfigurationSummary } from "./ConfigurationSummary";
+import { RideDateRangeFilter } from "./RideDateRangeFilter";
 
 type RideAssignmentsProps = {
 	garage: Garage;
@@ -55,6 +57,7 @@ export function RideAssignments({
 	const [query, setQuery] = useState("");
 	const [bikeFilter, setBikeFilter] = useState("");
 	const [unassignedOnly, setUnassignedOnly] = useState(false);
+	const [dateRange, setDateRange] = useState<RideDateRange | null>(null);
 	const [visibleCount, setVisibleCount] = useState(50);
 	const [error, setError] = useState("");
 	const rides = activities
@@ -74,7 +77,8 @@ export function RideAssignments({
 		(ride) =>
 			ride.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()) &&
 			(!bikeFilter || rideBikeId(ride) === bikeFilter) &&
-			(!unassignedOnly || !assignments.has(ride.id)),
+			(!unassignedOnly || !assignments.has(ride.id)) &&
+			rideIsInDateRange(ride, dateRange),
 	);
 	const filteredIds = new Set(filtered.map((ride) => ride.id));
 	// Pending-only batches must never include already assigned or hidden rides.
@@ -150,6 +154,17 @@ export function RideAssignments({
 								))}
 							</select>
 						</label>
+						<RideDateRangeFilter
+							value={dateRange}
+							disabled={busy}
+							earliestDate={rides.length ? rideCalendarDate(rides[rides.length - 1]) : undefined}
+							latestDate={rides.length ? rideCalendarDate(rides[0]) : undefined}
+							onChange={(value) => {
+								setDateRange(value);
+								setSelectedIds([]);
+								setVisibleCount(50);
+							}}
+						/>
 						<label className="boost-unassigned-filter">
 							<input
 								type="checkbox"
